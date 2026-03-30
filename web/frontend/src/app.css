@@ -15,3 +15,49 @@
 .sidebar-open {
   box-shadow: -16px 0 42px rgba(15, 23, 42, 0.12);
 }
+
+.indeterminate-progress {
+  position: relative;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+.indeterminate-progress::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  width: 34%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(79, 70, 229, 0) 0%, rgba(79, 70, 229, 0.95) 52%, rgba(99, 102, 241, 0) 100%);
+  animation: indeterminateSlide 1.2s ease-in-out infinite;
+}
+
+.video-panel-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 1rem;
+  background: linear-gradient(180deg, rgba(2, 6, 23, 0.08) 0%, rgba(2, 6, 23, 0.58) 100%);
+}
+
+.video-panel-loading__card {
+  width: min(100%, 24rem);
+  border-radius: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(15, 23, 42, 0.72);
+  padding: 1rem;
+  backdrop-filter: blur(12px);
+  box-shadow: 0 18px 40px rgba(2, 6, 23, 0.28);
+}
+
+@keyframes indeterminateSlide {
+  0% {
+    transform: translateX(-130%);
+  }
+  100% {
+    transform: translateX(320%);
+  }
+}

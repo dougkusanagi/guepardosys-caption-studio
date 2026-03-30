@@ -45,6 +45,7 @@ import {
   generateSubtitles,
   listProjects,
   loadProject,
+  prepareSpectrogramAudio,
   removeSilence,
   saveProject,
   uploadVideo,
@@ -88,6 +89,7 @@ const DEFAULT_TIMELINE_UI = {
 };
 
 const DEFAULT_CROP_RECT = { x: 0.1, y: 0.1, w: 0.8, h: 0.8 };
+const DEFAULT_UPLOAD_STATE = { phase: 'idle', progress: 0 };
 
 function App() {
   const [projectId, setProjectId] = useState(null);
@@ -101,7 +103,7 @@ function App() {
   const [subtitles, setSubtitles] = useState([]);
   const [editIntervals, setEditIntervals] = useState([]);
   const [timelineUi, setTimelineUi] = useState(DEFAULT_TIMELINE_UI);
-  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadState, setUploadState] = useState(DEFAULT_UPLOAD_STATE);
   const [editorVisible, setEditorVisible] = useState(false);
   const [showSilencePanel, setShowSilencePanel] = useState(false);
   const [showSubtitleSidebar, setShowSubtitleSidebar] = useState(false);
@@ -158,21 +160,34 @@ function App() {
   }
 
   async function handleUpload(file) {
-    setUploadProgress(0);
+    setUploadState({ phase: 'uploading', progress: 0 });
     try {
-      const result = await uploadVideo(file, (percent) => setUploadProgress(percent));
+      const result = await uploadVideo(file, {
+        onUploadProgress: (percent) => {
+          setUploadState((prev) => (
+            prev.phase === 'processing'
+              ? prev
+              : { phase: 'uploading', progress: percent }
+          ));
+        },
+        onProcessingState: () => setUploadState({ phase: 'processing', progress: 100 }),
+      });
 
       resetEditorState();
       setProjectId(result.projectId);
       setFilename(result.file.filename);
       setOriginalName(result.file.originalName);
       setVideoInfo(result.info);
-      setOriginalWaveform(result.waveform || []);
-      setTimelineWaveform(result.waveform || []);
       setEditorVisible(true);
+      startTransition(() => {
+        setOriginalWaveform(result.waveform || []);
+        setTimelineWaveform(result.waveform || []);
+      });
       playback.loadOriginal(result.file.path);
+      setUploadState(DEFAULT_UPLOAD_STATE);
       pushToast('Vídeo carregado com sucesso!', 'success');
     } catch (err) {
+      setUploadState(DEFAULT_UPLOAD_STATE);
       pushToast(`Erro ao enviar: ${err.message}`, 'error');
     }
   }
@@ -230,6 +245,7 @@ function App() {
         clientId,
         model: subtitleSettings.model,
         language: subtitleSettings.language,
+        style: buildBurnStyle(subtitleStyle),
       });
 
       setShowProcessingModal(false);
@@ -315,6 +331,8 @@ function App() {
         editIntervals,
         processedVideoPath,
         currentOutputPath,
+        subtitleSettings,
+        subtitleStyle,
         timeline: {
           ...timelineUi,
           intervals: editIntervals,
@@ -353,6 +371,14 @@ function App() {
       setEditIntervals(state.editIntervals || []);
       setProcessedVideoPath(state.processedVideoPath || null);
       setCurrentOutputPath(state.currentOutputPath || null);
+      setSubtitleSettings({
+        ...DEFAULT_SUBTITLE_SETTINGS,
+        ...(state.subtitleSettings || {}),
+      });
+      setSubtitleStyle({
+        ...DEFAULT_SUBTITLE_STYLE,
+        ...(state.subtitleStyle || {}),
+      });
       setTimelineUi({
         ...DEFAULT_TIMELINE_UI,
         ...(state.timeline || {}),
@@ -426,7 +452,7 @@ function App() {
       />
 
       {!editorVisible ? (
-        <UploadScreen onUpload={handleUpload} uploadProgress={uploadProgress} />
+        <UploadScreen onUpload={handleUpload} uploadState={uploadState} />
       ) : (
         <div id="editor-screen">
           <Toolbar
@@ -458,13 +484,16 @@ function App() {
               playback={playback}
               cropActive={cropActive}
               cropRect={cropRect}
+              subtitleStyle={subtitleStyle}
+              showSubtitleOverlay={subtitles.length > 0 && !outputHasBurnedSubtitles(currentOutputPath)}
               onCropRectChange={setCropRect}
               onCropChange={handleCropChange}
             />
 
             <SpectrogramPanel
               visible={showSpectrogram}
-              audioUrl={projectId ? `/processed/${projectId}/audio.wav` : ''}
+              projectId={projectId}
+              filename={filename}
               currentTime={playback.currentTime}
               duration={playback.duration}
             />
@@ -572,8 +601,11 @@ function Header({ editorVisible, originalName, videoInfo, onSave, onOpenProjects
   );
 }
 
-function UploadScreen({ onUpload, uploadProgress }) {
+function UploadScreen({ onUpload, uploadState }) {
   const inputRef = useRef(null);
+  const showUploadState = uploadState.phase !== 'idle';
+  const isProcessing = uploadState.phase === 'processing';
+  const uploadProgress = isProcessing ? 100 : uploadState.progress;
 
   function handleFiles(files) {
     const file = files?.[0];
@@ -625,15 +657,32 @@ function UploadScreen({ onUpload, uploadProgress }) {
           />
         </label>
 
-        {uploadProgress > 0 ? (
-          <div id="upload-progress" className="mt-6">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-medium text-surface-600">Enviando...</span>
-              <span className="text-sm font-mono text-primary-600">{uploadProgress}%</span>
+        {showUploadState ? (
+          <div id="upload-progress" className="mt-6 space-y-4 text-left">
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium text-surface-600">Enviando vídeo</span>
+                <span className="text-sm font-mono text-primary-600">{uploadProgress}%</span>
+              </div>
+              <div className="w-full bg-surface-200 rounded-full h-2 overflow-hidden">
+                <div className="h-full bg-gradient-to-r from-primary-500 to-primary-600 rounded-full transition-all duration-300" style={{ width: `${uploadProgress}%` }} />
+              </div>
             </div>
-            <div className="w-full bg-surface-200 rounded-full h-2 overflow-hidden">
-              <div className="h-full bg-gradient-to-r from-primary-500 to-primary-600 rounded-full transition-all duration-300" style={{ width: `${uploadProgress}%` }} />
-            </div>
+
+            {isProcessing ? (
+              <div className="rounded-2xl border border-primary-100 bg-white/85 px-4 py-3 shadow-sm shadow-primary-100/40">
+                <div className="flex items-center justify-between gap-3 mb-2">
+                  <div>
+                    <p className="text-sm font-semibold text-surface-700">Preparando editor</p>
+                    <p className="text-xs text-surface-500">Gerando waveform e metadados antes de liberar a interface.</p>
+                  </div>
+                  <Loader2 className="w-4 h-4 text-primary-500 animate-spin flex-shrink-0" />
+                </div>
+                <div className="w-full bg-primary-50 rounded-full h-2 overflow-hidden">
+                  <div className="indeterminate-progress" />
+                </div>
+              </div>
+            ) : null}
           </div>
         ) : null}
       </div>
@@ -726,9 +775,39 @@ function ToolbarIconButton({ children, onClick, title }) {
   );
 }
 
-function PreviewArea({ playback, cropActive, cropRect, onCropRectChange, onCropChange }) {
+function VideoPanelLoadingState({ title, message }) {
+  return (
+    <div className="video-panel-loading">
+      <div className="video-panel-loading__card">
+        <div className="flex items-start gap-3">
+          <div className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center shrink-0">
+            <Loader2 className="w-4 h-4 text-white animate-spin" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-white">{title}</p>
+            <p className="text-xs text-white/70 mt-1">{message}</p>
+          </div>
+        </div>
+        <div className="mt-4 h-2 rounded-full bg-white/10 overflow-hidden">
+          <div className="indeterminate-progress" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PreviewArea({
+  playback,
+  cropActive,
+  cropRect,
+  subtitleStyle,
+  showSubtitleOverlay,
+  onCropRectChange,
+  onCropChange,
+}) {
   const originalPanelClass = playback.showOriginal ? 'flex' : 'hidden';
   const processedPanelClass = playback.showProcessed ? 'flex' : 'hidden';
+  const subtitlePreviewStyle = buildSubtitlePreviewStyle(subtitleStyle);
 
   return (
     <div id="preview-area" className="flex-1 flex gap-4 p-4 min-h-0 overflow-hidden">
@@ -755,6 +834,12 @@ function PreviewArea({ playback, cropActive, cropRect, onCropRectChange, onCropC
             onRectChange={onCropRectChange}
             onCropChange={onCropChange}
           />
+          {!playback.originalReady ? (
+            <VideoPanelLoadingState
+              title="Carregando vídeo original"
+              message="A timeline já está disponível. O player será liberado assim que os metadados chegarem."
+            />
+          ) : null}
         </div>
       </div>
 
@@ -774,9 +859,19 @@ function PreviewArea({ playback, cropActive, cropRect, onCropRectChange, onCropC
             onTimeUpdate={playback.handleProcessedTimeUpdate}
             onEnded={playback.handleEnded}
           />
-          <div id="processed-subtitle-overlay" className={`video-subtitle-overlay ${playback.subtitleText ? '' : 'hidden'}`}>
+          <div
+            id="processed-subtitle-overlay"
+            className={`video-subtitle-overlay ${showSubtitleOverlay && playback.subtitleText ? '' : 'hidden'}`}
+            style={subtitlePreviewStyle}
+          >
             {playback.subtitleText}
           </div>
+          {playback.showProcessed && !playback.processedReady ? (
+            <VideoPanelLoadingState
+              title="Carregando saída processada"
+              message="O comparador fica disponível assim que a nova mídia terminar de abrir."
+            />
+          ) : null}
         </div>
       </div>
     </div>
@@ -785,22 +880,28 @@ function PreviewArea({ playback, cropActive, cropRect, onCropRectChange, onCropC
 
 function TransportControls({ playback }) {
   const VolumeIcon = playback.muted ? VolumeX : playback.volume < 0.5 ? Volume1 : Volume2;
+  const mediaReady = playback.originalReady;
+  const transportBtnClass = `transport-btn ${mediaReady ? '' : 'opacity-50 cursor-not-allowed'}`;
+  const playBtnClass = mediaReady
+    ? 'w-10 h-10 bg-primary-600 hover:bg-primary-700 text-white rounded-full flex items-center justify-center transition-all shadow-md hover:shadow-lg active:scale-95'
+    : 'w-10 h-10 bg-primary-200 text-white rounded-full flex items-center justify-center cursor-not-allowed';
 
   return (
     <div id="transport" className="bg-white border-t border-surface-200 px-6 py-3 flex-shrink-0">
       <div className="flex items-center gap-4">
         <div className="flex items-center gap-1">
-          <button type="button" className="transport-btn" title="Voltar 5s" onClick={() => playback.skip(-5)}>
+          <button type="button" className={transportBtnClass} title="Voltar 5s" onClick={() => playback.skip(-5)} disabled={!mediaReady}>
             <SkipBack className="w-4 h-4" />
           </button>
           <button
             type="button"
-            className="w-10 h-10 bg-primary-600 hover:bg-primary-700 text-white rounded-full flex items-center justify-center transition-all shadow-md hover:shadow-lg active:scale-95"
+            className={playBtnClass}
             onClick={playback.togglePlay}
+            disabled={!mediaReady}
           >
-            {playback.isPlaying ? <div className="w-4 h-4 border-x-2 border-white" /> : <div className="ml-0.5 border-l-[12px] border-l-white border-y-[8px] border-y-transparent" />}
+            {!mediaReady ? <Loader2 className="w-4 h-4 animate-spin" /> : playback.isPlaying ? <div className="w-4 h-4 border-x-2 border-white" /> : <div className="ml-0.5 border-l-[12px] border-l-white border-y-[8px] border-y-transparent" />}
           </button>
-          <button type="button" className="transport-btn" title="Avançar 5s" onClick={() => playback.skip(5)}>
+          <button type="button" className={transportBtnClass} title="Avançar 5s" onClick={() => playback.skip(5)} disabled={!mediaReady}>
             <SkipForward className="w-4 h-4" />
           </button>
         </div>
@@ -814,11 +915,19 @@ function TransportControls({ playback }) {
             onFocus={playback.handleTimeInputFocus}
             onBlur={playback.handleTimeInputBlur}
             onKeyDown={playback.handleTimeInputKeyDown}
-            className="w-[82px] bg-transparent border border-transparent hover:border-surface-300 focus:border-primary-400 focus:bg-white rounded px-1.5 py-1 text-center outline-none transition-all cursor-text font-mono text-xs"
+            className={`w-[82px] bg-transparent border border-transparent rounded px-1.5 py-1 text-center outline-none transition-all font-mono text-xs ${mediaReady ? 'hover:border-surface-300 focus:border-primary-400 focus:bg-white cursor-text' : 'cursor-not-allowed opacity-60'}`}
+            disabled={!mediaReady}
           />
           <span className="text-surface-300">/</span>
           <span className="px-1.5 py-1">{formatTime(playback.duration)}</span>
         </div>
+
+        {!mediaReady ? (
+          <div className="flex items-center gap-2 rounded-full bg-primary-50 px-3 py-1 text-[11px] font-medium text-primary-700">
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            Carregando mídia
+          </div>
+        ) : null}
 
         <div className="flex items-center gap-2 ml-auto">
           <Gauge className="w-3.5 h-3.5 text-surface-400" />
@@ -1175,36 +1284,61 @@ function TrackRow({ title, icon, height, onResizeStart, children }) {
   );
 }
 
-function SpectrogramPanel({ visible, audioUrl, currentTime, duration }) {
+function SpectrogramPanel({ visible, projectId, filename, currentTime, duration }) {
   const canvasRef = useRef(null);
   const imageRef = useRef(null);
+  const [status, setStatus] = useState({ phase: 'idle', progress: 0, message: '' });
+  const [error, setError] = useState('');
 
   useEffect(() => {
-    if (!audioUrl) return undefined;
+    imageRef.current = null;
+    setStatus({ phase: 'idle', progress: 0, message: '' });
+    setError('');
+  }, [projectId, filename]);
+
+  useEffect(() => {
+    if (!visible || !projectId || !filename || imageRef.current) return undefined;
     let cancelled = false;
-    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    let audioContext;
 
     async function loadAudio() {
       try {
-        const response = await fetch(audioUrl);
+        setError('');
+        setStatus({ phase: 'preparing', progress: 18, message: 'Preparando o áudio do espectrograma...' });
+        const { audioPath } = await prepareSpectrogramAudio({ projectId, filename });
+        if (cancelled) return;
+
+        setStatus({ phase: 'fetching', progress: 42, message: 'Buscando a faixa de áudio...' });
+        const response = await fetch(audioPath);
+        if (!response.ok) throw new Error('Falha ao carregar o áudio');
         const arrayBuffer = await response.arrayBuffer();
+        if (cancelled) return;
+
+        setStatus({ phase: 'decoding', progress: 72, message: 'Decodificando o áudio no navegador...' });
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
         const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
         if (cancelled) return;
+
+        setStatus({ phase: 'rendering', progress: 92, message: 'Construindo o espectrograma...' });
         imageRef.current = buildSpectrogramImage(audioBuffer);
+        setStatus({ phase: 'ready', progress: 100, message: 'Espectrograma pronto.' });
         if (visible) {
           drawSpectrogram(canvasRef.current, imageRef.current, currentTime, duration);
         }
-      } catch {
+      } catch (err) {
         imageRef.current = null;
+        setStatus({ phase: 'error', progress: 0, message: '' });
+        setError(err instanceof Error ? err.message : 'Não foi possível carregar o espectrograma.');
+      } finally {
+        audioContext?.close().catch(() => undefined);
       }
     }
 
     loadAudio();
     return () => {
       cancelled = true;
-      audioContext.close().catch(() => undefined);
     };
-  }, [audioUrl]);
+  }, [visible, projectId, filename]);
 
   useEffect(() => {
     if (!visible || !canvasRef.current || !imageRef.current) return;
@@ -1218,7 +1352,37 @@ function SpectrogramPanel({ visible, audioUrl, currentTime, duration }) {
         <span className="text-xs font-semibold text-surface-600 uppercase tracking-wider">Espectrograma</span>
       </div>
       <div className="px-4 py-2 overflow-x-auto" style={{ height: '120px' }}>
-        <canvas ref={canvasRef} id="spectrogram-canvas" className="h-full rounded-lg" style={{ minWidth: '100%' }} />
+        <div className="relative h-full">
+          <canvas
+            ref={canvasRef}
+            id="spectrogram-canvas"
+            className={`h-full rounded-lg ${imageRef.current ? '' : 'opacity-0'}`}
+            style={{ minWidth: '100%' }}
+          />
+          {!imageRef.current ? (
+            <div className="absolute inset-0 rounded-lg border border-surface-200 bg-surface-50 px-4 py-3 flex flex-col justify-center">
+            <div className="flex items-center justify-between gap-3 mb-2">
+              <div>
+                <p className="text-sm font-semibold text-surface-700">
+                  {error ? 'Falha ao carregar espectrograma' : 'Carregando espectrograma'}
+                </p>
+                <p className="text-xs text-surface-500">
+                  {error || status.message || 'Abrindo a análise de áudio sob demanda para manter o editor leve.'}
+                </p>
+              </div>
+              {!error ? <Loader2 className="w-4 h-4 text-primary-500 animate-spin flex-shrink-0" /> : null}
+            </div>
+            {!error ? (
+              <>
+                <div className="w-full bg-surface-200 rounded-full h-2 overflow-hidden">
+                  <div className="h-full bg-gradient-to-r from-primary-500 to-primary-600 rounded-full transition-all duration-500 ease-out" style={{ width: `${status.progress}%` }} />
+                </div>
+                <p className="text-[11px] text-surface-400 mt-2">{status.progress}%</p>
+              </>
+            ) : null}
+            </div>
+          ) : null}
+        </div>
       </div>
     </div>
   );
@@ -1471,11 +1635,15 @@ function SelectField({ label, value, onChange, children }) {
   );
 }
 
-function InputField({ label, ...props }) {
+function InputField({ label, onChange, ...props }) {
   return (
     <div>
       <label className="block text-xs text-surface-500 mb-1">{label}</label>
-      <input {...props} className="w-full bg-surface-50 border border-surface-200 rounded-lg px-3 py-2 text-sm" />
+      <input
+        {...props}
+        onChange={onChange ? (event) => onChange(event.target.value) : undefined}
+        className="w-full bg-surface-50 border border-surface-200 rounded-lg px-3 py-2 text-sm"
+      />
     </div>
   );
 }
@@ -1643,6 +1811,8 @@ function usePlaybackController() {
   const [duration, setDuration] = useState(0);
   const [originalTime, setOriginalTime] = useState(0);
   const [processedTime, setProcessedTime] = useState(0);
+  const [originalReady, setOriginalReady] = useState(false);
+  const [processedReady, setProcessedReady] = useState(false);
   const [showOriginal, setShowOriginal] = useState(true);
   const [showProcessed, setShowProcessed] = useState(false);
   const [processedLoaded, setProcessedLoaded] = useState(false);
@@ -1749,6 +1919,8 @@ function usePlaybackController() {
 
   function loadOriginal(src) {
     setIsPlaying(false);
+    setOriginalReady(false);
+    setProcessedReady(false);
     setShowOriginal(true);
     setShowProcessed(false);
     setProcessedLoaded(Boolean(src));
@@ -1770,6 +1942,7 @@ function usePlaybackController() {
   function loadProcessed(src) {
     setHasRealProcessedOutput(true);
     setProcessedLoaded(true);
+    setProcessedReady(false);
     setShowProcessed(true);
     processedSourceRef.current = src;
     setSourceVersion((prev) => prev + 1);
@@ -1803,7 +1976,7 @@ function usePlaybackController() {
   function togglePlay() {
     const original = originalVideoRef.current;
     const processed = processedVideoRef.current;
-    if (!original || !processed) return;
+    if (!original || !processed || !originalReady) return;
 
     if (isPlaying) {
       original.pause();
@@ -1889,6 +2062,7 @@ function usePlaybackController() {
   function handleOriginalLoadedMetadata() {
     const original = originalVideoRef.current;
     if (!original) return;
+    setOriginalReady(true);
     originalDurationRef.current = original.duration || 0;
     if (!hasEditedTimeline()) {
       setDuration(originalDurationRef.current);
@@ -1899,6 +2073,7 @@ function usePlaybackController() {
   function handleProcessedLoadedMetadata() {
     const processed = processedVideoRef.current;
     if (!processed) return;
+    setProcessedReady(true);
     if (hasRealProcessedOutput && !hasEditedTimeline()) {
       setDuration(processed.duration || originalDurationRef.current);
     }
@@ -2009,6 +2184,8 @@ function usePlaybackController() {
     duration,
     originalTime,
     processedTime,
+    originalReady,
+    processedReady,
     showOriginal,
     showProcessed,
     processedLoaded,
@@ -2075,6 +2252,46 @@ function buildBurnStyle(style) {
     alignment: style.alignment,
     marginV: 30,
   };
+}
+
+function buildSubtitlePreviewStyle(style) {
+  const outline = Math.max(0, Number(style?.outline) || 0);
+  const shadow = Math.max(0, Number(style?.shadow) || 0);
+  const alignment = Number(style?.alignment) || 2;
+
+  const baseStyle = {
+    color: style?.primaryColor || '#ffffff',
+    fontFamily: style?.fontName || 'Arial',
+    fontSize: `${Math.max(12, Number(style?.fontSize) || 24)}px`,
+    fontWeight: style?.bold ? 700 : 600,
+    WebkitTextStroke: outline > 0 ? `${outline}px ${style?.outlineColor || '#000000'}` : undefined,
+    paintOrder: 'stroke fill',
+    textShadow: shadow > 0 ? `0 ${shadow}px ${shadow * 4}px rgba(0, 0, 0, 0.82)` : 'none',
+    justifyContent: 'center',
+    textAlign: 'center',
+    top: 'auto',
+    bottom: '20px',
+    transform: 'none',
+  };
+
+  if (alignment === 1) {
+    return { ...baseStyle, justifyContent: 'flex-start', textAlign: 'left' };
+  }
+  if (alignment === 3) {
+    return { ...baseStyle, justifyContent: 'flex-end', textAlign: 'right' };
+  }
+  if (alignment === 5) {
+    return { ...baseStyle, top: '50%', bottom: 'auto', transform: 'translateY(-50%)' };
+  }
+  if (alignment === 8) {
+    return { ...baseStyle, top: '20px', bottom: 'auto' };
+  }
+
+  return baseStyle;
+}
+
+function outputHasBurnedSubtitles(outputPath) {
+  return /\/subtitled_[^/]+\.mp4$/i.test(outputPath || '');
 }
 
 function setupCanvas(canvas, width, height) {

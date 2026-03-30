@@ -1,18 +1,28 @@
 const BASE_URL = '';
 
-export async function uploadVideo(file, onProgress) {
+export async function uploadVideo(file, { onUploadProgress, onProcessingState } = {}) {
   const formData = new FormData();
   formData.append('video', file);
 
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
+    let processingNotified = false;
     xhr.open('POST', `${BASE_URL}/api/upload`);
 
+    function notifyProcessing() {
+      if (processingNotified) return;
+      processingNotified = true;
+      onProcessingState?.();
+    }
+
     xhr.upload.onprogress = (event) => {
-      if (event.lengthComputable && onProgress) {
-        onProgress(Math.round((event.loaded / event.total) * 100));
+      if (event.lengthComputable && onUploadProgress) {
+        onUploadProgress(Math.round((event.loaded / event.total) * 100));
       }
+      if (event.lengthComputable && event.loaded >= event.total) notifyProcessing();
     };
+    xhr.upload.onload = notifyProcessing;
+    xhr.upload.onloadend = notifyProcessing;
 
     xhr.onload = () => {
       if (xhr.status >= 200 && xhr.status < 300) {
@@ -57,6 +67,10 @@ export function generateSubtitles(params) {
 
 export function burnSubtitles(params) {
   return postJson('/api/process/burn-subtitles', params, 'Burn subtitles failed');
+}
+
+export function prepareSpectrogramAudio(params) {
+  return postJson('/api/project/spectrogram-audio', params, 'Audio preparation failed');
 }
 
 export function cropVideoRequest(params) {

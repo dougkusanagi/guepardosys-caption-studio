@@ -119,6 +119,11 @@ class ExportRequest(BaseModel):
     sourceFile: str
 
 
+class SpectrogramAudioRequest(BaseModel):
+    projectId: str
+    filename: str
+
+
 # --- Helper to send progress ---
 async def send_progress(client_id: str, stage: str, progress: int, message: str):
     await manager.send(client_id, {
@@ -189,10 +194,6 @@ async def upload_video(video: UploadFile = File(...)):
     waveform_path = project_dir / "waveform.json"
     waveform = ffmpeg_svc.generate_waveform(str(file_path), str(waveform_path))
 
-    # Extract audio for spectrogram
-    audio_path = project_dir / "audio.wav"
-    ffmpeg_svc.extract_audio(str(file_path), str(audio_path))
-
     return {
         "projectId": project_id,
         "file": {
@@ -203,8 +204,28 @@ async def upload_video(video: UploadFile = File(...)):
         },
         "info": info,
         "waveform": waveform,
-        "audioPath": f"/processed/{project_id}/audio.wav",
     }
+
+
+@app.post("/api/project/spectrogram-audio")
+async def ensure_spectrogram_audio(req: SpectrogramAudioRequest):
+    """Generate spectrogram audio on demand so upload stays responsive."""
+    input_path = UPLOADS_DIR / req.filename
+    if not input_path.exists():
+        return JSONResponse({"error": "Arquivo não encontrado"}, status_code=404)
+
+    project_dir = PROCESSED_DIR / req.projectId
+    project_dir.mkdir(parents=True, exist_ok=True)
+    audio_path = project_dir / "audio.wav"
+
+    if not audio_path.exists():
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(
+            None,
+            lambda: ffmpeg_svc.extract_audio(str(input_path), str(audio_path))
+        )
+
+    return {"audioPath": f"/processed/{req.projectId}/audio.wav"}
 
 
 @app.post("/api/process/remove-silence")
