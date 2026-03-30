@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Editor de vídeo web com remoção de silêncio por IA e geração de legendas automáticas">
+  <title>StudioCut — Editor de Vídeo com IA</title>
+
+  <!-- Tailwind CSS v3 -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: { 50:'#eef2ff',100:'#e0e7ff',200:'#c7d2fe',300:'#a5b4fc',400:'#818cf8',500:'#6366f1',600:'#4f46e5',700:'#4338ca',800:'#3730a3',900:'#312e81' },
+            surface: { 50:'#f8fafc',100:'#f1f5f9',200:'#e2e8f0',300:'#cbd5e1',400:'#94a3b8',500:'#64748b',600:'#475569',700:'#334155',800:'#1e293b',900:'#0f172a' },
+          },
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+            mono: ['JetBrains Mono', 'Fira Code', 'monospace'],
+          },
+        }
+      }
+    }
+  </script>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body class="bg-surface-50 text-surface-800 font-sans antialiased min-h-screen">
+
+  <!-- Header -->
+  <header id="app-header" class="bg-white/80 backdrop-blur-xl border-b border-surface-200 sticky top-0 z-50">
+    <div class="max-w-[1920px] mx-auto px-6 h-14 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-8 h-8 bg-gradient-to-br from-primary-500 to-primary-700 rounded-lg flex items-center justify-center">
+          <i data-lucide="clapperboard" class="w-4 h-4 text-white"></i>
+        </div>
+        <h1 class="text-lg font-bold bg-gradient-to-r from-primary-600 to-primary-800 bg-clip-text text-transparent">StudioCut</h1>
+        <span class="text-[10px] font-medium bg-primary-100 text-primary-700 px-2 py-0.5 rounded-full">AI</span>
+      </div>
+
+      <div id="project-info" class="hidden flex items-center gap-4 text-sm text-surface-500">
+        <span id="video-name" class="font-medium text-surface-700"></span>
+        <span class="text-surface-300">|</span>
+        <span id="video-resolution"></span>
+        <span class="text-surface-300">|</span>
+        <span id="video-duration-header"></span>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <button id="btn-export" class="hidden px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 transition-all shadow-sm hover:shadow-md active:scale-[0.97] flex items-center gap-2">
+          <i data-lucide="download" class="w-4 h-4"></i>
+          Exportar
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Upload Screen -->
+  <div id="upload-screen" class="flex items-center justify-center min-h-[calc(100vh-56px)]">
+    <div class="text-center max-w-xl mx-auto px-6">
+      <div class="w-20 h-20 bg-gradient-to-br from-primary-100 to-primary-200 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-primary-100">
+        <i data-lucide="film" class="w-10 h-10 text-primary-600"></i>
+      </div>
+      <h2 class="text-3xl font-bold text-surface-900 mb-2">Editor de Vídeo com IA</h2>
+      <p class="text-surface-500 mb-8 text-lg">Remova silêncios, gere legendas automáticas, corte e edite seus vídeos com inteligência artificial</p>
+
+      <label for="file-input" id="drop-zone" class="block border-2 border-dashed border-surface-300 rounded-2xl p-12 cursor-pointer hover:border-primary-400 hover:bg-primary-50/50 transition-all duration-300 group">
+        <div class="flex flex-col items-center gap-4">
+          <div class="w-14 h-14 bg-surface-100 group-hover:bg-primary-100 rounded-xl flex items-center justify-center transition-colors">
+            <i data-lucide="upload-cloud" class="w-7 h-7 text-surface-400 group-hover:text-primary-500 transition-colors"></i>
+          </div>
+          <div>
+            <p class="font-semibold text-surface-700 group-hover:text-primary-700 transition-colors">Arraste um vídeo ou clique para selecionar</p>
+            <p class="text-sm text-surface-400 mt-1">MP4, MOV, AVI, MKV, WebM • Até 2GB</p>
+          </div>
+        </div>
+        <input type="file" id="file-input" accept="video/*" class="hidden">
+      </label>
+
+      <div id="upload-progress" class="hidden mt-6">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-sm font-medium text-surface-600">Enviando...</span>
+          <span id="upload-percent" class="text-sm font-mono text-primary-600">0%</span>
+        </div>
+        <div class="w-full bg-surface-200 rounded-full h-2 overflow-hidden">
+          <div id="upload-bar" class="h-full bg-gradient-to-r from-primary-500 to-primary-600 rounded-full transition-all duration-300" style="width: 0%"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Editor Screen -->
+  <div id="editor-screen" class="hidden">
+    <!-- Toolbar -->
+    <div id="toolbar" class="bg-white border-b border-surface-200 px-6 py-2">
+      <div class="flex items-center gap-1">
+        <!-- AI Tools -->
+        <div class="flex items-center gap-1 pr-3 mr-3 border-r border-surface-200">
+          <span class="text-[10px] font-bold text-primary-500 uppercase tracking-wider mr-2">IA</span>
+          <button id="btn-remove-silence" class="toolbar-btn group" title="Remover Silêncio">
+            <i data-lucide="scissors" class="w-4 h-4"></i>
+            <span>Remover Silêncio</span>
+          </button>
+          <button id="btn-gen-subtitles" class="toolbar-btn group" title="Gerar Legendas">
+            <i data-lucide="subtitles" class="w-4 h-4"></i>
+            <span>Legendas IA</span>
+          </button>
+        </div>
+
+        <!-- Edit Tools -->
+        <div class="flex items-center gap-1 pr-3 mr-3 border-r border-surface-200">
+          <button id="btn-crop-tool" class="toolbar-btn" title="Ferramenta de Corte">
+            <i data-lucide="crop" class="w-4 h-4"></i>
+            <span>Crop</span>
+          </button>
+          <button id="btn-selection-tool" class="toolbar-btn" title="Selecionar Trecho">
+            <i data-lucide="text-cursor-input" class="w-4 h-4"></i>
+            <span>Selecionar</span>
+          </button>
+        </div>
+
+        <!-- View -->
+        <div class="flex items-center gap-1 pr-3 mr-3 border-r border-surface-200">
+          <button id="btn-toggle-spectrogram" class="toolbar-btn" title="Espectrograma">
+            <i data-lucide="audio-waveform" class="w-4 h-4"></i>
+            <span>Espectrograma</span>
+          </button>
+          <button id="btn-toggle-tracks" class="toolbar-btn active" title="Faixas Timeline">
+            <i data-lucide="layers" class="w-4 h-4"></i>
+            <span>Faixas</span>
+          </button>
+        </div>
+
+        <!-- Zoom -->
+        <div class="flex items-center gap-1">
+          <button id="btn-zoom-out" class="toolbar-btn-icon" title="Zoom Out">
+            <i data-lucide="zoom-out" class="w-4 h-4"></i>
+          </button>
+          <span id="zoom-level" class="text-xs font-mono text-surface-500 w-12 text-center">100%</span>
+          <button id="btn-zoom-in" class="toolbar-btn-icon" title="Zoom In">
+            <i data-lucide="zoom-in" class="w-4 h-4"></i>
+          </button>
+          <button id="btn-zoom-fit" class="toolbar-btn-icon ml-1" title="Ajustar à Tela">
+            <i data-lucide="maximize-2" class="w-4 h-4"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Editor Area -->
+    <div class="flex flex-col" style="height: calc(100vh - 56px - 44px)">
+
+      <!-- Preview Area -->
+      <div id="preview-area" class="flex-1 flex gap-4 p-4 min-h-0 overflow-hidden">
+        <!-- Original Preview -->
+        <div class="flex-1 flex flex-col min-w-0">
+          <div class="flex items-center gap-2 mb-2">
+            <div class="w-2 h-2 rounded-full bg-surface-400"></div>
+            <span class="text-xs font-semibold text-surface-500 uppercase tracking-wider">Original</span>
+            <span id="original-time" class="text-xs font-mono text-surface-400 ml-auto">00:00.000</span>
+          </div>
+          <div class="relative bg-black rounded-xl overflow-hidden flex-1 flex items-center justify-center shadow-lg group">
+            <video id="video-original" class="max-w-full max-h-full object-contain" preload="metadata"></video>
+            <!-- Crop Overlay -->
+            <div id="crop-overlay" class="absolute inset-0 hidden pointer-events-none">
+              <canvas id="crop-canvas" class="w-full h-full pointer-events-auto"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- Processed Preview -->
+        <div id="processed-panel" class="flex-1 flex flex-col min-w-0 hidden">
+          <div class="flex items-center gap-2 mb-2">
+            <div class="w-2 h-2 rounded-full bg-emerald-500"></div>
+            <span class="text-xs font-semibold text-emerald-600 uppercase tracking-wider">Processado</span>
+            <span id="processed-time" class="text-xs font-mono text-surface-400 ml-auto">00:00.000</span>
+          </div>
+          <div class="relative bg-black rounded-xl overflow-hidden flex-1 flex items-center justify-center shadow-lg">
+            <video id="video-processed" class="max-w-full max-h-full object-contain" preload="metadata"></video>
+          </div>
+        </div>
+      </div>
+
+      <!-- Spectrogram Panel -->
+      <div id="spectrogram-panel" class="hidden border-t border-surface-200 bg-white">
+        <div class="flex items-center gap-2 px-4 py-2 border-b border-surface-100">
+          <i data-lucide="audio-waveform" class="w-3.5 h-3.5 text-primary-500"></i>
+          <span class="text-xs font-semibold text-surface-600 uppercase tracking-wider">Espectrograma</span>
+        </div>
+        <div class="px-4 py-2 overflow-x-auto" style="height: 120px">
+          <canvas id="spectrogram-canvas" class="h-full rounded-lg" style="min-width: 100%"></canvas>
+        </div>
+      </div>
+
+      <!-- Transport Controls -->
+      <div id="transport" class="bg-white border-t border-surface-200 px-6 py-3">
+        <div class="flex items-center gap-4">
+          <div class="flex items-center gap-1">
+            <button id="btn-skip-back" class="transport-btn" title="Voltar 5s">
+              <i data-lucide="skip-back" class="w-4 h-4"></i>
+            </button>
+            <button id="btn-play" class="w-10 h-10 bg-primary-600 hover:bg-primary-700 text-white rounded-full flex items-center justify-center transition-all shadow-md hover:shadow-lg active:scale-95">
+              <i data-lucide="play" class="w-5 h-5 ml-0.5" id="play-icon"></i>
+            </button>
+            <button id="btn-skip-forward" class="transport-btn" title="Avançar 5s">
+              <i data-lucide="skip-forward" class="w-4 h-4"></i>
+            </button>
+          </div>
+
+          <div class="flex items-center gap-3 text-xs font-mono text-surface-500">
+            <span id="current-time">00:00.000</span>
+            <span class="text-surface-300">/</span>
+            <span id="total-time">00:00.000</span>
+          </div>
+
+          <!-- Speed control -->
+          <div class="flex items-center gap-2 ml-auto">
+            <i data-lucide="gauge" class="w-3.5 h-3.5 text-surface-400"></i>
+            <select id="speed-select" class="text-xs bg-surface-100 border border-surface-200 rounded-md px-2 py-1 text-surface-600 font-medium cursor-pointer">
+              <option value="0.25">0.25x</option>
+              <option value="0.5">0.5x</option>
+              <option value="0.75">0.75x</option>
+              <option value="1" selected>1x</option>
+              <option value="1.25">1.25x</option>
+              <option value="1.5">1.5x</option>
+              <option value="2">2x</option>
+            </select>
+
+            <div class="flex items-center gap-2 ml-4">
+              <button id="btn-mute" class="transport-btn" title="Mudo">
+                <i data-lucide="volume-2" class="w-4 h-4" id="volume-icon"></i>
+              </button>
+              <input id="volume-slider" type="range" min="0" max="1" step="0.05" value="1" class="w-20 accent-primary-600">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Timeline Area -->
+      <div id="timeline-area" class="bg-white border-t border-surface-200 flex flex-col" style="height: 220px">
+        <!-- Timeline Header with Ruler -->
+        <div class="flex items-center border-b border-surface-100 bg-surface-50 h-[28px] relative overflow-hidden">
+          <div class="w-[180px] min-w-[180px] border-r border-surface-200 px-3 flex items-center">
+            <span class="text-[10px] font-bold text-surface-400 uppercase tracking-wider">Faixas</span>
+          </div>
+          <div id="timeline-ruler" class="flex-1 relative overflow-hidden">
+            <canvas id="ruler-canvas" class="w-full h-full"></canvas>
+          </div>
+        </div>
+
+        <!-- Tracks Container -->
+        <div id="tracks-container" class="flex-1 overflow-y-auto overflow-x-hidden relative">
+          <!-- Video Track -->
+          <div class="flex border-b border-surface-100 h-[48px] group hover:bg-primary-50/30 transition-colors">
+            <div class="w-[180px] min-w-[180px] border-r border-surface-200 px-3 flex items-center gap-2">
+              <i data-lucide="video" class="w-3.5 h-3.5 text-blue-500"></i>
+              <span class="text-xs font-medium text-surface-600">Vídeo 1</span>
+              <div class="ml-auto flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button class="track-action-btn" title="Silenciar"><i data-lucide="eye" class="w-3 h-3"></i></button>
+                <button class="track-action-btn" title="Travar"><i data-lucide="lock" class="w-3 h-3"></i></button>
+              </div>
+            </div>
+            <div class="flex-1 relative overflow-hidden">
+              <canvas id="video-track-canvas" class="w-full h-full"></canvas>
+            </div>
+          </div>
+
+          <!-- Audio Track -->
+          <div class="flex border-b border-surface-100 h-[48px] group hover:bg-primary-50/30 transition-colors">
+            <div class="w-[180px] min-w-[180px] border-r border-surface-200 px-3 flex items-center gap-2">
+              <i data-lucide="audio-lines" class="w-3.5 h-3.5 text-emerald-500"></i>
+              <span class="text-xs font-medium text-surface-600">Áudio 1</span>
+              <div class="ml-auto flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button class="track-action-btn" title="Silenciar"><i data-lucide="volume-2" class="w-3 h-3"></i></button>
+                <button class="track-action-btn" title="Travar"><i data-lucide="lock" class="w-3 h-3"></i></button>
+              </div>
+            </div>
+            <div class="flex-1 relative overflow-hidden">
+              <canvas id="audio-track-canvas" class="w-full h-full"></canvas>
+            </div>
+          </div>
+
+          <!-- Subtitle Track (hidden initially) -->
+          <div id="subtitle-track" class="flex border-b border-surface-100 h-[48px] group hover:bg-primary-50/30 transition-colors hidden">
+            <div class="w-[180px] min-w-[180px] border-r border-surface-200 px-3 flex items-center gap-2">
+              <i data-lucide="subtitles" class="w-3.5 h-3.5 text-amber-500"></i>
+              <span class="text-xs font-medium text-surface-600">Legendas</span>
+              <div class="ml-auto flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button class="track-action-btn" title="Visível"><i data-lucide="eye" class="w-3 h-3"></i></button>
+              </div>
+            </div>
+            <div class="flex-1 relative overflow-hidden">
+              <canvas id="subtitle-track-canvas" class="w-full h-full"></canvas>
+            </div>
+          </div>
+
+          <!-- Add Track -->
+          <div class="flex h-[36px] group cursor-pointer hover:bg-primary-50/50 transition-colors" id="btn-add-track">
+            <div class="w-[180px] min-w-[180px] border-r border-surface-200 px-3 flex items-center gap-2">
+              <i data-lucide="plus" class="w-3.5 h-3.5 text-surface-400 group-hover:text-primary-500 transition-colors"></i>
+              <span class="text-xs text-surface-400 group-hover:text-primary-600 font-medium transition-colors">Adicionar faixa</span>
+            </div>
+            <div class="flex-1"></div>
+          </div>
+
+          <!-- Playhead -->
+          <div id="playhead" class="absolute top-0 bottom-0 left-[180px] w-[2px] bg-red-500 z-30 pointer-events-none" style="transform: translateX(0px)">
+            <div class="absolute -top-1 left-1/2 -translate-x-1/2 w-3 h-3 bg-red-500 rounded-full border-2 border-white shadow-sm"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Processing Modal -->
+  <div id="processing-modal" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-[100] hidden flex items-center justify-center">
+    <div class="bg-white rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl">
+      <div class="flex items-center gap-4 mb-6">
+        <div class="w-12 h-12 bg-primary-100 rounded-xl flex items-center justify-center">
+          <div class="animate-spin">
+            <i data-lucide="loader-2" class="w-6 h-6 text-primary-600"></i>
+          </div>
+        </div>
+        <div>
+          <h3 id="modal-title" class="font-bold text-lg text-surface-900">Processando...</h3>
+          <p id="modal-message" class="text-sm text-surface-500">Aguarde enquanto processamos seu vídeo</p>
+        </div>
+      </div>
+      <div class="relative w-full bg-surface-200 rounded-full h-3 overflow-hidden">
+        <div id="modal-progress-bar" class="absolute inset-y-0 left-0 bg-gradient-to-r from-primary-500 to-primary-600 rounded-full transition-all duration-500 ease-out" style="width: 0%"></div>
+      </div>
+      <p id="modal-stage" class="text-xs text-surface-400 mt-3 text-center font-medium">0%</p>
+    </div>
+  </div>
+
+  <!-- Subtitle Settings Sidebar -->
+  <div id="subtitle-sidebar" class="fixed top-14 right-0 bottom-0 w-80 bg-white border-l border-surface-200 z-40 transform translate-x-full transition-transform duration-300 overflow-y-auto shadow-xl">
+    <div class="p-5">
+      <div class="flex items-center justify-between mb-6">
+        <h3 class="font-bold text-surface-900 flex items-center gap-2">
+          <i data-lucide="subtitles" class="w-4 h-4 text-primary-500"></i>
+          Legendas IA
+        </h3>
+        <button id="btn-close-subtitle-sidebar" class="p-1 hover:bg-surface-100 rounded-lg transition-colors">
+          <i data-lucide="x" class="w-4 h-4 text-surface-400"></i>
+        </button>
+      </div>
+
+      <!-- AI Settings -->
+      <div class="space-y-4 mb-6">
+        <div>
+          <label class="block text-xs font-semibold text-surface-500 uppercase tracking-wider mb-1.5">Modelo Whisper</label>
+          <select id="sub-model" class="w-full bg-surface-50 border border-surface-200 rounded-lg px-3 py-2 text-sm text-surface-700">
+            <option value="tiny">Tiny (rápido)</option>
+            <option value="base">Base</option>
+            <option value="small" selected>Small (recomendado)</option>
+            <option value="medium">Medium</option>
+            <option value="large">Large (preciso)</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-surface-500 uppercase tracking-wider mb-1.5">Idioma</label>
+          <select id="sub-language" class="w-full bg-surface-50 border border-surface-200 rounded-lg px-3 py-2 text-sm text-surface-700">
+            <option value="pt">Português</option>
+            <option value="en">Inglês</option>
+            <option value="es">Espanhol</option>
+            <option value="fr">Francês</option>
+            <option value="de">Alemão</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Style Settings -->
+      <h4 class="font-semibold text-surface-800 text-sm mb-3 flex items-center gap-2">
+        <i data-lucide="palette" class="w-3.5 h-3.5 text-primary-500"></i>
+        Estilo das Legendas
+      </h4>
+      <div class="space-y-3 mb-6">
+        <div>
+          <label class="block text-xs text-surface-500 mb-1">Fonte</label>
+          <select id="sub-font" class="w-full bg-surface-50 border border-surface-200 rounded-lg px-3 py-2 text-sm">
+            <option value="Arial">Arial</option>
+            <option value="Roboto">Roboto</option>
+            <option value="Inter">Inter</option>
+            <option value="Montserrat">Montserrat</option>
+            <option value="Open Sans">Open Sans</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs text-surface-500 mb-1">Tamanho</label>
+          <input id="sub-fontsize" type="number" value="24" min="8" max="72" class="w-full bg-surface-50 border border-surface-200 rounded-lg px-3 py-2 text-sm">
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs text-surface-500 mb-1">Cor do Texto</label>
+            <input id="sub-color" type="color" value="#ffffff" class="w-full h-9 rounded-lg border border-surface-200 cursor-pointer">
+          </div>
+          <div>
+            <label class="block text-xs text-surface-500 mb-1">Cor do Contorno</label>
+            <input id="sub-outline-color" type="color" value="#000000" class="w-full h-9 rounded-lg border border-surface-200 cursor-pointer">
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs text-surface-500 mb-1">Contorno</label>
+            <input id="sub-outline" type="number" value="2" min="0" max="10" class="w-full bg-surface-50 border border-surface-200 rounded-lg px-3 py-2 text-sm">
+          </div>
+          <div>
+            <label class="block text-xs text-surface-500 mb-1">Sombra</label>
+            <input id="sub-shadow" type="number" value="1" min="0" max="10" class="w-full bg-surface-50 border border-surface-200 rounded-lg px-3 py-2 text-sm">
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs text-surface-500 mb-1">Posição</label>
+          <select id="sub-alignment" class="w-full bg-surface-50 border border-surface-200 rounded-lg px-3 py-2 text-sm">
+            <option value="2">Inferior Centro</option>
+            <option value="8">Superior Centro</option>
+            <option value="5">Centro</option>
+            <option value="1">Inferior Esquerda</option>
+            <option value="3">Inferior Direita</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs text-surface-500 mb-1">Negrito</label>
+          <div class="flex gap-2">
+            <button id="sub-bold-on" class="flex-1 text-xs py-2 border border-surface-200 rounded-lg hover:bg-primary-50 hover:border-primary-300 transition-colors font-bold text-surface-600">Sim</button>
+            <button id="sub-bold-off" class="flex-1 text-xs py-2 border border-primary-300 bg-primary-50 rounded-lg text-primary-700 font-medium">Não</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Actions -->
+      <div class="space-y-2">
+        <button id="btn-generate-subs" class="w-full py-2.5 bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 transition-all text-sm flex items-center justify-center gap-2 shadow-sm">
+          <i data-lucide="sparkles" class="w-4 h-4"></i>
+          Gerar Legendas com IA
+        </button>
+        <button id="btn-burn-subs" class="w-full py-2.5 bg-surface-100 text-surface-700 font-medium rounded-lg hover:bg-surface-200 transition-all text-sm flex items-center justify-center gap-2 hidden">
+          <i data-lucide="stamp" class="w-4 h-4"></i>
+          Aplicar no Vídeo
+        </button>
+      </div>
+
+      <!-- Subtitle List -->
+      <div id="subtitle-list" class="mt-6 hidden">
+        <h4 class="font-semibold text-surface-800 text-sm mb-3">Legendas Geradas</h4>
+        <div id="subtitle-items" class="space-y-2 max-h-[300px] overflow-y-auto"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Silence Removal Settings Panel -->
+  <div id="silence-panel" class="fixed top-14 right-0 bottom-0 w-80 bg-white border-l border-surface-200 z-40 transform translate-x-full transition-transform duration-300 overflow-y-auto shadow-xl">
+    <div class="p-5">
+      <div class="flex items-center justify-between mb-6">
+        <h3 class="font-bold text-surface-900 flex items-center gap-2">
+          <i data-lucide="scissors" class="w-4 h-4 text-primary-500"></i>
+          Remover Silêncio
+        </h3>
+        <button id="btn-close-silence-panel" class="p-1 hover:bg-surface-100 rounded-lg transition-colors">
+          <i data-lucide="x" class="w-4 h-4 text-surface-400"></i>
+        </button>
+      </div>
+
+      <div class="space-y-4 mb-6">
+        <div>
+          <label class="block text-xs font-semibold text-surface-500 uppercase tracking-wider mb-1.5">Modelo Whisper</label>
+          <select id="silence-model" class="w-full bg-surface-50 border border-surface-200 rounded-lg px-3 py-2 text-sm text-surface-700">
+            <option value="tiny">Tiny (rápido)</option>
+            <option value="base">Base</option>
+            <option value="small" selected>Small (recomendado)</option>
+            <option value="medium">Medium</option>
+            <option value="large">Large (preciso)</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-surface-500 uppercase tracking-wider mb-1.5">Idioma</label>
+          <select id="silence-language" class="w-full bg-surface-50 border border-surface-200 rounded-lg px-3 py-2 text-sm text-surface-700">
+            <option value="pt">Português</option>
+            <option value="en">Inglês</option>
+            <option value="es">Espanhol</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs text-surface-500 mb-1">Lacuna mínima para cortar (s)</label>
+          <input id="silence-min-gap" type="number" value="0.8" min="0.1" max="5" step="0.1" class="w-full bg-surface-50 border border-surface-200 rounded-lg px-3 py-2 text-sm">
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs text-surface-500 mb-1">Pad Início (s)</label>
+            <input id="silence-pad-start" type="number" value="0.12" min="0" max="2" step="0.01" class="w-full bg-surface-50 border border-surface-200 rounded-lg px-3 py-2 text-sm">
+          </div>
+          <div>
+            <label class="block text-xs text-surface-500 mb-1">Pad Final (s)</label>
+            <input id="silence-pad-end" type="number" value="0.18" min="0" max="2" step="0.01" class="w-full bg-surface-50 border border-surface-200 rounded-lg px-3 py-2 text-sm">
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs text-surface-500 mb-1">Duração mínima para manter (s)</label>
+          <input id="silence-min-keep" type="number" value="0.12" min="0" max="2" step="0.01" class="w-full bg-surface-50 border border-surface-200 rounded-lg px-3 py-2 text-sm">
+        </div>
+      </div>
+
+      <button id="btn-run-silence-removal" class="w-full py-2.5 bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 transition-all text-sm flex items-center justify-center gap-2 shadow-sm">
+        <i data-lucide="zap" class="w-4 h-4"></i>
+        Processar Remoção de Silêncio
+      </button>
+
+      <!-- Results -->
+      <div id="silence-results" class="mt-6 hidden">
+        <h4 class="font-semibold text-surface-800 text-sm mb-3">Resultado</h4>
+        <div class="bg-surface-50 rounded-xl p-4 space-y-2">
+          <div class="flex justify-between text-sm">
+            <span class="text-surface-500">Segmentos:</span>
+            <span id="result-segments" class="font-mono font-semibold text-surface-700">-</span>
+          </div>
+          <div class="flex justify-between text-sm">
+            <span class="text-surface-500">Duração original:</span>
+            <span id="result-original-dur" class="font-mono font-semibold text-surface-700">-</span>
+          </div>
+          <div class="flex justify-between text-sm">
+            <span class="text-surface-500">Duração mantida:</span>
+            <span id="result-kept-dur" class="font-mono font-semibold text-emerald-600">-</span>
+          </div>
+          <div class="flex justify-between text-sm">
+            <span class="text-surface-500">Removido:</span>
+            <span id="result-removed-dur" class="font-mono font-semibold text-red-500">-</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notifications -->
+  <div id="toast-container" class="fixed bottom-6 right-6 z-[200] space-y-2"></div>
+
+  <!-- Scripts -->
+  <script type="module" src="/js/app.js"></script>
+</body>
+</html>

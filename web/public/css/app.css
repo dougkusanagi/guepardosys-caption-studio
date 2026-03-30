@@ -1,0 +1,214 @@
+/* ============================================
+   StudioCut — Custom Styles
+   ============================================ */
+
+/* --- Scrollbar --- */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 99px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* --- Toolbar Buttons --- */
+.toolbar-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #475569;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+.toolbar-btn:hover {
+  background: #f1f5f9;
+  color: #334155;
+}
+.toolbar-btn.active {
+  background: #eef2ff;
+  color: #4f46e5;
+}
+.toolbar-btn.active:hover {
+  background: #e0e7ff;
+}
+
+.toolbar-btn-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  color: #475569;
+  transition: all 0.15s ease;
+}
+.toolbar-btn-icon:hover {
+  background: #f1f5f9;
+  color: #334155;
+}
+
+/* --- Transport Buttons --- */
+.transport-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  color: #475569;
+  transition: all 0.15s ease;
+}
+.transport-btn:hover {
+  background: #f1f5f9;
+  color: #334155;
+}
+
+/* --- Track Actions --- */
+.track-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  color: #94a3b8;
+  transition: all 0.15s ease;
+}
+.track-action-btn:hover {
+  background: #e2e8f0;
+  color: #475569;
+}
+
+/* --- Range Input --- */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  background: #e2e8f0;
+  border-radius: 99px;
+  outline: none;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #4f46e5;
+  cursor: pointer;
+  border: 2px solid white;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+  transition: transform 0.15s ease;
+}
+input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+
+/* --- Video Container --- */
+video {
+  background: #000;
+}
+
+/* --- Animations --- */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.3s ease-out;
+}
+
+.animate-slide-in {
+  animation: slideInRight 0.3s ease-out;
+}
+
+/* --- Toast --- */
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 500;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+  animation: slideInRight 0.3s ease-out;
+  max-width: 360px;
+}
+.toast-success {
+  background: #f0fdf4;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+}
+.toast-error {
+  background: #fef2f2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+.toast-info {
+  background: #eef2ff;
+  color: #3730a3;
+  border: 1px solid #c7d2fe;
+}
+
+/* --- Selection highlight on timeline --- */
+.timeline-selection {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: rgba(99, 102, 241, 0.15);
+  border-left: 2px solid #6366f1;
+  border-right: 2px solid #6366f1;
+  pointer-events: none;
+  z-index: 20;
+}
+
+/* --- Loading pulse --- */
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(99,102,241,0.3); }
+  50% { box-shadow: 0 0 0 8px rgba(99,102,241,0); }
+}
+.pulse-glow {
+  animation: pulse-glow 2s infinite;
+}
+
+/* --- Drop zone active state --- */
+.drop-zone-active {
+  border-color: #6366f1 !important;
+  background: rgba(99,102,241,0.05) !important;
+}
+
+/* --- Smooth sidebar transition --- */
+#subtitle-sidebar,
+#silence-panel {
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
