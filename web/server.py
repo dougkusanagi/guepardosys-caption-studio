@@ -26,18 +26,24 @@ from web.services import ffmpeg_svc, whisper_svc, subtitle_svc
 
 # --- Paths ---
 BASE_DIR = Path(__file__).parent
+PUBLIC_DIR = BASE_DIR / "public"
+DIST_DIR = BASE_DIR / "dist"
+DIST_ASSETS_DIR = DIST_DIR / "assets"
 UPLOADS_DIR = BASE_DIR / "uploads"
 PROCESSED_DIR = BASE_DIR / "processed"
 
+PROJECTS_DIR = BASE_DIR / "projects"
+
 UPLOADS_DIR.mkdir(exist_ok=True)
 PROCESSED_DIR.mkdir(exist_ok=True)
+PROJECTS_DIR.mkdir(exist_ok=True)
 
 # --- App ---
 app = FastAPI(title="StudioCut", version="1.0.0")
 
 # Static files
-app.mount("/css", StaticFiles(directory=str(BASE_DIR / "public" / "css")), name="css")
-app.mount("/js", StaticFiles(directory=str(BASE_DIR / "public" / "js")), name="js")
+app.mount("/css", StaticFiles(directory=str(PUBLIC_DIR / "css")), name="css")
+app.mount("/js", StaticFiles(directory=str(PUBLIC_DIR / "js")), name="js")
 app.mount("/uploads", StaticFiles(directory=str(UPLOADS_DIR)), name="uploads")
 app.mount("/processed", StaticFiles(directory=str(PROCESSED_DIR)), name="processed")
 
@@ -125,9 +131,24 @@ async def send_progress(client_id: str, stage: str, progress: int, message: str)
 
 # --- Routes ---
 
+def _frontend_index() -> Path:
+    dist_index = DIST_DIR / "index.html"
+    if dist_index.exists():
+        return dist_index
+    return PUBLIC_DIR / "index.html"
+
+
 @app.get("/")
 async def index():
-    return FileResponse(str(BASE_DIR / "public" / "index.html"))
+    return FileResponse(str(_frontend_index()))
+
+
+@app.get("/assets/{asset_path:path}")
+async def frontend_assets(asset_path: str):
+    asset = DIST_ASSETS_DIR / asset_path
+    if asset.is_file():
+        return FileResponse(str(asset))
+    return JSONResponse({"error": "Asset not found"}, status_code=404)
 
 
 @app.websocket("/ws")
@@ -373,6 +394,88 @@ async def export_video(req: ExportRequest):
     if not source.exists():
         return JSONResponse({"error": "Arquivo não encontrado"}, status_code=404)
     return FileResponse(str(source), filename=f"studiocut_export.mp4", media_type="video/mp4")
+
+
+# --- Project Management ---
+
+@app.post("/api/project/save")
+async def save_project_endpoint(data: dict):
+    """Save project state to JSON file."""
+    name = data.get("name", "untitled").strip()
+    if not name:
+        return JSONResponse({"error": "Nome do projeto é obrigatório"}, status_code=400)
+
+    # Sanitize filename
+    safe_name = "".join(c if c.isalnum() or c in " _-" else "_" for c in name)
+    file_path = PROJECTS_DIR / f"{safe_name}.json"
+
+    from datetime import datetime, timezone
+    data["savedAt"] = datetime.now(tz=timezone.utc).isoformat()
+
+    file_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    return {"ok": True, "name": name}
+
+
+@app.get("/api/project/list")
+async def list_projects_endpoint():
+    """List all saved projects."""
+    projects = []
+    for f in sorted(PROJECTS_DIR.glob("*.json"), key=lambda x: x.stat().st_mtime, reverse=True):
+        try:
+            data = json.loads(f.read_text("utf-8"))
+            projects.append({
+                "name": data.get("name", f.stem),
+                "originalName": data.get("originalName", ""),
+                "date": data.get("savedAt", ""),
+                "file": f.name,
+            })
+        except Exception:
+            continue
+    return projects
+
+
+@app.get("/api/project/load/{project_name}")
+async def load_project_endpoint(project_name: str):
+    """Load a project by name."""
+    safe_name = "".join(c if c.isalnum() or c in " _-" else "_" for c in project_name)
+    file_path = PROJECTS_DIR / f"{safe_name}.json"
+
+    if not file_path.exists():
+        return JSONResponse({"error": "Projeto não encontrado"}, status_code=404)
+
+    data = json.loads(file_path.read_text("utf-8"))
+    return data
+
+
+@app.delete("/api/project/delete/{project_name}")
+async def delete_project_endpoint(project_name: str):
+    """Delete a saved project."""
+    safe_name = "".join(c if c.isalnum() or c in " _-" else "_" for c in project_name)
+    file_path = PROJECTS_DIR / f"{safe_name}.json"
+
+    if file_path.exists():
+        file_path.unlink()
+
+    return {"ok": True}
+
+
+@app.get("/{full_path:path}")
+async def spa_fallback(full_path: str):
+    """Serve the Vite SPA in production while keeping legacy static files reachable."""
+    reserved = ("api/", "uploads/", "processed/", "css/", "js/", "assets/", "ws")
+    if not full_path or full_path.startswith(reserved):
+        return JSONResponse({"error": "Not found"}, status_code=404)
+
+    dist_file = DIST_DIR / full_path
+    public_file = PUBLIC_DIR / full_path
+
+    if dist_file.is_file():
+        return FileResponse(str(dist_file))
+    if public_file.is_file():
+        return FileResponse(str(public_file))
+
+    return FileResponse(str(_frontend_index()))
 
 
 # --- Helpers ---

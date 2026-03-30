@@ -3,38 +3,44 @@
  * Orchestrates all modules and UI interactions
  */
 
-import { uploadVideo, removeSilence, generateSubtitles, burnSubtitles, cropVideoRequest, exportVideo } from './modules/api.js';
+import { uploadVideo, removeSilence, generateSubtitles, burnSubtitles, cropVideoRequest, exportVideo, saveProject, loadProject, listProjects, deleteProject } from './modules/api.js';
 import { WSClient } from './modules/wsClient.js';
 import { VideoPlayer } from './modules/videoPlayer.js';
 import { Timeline } from './modules/timeline.js';
 import { Spectrogram } from './modules/spectrogram.js';
 import { CropTool } from './modules/cropTool.js';
 import { SubtitleEditor } from './modules/subtitleEditor.js';
-import { showToast, formatDuration, formatSize } from './utils/helpers.js';
+import { showToast, formatDuration } from './utils/helpers.js';
 
 class App {
   constructor() {
-    // State
     this.projectId = null;
     this.filename = null;
+    this.originalName = null;
     this.videoInfo = null;
+    this.originalDuration = 0;
+    this.originalWaveform = [];
+    this.subtitles = [];
     this.processedVideoPath = null;
     this.currentOutputPath = null;
 
     // Initialize icons
     if (window.lucide) lucide.createIcons();
 
-    // Initialize WebSocket
+    // WebSocket
     this.ws = new WSClient();
 
-    // Initialize modules (deferred until editor is shown)
+    // Modules (deferred)
     this.player = null;
     this.timeline = null;
     this.spectrogram = null;
     this.cropTool = null;
     this.subtitleEditor = null;
+    this.toolbarEventsBound = false;
+    this.sidebarEventsBound = false;
 
     this._bindUploadEvents();
+    this._bindHeaderEvents();
     this._connectWebSocket();
   }
 
@@ -52,31 +58,25 @@ class App {
     const dropZone = document.getElementById('drop-zone');
 
     fileInput.addEventListener('change', (e) => {
-      if (e.target.files.length > 0) {
-        this._handleUpload(e.target.files[0]);
-      }
+      if (e.target.files.length > 0) this._handleUpload(e.target.files[0]);
     });
 
-    // Drag & drop
     ['dragenter', 'dragover'].forEach(evt => {
-      dropZone.addEventListener(evt, (e) => {
-        e.preventDefault();
-        dropZone.classList.add('drop-zone-active');
-      });
+      dropZone.addEventListener(evt, (e) => { e.preventDefault(); dropZone.classList.add('drop-zone-active'); });
     });
-
     ['dragleave', 'drop'].forEach(evt => {
-      dropZone.addEventListener(evt, (e) => {
-        e.preventDefault();
-        dropZone.classList.remove('drop-zone-active');
-      });
+      dropZone.addEventListener(evt, (e) => { e.preventDefault(); dropZone.classList.remove('drop-zone-active'); });
     });
-
     dropZone.addEventListener('drop', (e) => {
-      const files = e.dataTransfer.files;
-      if (files.length > 0) {
-        this._handleUpload(files[0]);
-      }
+      if (e.dataTransfer.files.length > 0) this._handleUpload(e.dataTransfer.files[0]);
+    });
+  }
+
+  _bindHeaderEvents() {
+    // Load project button (always visible)
+    document.getElementById('btn-load-project').addEventListener('click', () => this._showProjectList());
+    document.getElementById('btn-close-project-list').addEventListener('click', () => {
+      document.getElementById('project-list-modal').classList.add('hidden');
     });
   }
 
@@ -95,11 +95,13 @@ class App {
 
       this.projectId = result.projectId;
       this.filename = result.file.filename;
+      this.originalName = result.file.originalName;
       this.videoInfo = result.info;
+      this.subtitles = [];
+      this.processedVideoPath = null;
+      this.currentOutputPath = null;
 
       showToast('Vídeo carregado com sucesso!', 'success');
-
-      // Switch to editor
       this._showEditor(result);
     } catch (err) {
       showToast(`Erro ao enviar: ${err.message}`, 'error');
@@ -108,15 +110,19 @@ class App {
   }
 
   _showEditor(uploadResult) {
-    // Hide upload, show editor
+    this.originalDuration = uploadResult.info?.duration || 0;
+    this.originalWaveform = uploadResult.originalWaveform || uploadResult.waveform || [];
+
     document.getElementById('upload-screen').classList.add('hidden');
     document.getElementById('editor-screen').classList.remove('hidden');
     document.getElementById('project-info').classList.remove('hidden');
     document.getElementById('project-info').style.display = 'flex';
     document.getElementById('btn-export').classList.remove('hidden');
     document.getElementById('btn-export').style.display = 'flex';
+    document.getElementById('btn-save-project').classList.remove('hidden');
+    document.getElementById('btn-save-project').style.display = 'flex';
 
-    // Set header info
+    // Header info
     document.getElementById('video-name').textContent = uploadResult.file.originalName;
     document.getElementById('video-resolution').textContent =
       `${this.videoInfo.video?.width}×${this.videoInfo.video?.height}`;
@@ -126,28 +132,35 @@ class App {
     // Initialize modules
     this.player = new VideoPlayer();
     this.player.loadOriginal(uploadResult.file.path);
+    this.player.setSubtitles(this.subtitles);
 
     this.timeline = new Timeline(this.player);
     this.spectrogram = new Spectrogram();
     this.cropTool = new CropTool();
     this.subtitleEditor = new SubtitleEditor();
 
-    // Set initial timeline data
+    // Timeline duration from video
     this.player.onDurationChange = (duration) => {
       this.timeline.setDuration(duration);
+      this.timeline.setSubtitles(this._getTimelineSubtitles());
     };
-
-    // Set waveform
-    if (uploadResult.waveform) {
-      this.timeline.setWaveform(uploadResult.waveform);
+    if (this.player.getDuration() > 0) {
+      this.timeline.setDuration(this.player.getDuration());
     }
 
-    // Load audio for spectrogram
+    // Waveform
+    if (this.originalWaveform.length > 0) {
+      this.timeline.setWaveform(this.originalWaveform);
+    }
+    this.timeline.setCollapsedMode(false);
+    this.timeline.setSubtitles(this._getTimelineSubtitles());
+
+    // Spectrogram audio
     if (uploadResult.audioPath) {
       this.spectrogram.loadAudio(uploadResult.audioPath);
     }
 
-    // Update spectrogram playhead
+    // Sync spectrogram playhead with video
     const originalOnTimeUpdate = this.player.onTimeUpdate;
     this.player.onTimeUpdate = (time) => {
       if (originalOnTimeUpdate) originalOnTimeUpdate(time);
@@ -157,77 +170,79 @@ class App {
       }
     };
 
-    // Bind toolbar events
     this._bindToolbarEvents();
     this._bindSidebarEvents();
 
-    // Re-create icons
     if (window.lucide) lucide.createIcons();
   }
 
   _bindToolbarEvents() {
+    if (this.toolbarEventsBound) return;
+    this.toolbarEventsBound = true;
+
     // Remove Silence
-    document.getElementById('btn-remove-silence').addEventListener('click', () => {
-      this._toggleSilencePanel();
-    });
+    document.getElementById('btn-remove-silence').addEventListener('click', () => this._toggleSilencePanel());
 
     // Subtitles
     document.getElementById('btn-gen-subtitles').addEventListener('click', () => {
       this.subtitleEditor.toggle();
-      // Close silence panel if open
       document.getElementById('silence-panel').style.transform = 'translateX(100%)';
     });
 
     // Crop
     document.getElementById('btn-crop-tool').addEventListener('click', () => {
       this.cropTool.toggle();
-      const btn = document.getElementById('btn-crop-tool');
-      btn.classList.toggle('active', this.cropTool.isActive);
+      document.getElementById('btn-crop-tool').classList.toggle('active', this.cropTool.isActive);
     });
 
-    // Selection tool
+    // Selection
     document.getElementById('btn-selection-tool').addEventListener('click', () => {
       const btn = document.getElementById('btn-selection-tool');
       btn.classList.toggle('active');
-      if (!btn.classList.contains('active')) {
-        this.timeline.clearSelection();
-      }
+      if (!btn.classList.contains('active')) this.timeline.clearSelection();
       showToast('Arraste no track de áudio para selecionar um trecho', 'info', 3000);
+    });
+
+    // --- Preview Toggles ---
+    const btnOriginal = document.getElementById('btn-toggle-original');
+    const btnProcessed = document.getElementById('btn-toggle-processed');
+
+    btnOriginal.addEventListener('click', () => {
+      const visible = this.player.toggleOriginal();
+      btnOriginal.classList.toggle('active', visible);
+    });
+
+    btnProcessed.addEventListener('click', () => {
+      const visible = this.player.toggleProcessed();
+      btnProcessed.classList.toggle('active', visible);
     });
 
     // Spectrogram toggle
     document.getElementById('btn-toggle-spectrogram').addEventListener('click', () => {
       this.spectrogram.toggle();
-      const btn = document.getElementById('btn-toggle-spectrogram');
-      btn.classList.toggle('active', this.spectrogram.isVisible);
+      document.getElementById('btn-toggle-spectrogram').classList.toggle('active', this.spectrogram.isVisible);
     });
 
     // Export
-    document.getElementById('btn-export').addEventListener('click', () => {
-      this._exportVideo();
-    });
+    document.getElementById('btn-export').addEventListener('click', () => this._exportVideo());
+
+    // Save project
+    document.getElementById('btn-save-project').addEventListener('click', () => this._saveProject());
   }
 
   _bindSidebarEvents() {
-    // Silence removal panel
-    document.getElementById('btn-close-silence-panel').addEventListener('click', () => {
-      document.getElementById('silence-panel').style.transform = 'translateX(100%)';
-    });
+    if (!this.sidebarEventsBound) {
+      document.getElementById('btn-close-silence-panel').addEventListener('click', () => {
+        document.getElementById('silence-panel').style.transform = 'translateX(100%)';
+      });
 
-    document.getElementById('btn-run-silence-removal').addEventListener('click', () => {
-      this._runSilenceRemoval();
-    });
+      document.getElementById('btn-run-silence-removal').addEventListener('click', () => this._runSilenceRemoval());
+      this.sidebarEventsBound = true;
+    }
 
-    // Subtitle generation
-    this.subtitleEditor.onGenerate = (settings) => {
-      this._generateSubtitles(settings);
-    };
+    this.subtitleEditor.onGenerate = (settings) => this._generateSubtitles(settings);
+    this.subtitleEditor.onBurn = (style) => this._burnSubtitles(style);
 
-    this.subtitleEditor.onBurn = (style) => {
-      this._burnSubtitles(style);
-    };
-
-    // Crop apply
     this.cropTool.onCropChange = (rect) => {
       showToast(`Crop: ${rect.width}×${rect.height} em (${rect.x}, ${rect.y})`, 'info', 2000);
     };
@@ -237,8 +252,6 @@ class App {
     const panel = document.getElementById('silence-panel');
     const isOpen = panel.style.transform === 'translateX(0px)';
     panel.style.transform = isOpen ? 'translateX(100%)' : 'translateX(0px)';
-
-    // Close subtitle sidebar if open
     if (!isOpen) this.subtitleEditor.close();
   }
 
@@ -259,23 +272,24 @@ class App {
 
     try {
       const result = await removeSilence(settings);
-
       this._hideProcessingModal();
 
-      // Show processed video
       this.processedVideoPath = result.outputPath;
       this.currentOutputPath = result.outputPath;
+      this.player.setEditIntervals(result.intervals);
       this.player.loadProcessed(result.outputPath);
+      this.player.setSubtitles(this.subtitles);
 
-      // Update timeline with intervals
+      // Activate processed preview toggle
+      document.getElementById('btn-toggle-processed').classList.add('active');
+
+      this.timeline.setCollapsedMode(true);
       this.timeline.setIntervals(result.intervals);
-
-      // Update waveform if available
       if (result.waveform) {
-        // Keep original waveform but mark removed sections
+        this.timeline.setWaveform(result.waveform);
       }
+      this.timeline.setSubtitles(this._getTimelineSubtitles());
 
-      // Show results
       document.getElementById('silence-results').classList.remove('hidden');
       document.getElementById('result-segments').textContent = result.stats.segmentCount;
       document.getElementById('result-original-dur').textContent = formatDuration(result.stats.originalDuration);
@@ -302,13 +316,11 @@ class App {
       });
 
       this._hideProcessingModal();
-
-      // Update UI
-      this.subtitleEditor.setSubtitles(result.subtitles);
-
-      // Show subtitle track
+      this.subtitles = result.subtitles;
+      this.subtitleEditor.setSubtitles(this.subtitles);
+      this.player.setSubtitles(this.subtitles);
       document.getElementById('subtitle-track').classList.remove('hidden');
-      this.timeline.setSubtitles(result.subtitles);
+      this.timeline.setSubtitles(this._getTimelineSubtitles());
 
       showToast(`${result.subtitles.length} legendas geradas com sucesso!`, 'success');
     } catch (err) {
@@ -329,9 +341,16 @@ class App {
       });
 
       this._hideProcessingModal();
-
+      this.processedVideoPath = result.outputPath;
       this.currentOutputPath = result.outputPath;
+      this.player.clearEditIntervals();
       this.player.loadProcessed(result.outputPath);
+      this.player.setSubtitles(this.subtitles);
+      document.getElementById('btn-toggle-processed').classList.add('active');
+      this.timeline.setCollapsedMode(false);
+      this.timeline.setIntervals([]);
+      this.timeline.setWaveform(this.originalWaveform);
+      this.timeline.setSubtitles(this._getTimelineSubtitles());
 
       showToast('Legendas aplicadas ao vídeo!', 'success');
     } catch (err) {
@@ -344,12 +363,7 @@ class App {
     const sourceFile = this.currentOutputPath || `/uploads/${this.filename}`;
 
     try {
-      const blob = await exportVideo({
-        projectId: this.projectId,
-        sourceFile,
-      });
-
-      // Download
+      const blob = await exportVideo({ projectId: this.projectId, sourceFile });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -358,12 +372,176 @@ class App {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-
       showToast('Vídeo exportado com sucesso!', 'success');
     } catch (err) {
       showToast(`Erro ao exportar: ${err.message}`, 'error');
     }
   }
+
+  // --- Project Save/Load ---
+
+  async _saveProject() {
+    const name = prompt('Nome do projeto:', this.originalName?.replace(/\.\w+$/, '') || 'Meu Projeto');
+    if (!name) return;
+
+    try {
+      const state = {
+        name,
+        projectId: this.projectId,
+        filename: this.filename,
+        originalName: this.originalName,
+        videoInfo: this.videoInfo,
+        originalDuration: this.originalDuration,
+        originalWaveform: this.originalWaveform,
+        subtitles: this.subtitles,
+        editIntervals: this.player.getEditIntervals(),
+        processedVideoPath: this.processedVideoPath,
+        currentOutputPath: this.currentOutputPath,
+        timeline: this.timeline.getState(),
+        waveform: this.timeline.waveformData,
+      };
+
+      await saveProject(state);
+      showToast(`Projeto "${name}" salvo com sucesso!`, 'success');
+    } catch (err) {
+      showToast(`Erro ao salvar: ${err.message}`, 'error');
+    }
+  }
+
+  async _showProjectList() {
+    const modal = document.getElementById('project-list-modal');
+    const container = document.getElementById('project-list-items');
+    modal.classList.remove('hidden');
+
+    try {
+      const projects = await listProjects();
+
+      if (projects.length === 0) {
+        container.innerHTML = '<p class="text-sm text-surface-400 text-center py-8">Nenhum projeto salvo.</p>';
+        if (window.lucide) lucide.createIcons();
+        return;
+      }
+
+      container.innerHTML = projects.map(p => `
+        <div class="project-item" data-project="${p.name}">
+          <div class="w-10 h-10 bg-primary-100 rounded-lg flex items-center justify-center flex-shrink-0">
+            <i data-lucide="film" class="w-5 h-5 text-primary-600"></i>
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-semibold text-surface-800 truncate">${p.name}</p>
+            <p class="text-xs text-surface-400">${p.originalName || ''} • ${p.date || ''}</p>
+          </div>
+          <button class="project-delete-btn p-2 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0" data-project="${p.name}" title="Excluir">
+            <i data-lucide="trash-2" class="w-4 h-4 text-surface-400 hover:text-red-500"></i>
+          </button>
+        </div>
+      `).join('');
+
+      if (window.lucide) lucide.createIcons();
+
+      // Click to load
+      container.querySelectorAll('.project-item').forEach(item => {
+        item.addEventListener('click', (e) => {
+          if (e.target.closest('.project-delete-btn')) return;
+          const projectName = item.dataset.project;
+          modal.classList.add('hidden');
+          this._loadProject(projectName);
+        });
+      });
+
+      // Click to delete
+      container.querySelectorAll('.project-delete-btn').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const projectName = btn.dataset.project;
+          if (confirm(`Excluir projeto "${projectName}"?`)) {
+            try {
+              await deleteProject(projectName);
+              showToast(`Projeto "${projectName}" excluído.`, 'info');
+              this._showProjectList(); // refresh
+            } catch (err) {
+              showToast(`Erro ao excluir: ${err.message}`, 'error');
+            }
+          }
+        });
+      });
+    } catch (err) {
+      container.innerHTML = `<p class="text-sm text-red-500 text-center py-8">Erro ao carregar projetos: ${err.message}</p>`;
+    }
+  }
+
+  async _loadProject(projectName) {
+    try {
+      const state = await loadProject(projectName);
+
+      this.projectId = state.projectId;
+      this.filename = state.filename;
+      this.originalName = state.originalName;
+      this.videoInfo = state.videoInfo;
+      this.originalDuration = state.originalDuration || state.videoInfo?.duration || 0;
+      this.originalWaveform = state.originalWaveform || state.waveform || [];
+      this.subtitles = state.subtitles || [];
+      this.processedVideoPath = state.processedVideoPath;
+      this.currentOutputPath = state.currentOutputPath;
+
+      // Show editor
+      this._showEditor({
+        projectId: state.projectId,
+        file: {
+          originalName: state.originalName,
+          filename: state.filename,
+          path: `/uploads/${state.filename}`,
+          size: state.videoInfo?.size || 0,
+        },
+        info: state.videoInfo,
+        waveform: state.waveform,
+        originalWaveform: state.originalWaveform || state.waveform,
+        audioPath: `/processed/${state.projectId}/audio.wav`,
+      });
+
+      // Restore timeline state
+      if (state.timeline) {
+        this.timeline.loadState({
+          ...state.timeline,
+          intervals: [],
+          subtitles: [],
+        });
+      }
+
+      if (state.waveform) {
+        this.timeline.setWaveform(state.waveform);
+      }
+
+      if (state.subtitles?.length) {
+        this.subtitleEditor.setSubtitles(state.subtitles);
+        this.player.setSubtitles(state.subtitles);
+        document.getElementById('subtitle-track').classList.remove('hidden');
+      }
+
+      if (state.editIntervals?.length) {
+        this.player.setEditIntervals(state.editIntervals);
+        this.timeline.setCollapsedMode(true);
+        this.timeline.setIntervals(state.editIntervals);
+      } else {
+        this.timeline.setCollapsedMode(false);
+        this.timeline.setIntervals([]);
+      }
+
+      this.timeline.setSubtitles(this._getTimelineSubtitles());
+
+      // Restore processed video
+      if (state.processedVideoPath) {
+        this.player.loadProcessed(state.processedVideoPath);
+        document.getElementById('btn-toggle-processed').classList.add('active');
+      }
+
+      showToast(`Projeto "${projectName}" carregado!`, 'success');
+    } catch (err) {
+      showToast(`Erro ao carregar: ${err.message}`, 'error');
+    }
+  }
+
+  // --- Modal ---
 
   _showProcessingModal(title, message) {
     const modal = document.getElementById('processing-modal');
@@ -390,6 +568,13 @@ class App {
     if (message && data.message) {
       message.textContent = data.message;
     }
+  }
+
+  _getTimelineSubtitles() {
+    if (!this.subtitles.length || !this.player) return [];
+    return this.player.hasEditedTimeline()
+      ? this.player.mapSubtitlesToTimeline(this.subtitles)
+      : this.subtitles;
   }
 }
 

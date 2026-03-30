@@ -1,0 +1,22 @@
+{
+  "name": "remove-silence-frontend",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently -k -n backend,frontend -c green,blue \"npm run backend\" \"npm run frontend\"",
+    "frontend": "vite --config web/frontend/vite.config.js",
+    "backend": "uv run uvicorn web.server:app --reload --port 3000",
+    "build": "vite build --config web/frontend/vite.config.js",
+    "preview": "vite preview --config web/frontend/vite.config.js"
+  },
+  "dependencies": {
+    "lucide-react": "^1.7.0",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^6.0.1",
+    "concurrently": "^9.2.1",
+    "vite": "^8.0.3"
+  }
+}

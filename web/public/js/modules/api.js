@@ -99,3 +99,41 @@ export async function exportVideo(params) {
   const blob = await res.blob();
   return blob;
 }
+
+// --- Project Save/Load ---
+
+export async function saveProject(data) {
+  const res = await fetch(`${BASE_URL}/api/project/save`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || 'Save failed');
+  }
+  return res.json();
+}
+
+export async function loadProject(projectName) {
+  const res = await fetch(`${BASE_URL}/api/project/load/${encodeURIComponent(projectName)}`);
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || 'Load failed');
+  }
+  return res.json();
+}
+
+export async function listProjects() {
+  const res = await fetch(`${BASE_URL}/api/project/list`);
+  if (!res.ok) throw new Error('Failed to list projects');
+  return res.json();
+}
+
+export async function deleteProject(projectName) {
+  const res = await fetch(`${BASE_URL}/api/project/delete/${encodeURIComponent(projectName)}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) throw new Error('Delete failed');
+  return res.json();
+}

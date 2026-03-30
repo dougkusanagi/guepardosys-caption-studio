@@ -90,6 +90,26 @@
   color: #475569;
 }
 
+/* --- Track Resize Handle --- */
+.track-resize-handle {
+  position: absolute;
+  bottom: -3px;
+  left: 0;
+  right: 0;
+  height: 6px;
+  cursor: row-resize;
+  z-index: 10;
+  background: transparent;
+  transition: background 0.15s ease;
+}
+.track-resize-handle:hover,
+.track-resize-handle.active {
+  background: linear-gradient(to bottom, transparent, #6366f140);
+}
+.track-row {
+  position: relative;
+}
+
 /* --- Range Input --- */
 input[type="range"] {
   -webkit-appearance: none;
@@ -118,6 +138,50 @@ input[type="range"]::-webkit-slider-thumb:hover {
 /* --- Video Container --- */
 video {
   background: #000;
+}
+
+#ruler-canvas,
+#video-track-canvas,
+#audio-track-canvas,
+#subtitle-track-canvas {
+  display: block;
+}
+
+#tracks-scroll-wrapper {
+  min-height: 0;
+}
+
+.video-subtitle-overlay {
+  position: absolute;
+  left: 24px;
+  right: 24px;
+  bottom: 20px;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 12;
+  font-size: 1.125rem;
+  font-weight: 700;
+  line-height: 1.35;
+  text-align: center;
+  color: #fff;
+  text-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.85),
+    0 0 2px rgba(0, 0, 0, 0.95);
+  white-space: pre-wrap;
+}
+
+.video-subtitle-overlay.hidden {
+  display: none;
+}
+
+.video-subtitle-overlay::before {
+  content: "";
+  position: absolute;
+  inset: -10px -12px;
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0), rgba(15, 23, 42, 0.45));
+  filter: blur(10px);
+  z-index: -1;
 }
 
 /* --- Animations --- */
@@ -180,7 +244,7 @@ video {
   border: 1px solid #c7d2fe;
 }
 
-/* --- Selection highlight on timeline --- */
+/* --- Timeline Selection --- */
 .timeline-selection {
   position: absolute;
   top: 0;
@@ -211,4 +275,40 @@ video {
 #subtitle-sidebar,
 #silence-panel {
   transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* --- Track content: hide scrollbar but allow JS scroll sync --- */
+.track-content::-webkit-scrollbar,
+#timeline-ruler::-webkit-scrollbar {
+  display: none;
+}
+
+/* --- Playhead draggable --- */
+#playhead {
+  transition: none;
+}
+
+/* --- Editable timecode input --- */
+#current-time {
+  font-feature-settings: "tnum";
+}
+#current-time:focus {
+  box-shadow: 0 0 0 2px rgba(99,102,241,.3);
+}
+
+/* --- Project list item --- */
+.project-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.project-item:hover {
+  background: #eef2ff;
+  border-color: #c7d2fe;
 }

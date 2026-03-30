@@ -1,0 +1,17 @@
+@import '../../public/css/app.css';
+
+#root {
+  min-height: 100vh;
+}
+
+.app-shell {
+  min-height: 100vh;
+}
+
+.modal-backdrop {
+  animation: fadeInUp 0.18s ease-out;
+}
+
+.sidebar-open {
+  box-shadow: -16px 0 42px rgba(15, 23, 42, 0.12);
+}

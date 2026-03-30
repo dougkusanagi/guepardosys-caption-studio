@@ -48,7 +48,7 @@
         <span class="text-[10px] font-medium bg-primary-100 text-primary-700 px-2 py-0.5 rounded-full">AI</span>
       </div>
 
-      <div id="project-info" class="hidden flex items-center gap-4 text-sm text-surface-500">
+      <div id="project-info" class="hidden items-center gap-4 text-sm text-surface-500">
         <span id="video-name" class="font-medium text-surface-700"></span>
         <span class="text-surface-300">|</span>
         <span id="video-resolution"></span>
@@ -57,7 +57,16 @@
       </div>
 
       <div class="flex items-center gap-2">
-        <button id="btn-export" class="hidden px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 transition-all shadow-sm hover:shadow-md active:scale-[0.97] flex items-center gap-2">
+        <!-- Project Save/Load -->
+        <button id="btn-save-project" class="hidden px-3 py-2 text-surface-600 text-sm font-medium rounded-lg hover:bg-surface-100 transition-all items-center gap-1.5" title="Salvar Projeto">
+          <i data-lucide="save" class="w-4 h-4"></i>
+          Salvar
+        </button>
+        <button id="btn-load-project" class="px-3 py-2 text-surface-600 text-sm font-medium rounded-lg hover:bg-surface-100 transition-all flex items-center gap-1.5" title="Carregar Projeto">
+          <i data-lucide="folder-open" class="w-4 h-4"></i>
+          Abrir
+        </button>
+        <button id="btn-export" class="hidden px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 transition-all shadow-sm hover:shadow-md active:scale-[0.97] items-center gap-2">
           <i data-lucide="download" class="w-4 h-4"></i>
           Exportar
         </button>
@@ -131,13 +140,17 @@
 
         <!-- View -->
         <div class="flex items-center gap-1 pr-3 mr-3 border-r border-surface-200">
+          <button id="btn-toggle-original" class="toolbar-btn active" title="Preview Original">
+            <i data-lucide="monitor" class="w-4 h-4"></i>
+            <span>Original</span>
+          </button>
+          <button id="btn-toggle-processed" class="toolbar-btn" title="Preview Processado">
+            <i data-lucide="monitor-check" class="w-4 h-4"></i>
+            <span>Processado</span>
+          </button>
           <button id="btn-toggle-spectrogram" class="toolbar-btn" title="Espectrograma">
             <i data-lucide="audio-waveform" class="w-4 h-4"></i>
             <span>Espectrograma</span>
-          </button>
-          <button id="btn-toggle-tracks" class="toolbar-btn active" title="Faixas Timeline">
-            <i data-lucide="layers" class="w-4 h-4"></i>
-            <span>Faixas</span>
           </button>
         </div>
 
@@ -163,7 +176,7 @@
       <!-- Preview Area -->
       <div id="preview-area" class="flex-1 flex gap-4 p-4 min-h-0 overflow-hidden">
         <!-- Original Preview -->
-        <div class="flex-1 flex flex-col min-w-0">
+        <div id="original-panel" class="flex-1 flex flex-col min-w-0">
           <div class="flex items-center gap-2 mb-2">
             <div class="w-2 h-2 rounded-full bg-surface-400"></div>
             <span class="text-xs font-semibold text-surface-500 uppercase tracking-wider">Original</span>
@@ -187,6 +200,7 @@
           </div>
           <div class="relative bg-black rounded-xl overflow-hidden flex-1 flex items-center justify-center shadow-lg">
             <video id="video-processed" class="max-w-full max-h-full object-contain" preload="metadata"></video>
+            <div id="processed-subtitle-overlay" class="video-subtitle-overlay hidden"></div>
           </div>
         </div>
       </div>
@@ -203,7 +217,7 @@
       </div>
 
       <!-- Transport Controls -->
-      <div id="transport" class="bg-white border-t border-surface-200 px-6 py-3">
+      <div id="transport" class="bg-white border-t border-surface-200 px-6 py-3 flex-shrink-0">
         <div class="flex items-center gap-4">
           <div class="flex items-center gap-1">
             <button id="btn-skip-back" class="transport-btn" title="Voltar 5s">
@@ -217,10 +231,13 @@
             </button>
           </div>
 
-          <div class="flex items-center gap-3 text-xs font-mono text-surface-500">
-            <span id="current-time">00:00.000</span>
+          <!-- Editable timecodes -->
+          <div class="flex items-center gap-1.5 text-xs font-mono text-surface-500">
+            <input id="current-time" type="text" value="00:00.000"
+              class="w-[82px] bg-transparent border border-transparent hover:border-surface-300 focus:border-primary-400 focus:bg-white rounded px-1.5 py-1 text-center outline-none transition-all cursor-text font-mono text-xs"
+              title="Clique para editar o tempo. Pressione Enter para confirmar.">
             <span class="text-surface-300">/</span>
-            <span id="total-time">00:00.000</span>
+            <span id="total-time" class="px-1.5 py-1">00:00.000</span>
           </div>
 
           <!-- Speed control -->
@@ -247,76 +264,88 @@
       </div>
 
       <!-- Timeline Area -->
-      <div id="timeline-area" class="bg-white border-t border-surface-200 flex flex-col" style="height: 220px">
+      <div id="timeline-area" class="bg-white border-t border-surface-200 flex flex-col flex-shrink-0" style="height: 220px">
         <!-- Timeline Header with Ruler -->
         <div class="flex items-center border-b border-surface-100 bg-surface-50 h-[28px] relative overflow-hidden">
           <div class="w-[180px] min-w-[180px] border-r border-surface-200 px-3 flex items-center">
             <span class="text-[10px] font-bold text-surface-400 uppercase tracking-wider">Faixas</span>
           </div>
-          <div id="timeline-ruler" class="flex-1 relative overflow-hidden">
-            <canvas id="ruler-canvas" class="w-full h-full"></canvas>
+          <div id="timeline-ruler" class="flex-1 self-stretch h-full relative overflow-x-auto overflow-y-hidden" style="scrollbar-width: none;">
+            <canvas id="ruler-canvas" class="block h-full"></canvas>
           </div>
         </div>
 
-        <!-- Tracks Container -->
-        <div id="tracks-container" class="flex-1 overflow-y-auto overflow-x-hidden relative">
-          <!-- Video Track -->
-          <div class="flex border-b border-surface-100 h-[48px] group hover:bg-primary-50/30 transition-colors">
-            <div class="w-[180px] min-w-[180px] border-r border-surface-200 px-3 flex items-center gap-2">
-              <i data-lucide="video" class="w-3.5 h-3.5 text-blue-500"></i>
-              <span class="text-xs font-medium text-surface-600">Vídeo 1</span>
-              <div class="ml-auto flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button class="track-action-btn" title="Silenciar"><i data-lucide="eye" class="w-3 h-3"></i></button>
-                <button class="track-action-btn" title="Travar"><i data-lucide="lock" class="w-3 h-3"></i></button>
-              </div>
-            </div>
-            <div class="flex-1 relative overflow-hidden">
-              <canvas id="video-track-canvas" class="w-full h-full"></canvas>
-            </div>
-          </div>
+        <!-- Tracks Scroll Container — syncs horizontal scroll with ruler -->
+        <div id="tracks-scroll-wrapper" class="flex-1 overflow-y-auto overflow-x-hidden relative">
+          <div class="flex flex-col" style="min-height:100%;">
 
-          <!-- Audio Track -->
-          <div class="flex border-b border-surface-100 h-[48px] group hover:bg-primary-50/30 transition-colors">
-            <div class="w-[180px] min-w-[180px] border-r border-surface-200 px-3 flex items-center gap-2">
-              <i data-lucide="audio-lines" class="w-3.5 h-3.5 text-emerald-500"></i>
-              <span class="text-xs font-medium text-surface-600">Áudio 1</span>
-              <div class="ml-auto flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button class="track-action-btn" title="Silenciar"><i data-lucide="volume-2" class="w-3 h-3"></i></button>
-                <button class="track-action-btn" title="Travar"><i data-lucide="lock" class="w-3 h-3"></i></button>
+            <!-- Video Track -->
+            <div id="track-video" class="track-row flex border-b border-surface-100 group hover:bg-primary-50/30 transition-colors" data-track="video" style="height:48px; min-height:30px; max-height:120px;">
+              <div class="w-[180px] min-w-[180px] border-r border-surface-200 px-3 flex items-center gap-2">
+                <i data-lucide="video" class="w-3.5 h-3.5 text-blue-500"></i>
+                <span class="text-xs font-medium text-surface-600">Vídeo 1</span>
+                <div class="ml-auto flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button class="track-action-btn" title="Visível"><i data-lucide="eye" class="w-3 h-3"></i></button>
+                  <button class="track-action-btn" title="Travar"><i data-lucide="lock" class="w-3 h-3"></i></button>
+                </div>
               </div>
-            </div>
-            <div class="flex-1 relative overflow-hidden">
-              <canvas id="audio-track-canvas" class="w-full h-full"></canvas>
-            </div>
-          </div>
-
-          <!-- Subtitle Track (hidden initially) -->
-          <div id="subtitle-track" class="flex border-b border-surface-100 h-[48px] group hover:bg-primary-50/30 transition-colors hidden">
-            <div class="w-[180px] min-w-[180px] border-r border-surface-200 px-3 flex items-center gap-2">
-              <i data-lucide="subtitles" class="w-3.5 h-3.5 text-amber-500"></i>
-              <span class="text-xs font-medium text-surface-600">Legendas</span>
-              <div class="ml-auto flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button class="track-action-btn" title="Visível"><i data-lucide="eye" class="w-3 h-3"></i></button>
+              <div class="flex-1 relative overflow-x-auto overflow-y-hidden track-content" style="scrollbar-width: none;">
+                <canvas id="video-track-canvas" class="h-full"></canvas>
               </div>
+              <!-- Resize handle -->
+              <div class="track-resize-handle"></div>
             </div>
-            <div class="flex-1 relative overflow-hidden">
-              <canvas id="subtitle-track-canvas" class="w-full h-full"></canvas>
-            </div>
-          </div>
 
-          <!-- Add Track -->
-          <div class="flex h-[36px] group cursor-pointer hover:bg-primary-50/50 transition-colors" id="btn-add-track">
-            <div class="w-[180px] min-w-[180px] border-r border-surface-200 px-3 flex items-center gap-2">
-              <i data-lucide="plus" class="w-3.5 h-3.5 text-surface-400 group-hover:text-primary-500 transition-colors"></i>
-              <span class="text-xs text-surface-400 group-hover:text-primary-600 font-medium transition-colors">Adicionar faixa</span>
+            <!-- Audio Track -->
+            <div id="track-audio" class="track-row flex border-b border-surface-100 group hover:bg-primary-50/30 transition-colors" data-track="audio" style="height:48px; min-height:30px; max-height:120px;">
+              <div class="w-[180px] min-w-[180px] border-r border-surface-200 px-3 flex items-center gap-2">
+                <i data-lucide="audio-lines" class="w-3.5 h-3.5 text-emerald-500"></i>
+                <span class="text-xs font-medium text-surface-600">Áudio 1</span>
+                <div class="ml-auto flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button class="track-action-btn" title="Silenciar"><i data-lucide="volume-2" class="w-3 h-3"></i></button>
+                  <button class="track-action-btn" title="Travar"><i data-lucide="lock" class="w-3 h-3"></i></button>
+                </div>
+              </div>
+              <div class="flex-1 relative overflow-x-auto overflow-y-hidden track-content" style="scrollbar-width: none;">
+                <canvas id="audio-track-canvas" class="h-full"></canvas>
+              </div>
+              <div class="track-resize-handle"></div>
             </div>
-            <div class="flex-1"></div>
+
+            <!-- Subtitle Track (hidden initially) -->
+            <div id="subtitle-track" class="track-row flex border-b border-surface-100 group hover:bg-primary-50/30 transition-colors hidden" data-track="subtitle" style="height:48px; min-height:30px; max-height:120px;">
+              <div class="w-[180px] min-w-[180px] border-r border-surface-200 px-3 flex items-center gap-2">
+                <i data-lucide="subtitles" class="w-3.5 h-3.5 text-amber-500"></i>
+                <span class="text-xs font-medium text-surface-600">Legendas</span>
+                <div class="ml-auto flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button class="track-action-btn" title="Visível"><i data-lucide="eye" class="w-3 h-3"></i></button>
+                </div>
+              </div>
+              <div class="flex-1 relative overflow-x-auto overflow-y-hidden track-content" style="scrollbar-width: none;">
+                <canvas id="subtitle-track-canvas" class="h-full"></canvas>
+              </div>
+              <div class="track-resize-handle"></div>
+            </div>
+
+            <!-- Add Track -->
+            <div class="flex h-[36px] group cursor-pointer hover:bg-primary-50/50 transition-colors" id="btn-add-track">
+              <div class="w-[180px] min-w-[180px] border-r border-surface-200 px-3 flex items-center gap-2">
+                <i data-lucide="plus" class="w-3.5 h-3.5 text-surface-400 group-hover:text-primary-500 transition-colors"></i>
+                <span class="text-xs text-surface-400 group-hover:text-primary-600 font-medium transition-colors">Adicionar faixa</span>
+              </div>
+              <div class="flex-1"></div>
+            </div>
           </div>
 
           <!-- Playhead -->
-          <div id="playhead" class="absolute top-0 bottom-0 left-[180px] w-[2px] bg-red-500 z-30 pointer-events-none" style="transform: translateX(0px)">
+          <div id="playhead" class="absolute top-0 bottom-0 left-[180px] w-[2px] bg-red-500 z-30 cursor-col-resize" style="transform: translateX(0px)">
             <div class="absolute -top-1 left-1/2 -translate-x-1/2 w-3 h-3 bg-red-500 rounded-full border-2 border-white shadow-sm"></div>
           </div>
+        </div>
+
+        <!-- Timeline Horizontal Scrollbar -->
+        <div id="timeline-scrollbar-track" class="h-[14px] bg-surface-50 border-t border-surface-100 relative cursor-pointer">
+          <div id="timeline-scrollbar-thumb" class="absolute top-[2px] h-[10px] bg-surface-300 hover:bg-surface-400 rounded-full transition-colors cursor-grab active:cursor-grabbing" style="left:0; width:100%;"></div>
         </div>
       </div>
     </div>
@@ -340,6 +369,24 @@
         <div id="modal-progress-bar" class="absolute inset-y-0 left-0 bg-gradient-to-r from-primary-500 to-primary-600 rounded-full transition-all duration-500 ease-out" style="width: 0%"></div>
       </div>
       <p id="modal-stage" class="text-xs text-surface-400 mt-3 text-center font-medium">0%</p>
+    </div>
+  </div>
+
+  <!-- Project List Modal -->
+  <div id="project-list-modal" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-[100] hidden flex items-center justify-center">
+    <div class="bg-white rounded-2xl p-6 max-w-lg w-full mx-4 shadow-2xl">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="font-bold text-lg text-surface-900 flex items-center gap-2">
+          <i data-lucide="folder-open" class="w-5 h-5 text-primary-500"></i>
+          Projetos Salvos
+        </h3>
+        <button id="btn-close-project-list" class="p-1 hover:bg-surface-100 rounded-lg transition-colors">
+          <i data-lucide="x" class="w-5 h-5 text-surface-400"></i>
+        </button>
+      </div>
+      <div id="project-list-items" class="space-y-2 max-h-[400px] overflow-y-auto">
+        <p class="text-sm text-surface-400 text-center py-8">Nenhum projeto salvo.</p>
+      </div>
     </div>
   </div>
 
