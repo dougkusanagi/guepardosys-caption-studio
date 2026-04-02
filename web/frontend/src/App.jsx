@@ -2745,7 +2745,7 @@ function drawAudioTrack(canvas, width, height, waveform, duration, intervals, se
 
   for (let px = 0; px < width; px += 1) {
     const start = Math.floor(px * samplesPerPixel);
-    const end = Math.min(Math.floor((px + 1) * samplesPerPixel), waveform.length);
+    const end = Math.min(Math.max(start + 1, Math.floor((px + 1) * samplesPerPixel)), waveform.length);
     let max = 0;
     for (let index = start; index < end; index += 1) {
       if (waveform[index] > max) max = waveform[index];
