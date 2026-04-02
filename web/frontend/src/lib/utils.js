@@ -1,3 +1,6 @@
+import { clsx } from 'clsx';
+import { twMerge } from 'tailwind-merge';
+
 export function formatTime(seconds) {
   if (!seconds || Number.isNaN(seconds)) return '00:00.000';
   const mins = Math.floor(seconds / 60);
@@ -18,6 +21,10 @@ export function formatDuration(seconds) {
 
 export function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
+}
+
+export function cn(...inputs) {
+  return twMerge(clsx(inputs));
 }
 
 export function hexToASSColor(hex) {

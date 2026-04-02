@@ -12,15 +12,16 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import shutil
 import uuid
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, File, UploadFile, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, File, Request, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from web.services import ffmpeg_svc, whisper_svc, subtitle_svc
 
@@ -40,6 +41,7 @@ PROJECTS_DIR.mkdir(exist_ok=True)
 
 # --- App ---
 app = FastAPI(title="StudioCut", version="1.0.0")
+logger = logging.getLogger(__name__)
 
 # Static files
 app.mount("/css", StaticFiles(directory=str(PUBLIC_DIR / "css")), name="css")
@@ -75,6 +77,21 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 
+@app.exception_handler(ffmpeg_svc.FFmpegServiceError)
+async def handle_ffmpeg_error(_: Request, exc: ffmpeg_svc.FFmpegServiceError):
+    return JSONResponse({"error": str(exc)}, status_code=exc.status_code)
+
+
+@app.on_event("startup")
+async def log_missing_media_binaries():
+    missing = ffmpeg_svc.get_missing_binaries()
+    if missing:
+        logger.warning(
+            "Dependências do sistema ausentes: %s. Instale o pacote 'ffmpeg' e reinicie o backend.",
+            ", ".join(missing),
+        )
+
+
 # --- Request Models ---
 class RemoveSilenceRequest(BaseModel):
     filename: str
@@ -101,6 +118,8 @@ class BurnSubtitleRequest(BaseModel):
     filename: str
     projectId: str
     clientId: str = ""
+    sourceFile: str = ""
+    subtitles: list[dict[str, Any]] = Field(default_factory=list)
     style: dict = {}
 
 
@@ -117,11 +136,6 @@ class CropRequest(BaseModel):
 class ExportRequest(BaseModel):
     projectId: str
     sourceFile: str
-
-
-class SpectrogramAudioRequest(BaseModel):
-    projectId: str
-    filename: str
 
 
 # --- Helper to send progress ---
@@ -141,6 +155,22 @@ def _frontend_index() -> Path:
     if dist_index.exists():
         return dist_index
     return PUBLIC_DIR / "index.html"
+
+
+def _resolve_source_path(source_file: str) -> Path | None:
+    source = (BASE_DIR / source_file.lstrip("/")).resolve()
+    try:
+        source.relative_to(BASE_DIR.resolve())
+    except ValueError:
+        return None
+    return source
+
+
+def _get_video_play_res(path: Path) -> tuple[int, int]:
+    info = ffmpeg_svc.get_video_info(str(path))
+    width = int(info.get("video", {}).get("width") or 1920)
+    height = int(info.get("video", {}).get("height") or 1080)
+    return width, height
 
 
 @app.get("/")
@@ -187,12 +217,17 @@ async def upload_video(video: UploadFile = File(...)):
     project_dir = PROCESSED_DIR / project_id
     project_dir.mkdir(parents=True, exist_ok=True)
 
-    # Get video info
-    info = ffmpeg_svc.get_video_info(str(file_path))
+    try:
+        # Get video info
+        info = ffmpeg_svc.get_video_info(str(file_path))
 
-    # Generate waveform
-    waveform_path = project_dir / "waveform.json"
-    waveform = ffmpeg_svc.generate_waveform(str(file_path), str(waveform_path))
+        # Generate waveform
+        waveform_path = project_dir / "waveform.json"
+        waveform = ffmpeg_svc.generate_waveform(str(file_path), str(waveform_path))
+    except Exception:
+        file_path.unlink(missing_ok=True)
+        shutil.rmtree(project_dir, ignore_errors=True)
+        raise
 
     return {
         "projectId": project_id,
@@ -205,28 +240,6 @@ async def upload_video(video: UploadFile = File(...)):
         "info": info,
         "waveform": waveform,
     }
-
-
-@app.post("/api/project/spectrogram-audio")
-async def ensure_spectrogram_audio(req: SpectrogramAudioRequest):
-    """Generate spectrogram audio on demand so upload stays responsive."""
-    input_path = UPLOADS_DIR / req.filename
-    if not input_path.exists():
-        return JSONResponse({"error": "Arquivo não encontrado"}, status_code=404)
-
-    project_dir = PROCESSED_DIR / req.projectId
-    project_dir.mkdir(parents=True, exist_ok=True)
-    audio_path = project_dir / "audio.wav"
-
-    if not audio_path.exists():
-        loop = asyncio.get_running_loop()
-        await loop.run_in_executor(
-            None,
-            lambda: ffmpeg_svc.extract_audio(str(input_path), str(audio_path))
-        )
-
-    return {"audioPath": f"/processed/{req.projectId}/audio.wav"}
-
 
 @app.post("/api/process/remove-silence")
 async def remove_silence(req: RemoveSilenceRequest):
@@ -334,7 +347,12 @@ async def generate_subtitles(req: SubtitleRequest):
     srt_path = project_dir / "subtitles.srt"
     ass_path = project_dir / "subtitles.ass"
     subtitle_svc.write_srt(subtitles, str(srt_path))
-    subtitle_svc.write_ass(subtitles, str(ass_path), req.style or None)
+    subtitle_svc.write_ass(
+        subtitles,
+        str(ass_path),
+        req.style or None,
+        play_res=_get_video_play_res(input_path),
+    )
 
     await send_progress(req.clientId, "subtitles", 100, "Legendas geradas!")
 
@@ -348,19 +366,26 @@ async def generate_subtitles(req: SubtitleRequest):
 @app.post("/api/process/burn-subtitles")
 async def burn_subtitles(req: BurnSubtitleRequest):
     """Burn subtitles into the video."""
-    input_path = UPLOADS_DIR / req.filename
     project_dir = PROCESSED_DIR / req.projectId
     ass_path = project_dir / "subtitles.ass"
+    source_file = req.sourceFile or f"/uploads/{req.filename}"
+    input_path = _resolve_source_path(source_file)
 
-    if not ass_path.exists():
-        return JSONResponse({"error": "Gere as legendas primeiro"}, status_code=400)
+    if input_path is None or not input_path.exists():
+        return JSONResponse({"error": "Arquivo de origem não encontrado"}, status_code=404)
 
-    # Re-write ASS with latest style
-    if req.style:
-        srt_data = json.loads((project_dir / "subtitles.srt").read_text("utf-8")) if False else None
-        # Re-read subtitles from existing SRT
+    subtitles = req.subtitles or []
+    if not subtitles:
+        if not ass_path.exists():
+            return JSONResponse({"error": "Gere as legendas primeiro"}, status_code=400)
         subtitles = _parse_srt(project_dir / "subtitles.srt")
-        subtitle_svc.write_ass(subtitles, str(ass_path), req.style)
+
+    subtitle_svc.write_ass(
+        subtitles,
+        str(ass_path),
+        req.style or None,
+        play_res=_get_video_play_res(input_path),
+    )
 
     await send_progress(req.clientId, "burn", 0, "Aplicando legendas...")
 
@@ -411,8 +436,8 @@ async def crop_video(req: CropRequest):
 @app.post("/api/export")
 async def export_video(req: ExportRequest):
     """Download the processed video."""
-    source = BASE_DIR / req.sourceFile.lstrip("/")
-    if not source.exists():
+    source = _resolve_source_path(req.sourceFile)
+    if source is None or not source.exists():
         return JSONResponse({"error": "Arquivo não encontrado"}, status_code=404)
     return FileResponse(str(source), filename=f"studiocut_export.mp4", media_type="video/mp4")
 

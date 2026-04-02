@@ -7,7 +7,6 @@ import { uploadVideo, removeSilence, generateSubtitles, burnSubtitles, cropVideo
 import { WSClient } from './modules/wsClient.js';
 import { VideoPlayer } from './modules/videoPlayer.js';
 import { Timeline } from './modules/timeline.js';
-import { Spectrogram } from './modules/spectrogram.js';
 import { CropTool } from './modules/cropTool.js';
 import { SubtitleEditor } from './modules/subtitleEditor.js';
 import { showToast, formatDuration } from './utils/helpers.js';
@@ -33,7 +32,6 @@ class App {
     // Modules (deferred)
     this.player = null;
     this.timeline = null;
-    this.spectrogram = null;
     this.cropTool = null;
     this.subtitleEditor = null;
     this.toolbarEventsBound = false;
@@ -135,7 +133,6 @@ class App {
     this.player.setSubtitles(this.subtitles);
 
     this.timeline = new Timeline(this.player);
-    this.spectrogram = new Spectrogram();
     this.cropTool = new CropTool();
     this.subtitleEditor = new SubtitleEditor();
 
@@ -155,19 +152,10 @@ class App {
     this.timeline.setCollapsedMode(false);
     this.timeline.setSubtitles(this._getTimelineSubtitles());
 
-    // Spectrogram audio
-    if (uploadResult.audioPath) {
-      this.spectrogram.loadAudio(uploadResult.audioPath);
-    }
-
-    // Sync spectrogram playhead with video
     const originalOnTimeUpdate = this.player.onTimeUpdate;
     this.player.onTimeUpdate = (time) => {
       if (originalOnTimeUpdate) originalOnTimeUpdate(time);
       this.timeline._updatePlayhead(time);
-      if (this.spectrogram.isVisible) {
-        this.spectrogram.updatePlayhead(time, this.player.getDuration());
-      }
     };
 
     this._bindToolbarEvents();
@@ -215,12 +203,6 @@ class App {
     btnProcessed.addEventListener('click', () => {
       const visible = this.player.toggleProcessed();
       btnProcessed.classList.toggle('active', visible);
-    });
-
-    // Spectrogram toggle
-    document.getElementById('btn-toggle-spectrogram').addEventListener('click', () => {
-      this.spectrogram.toggle();
-      document.getElementById('btn-toggle-spectrogram').classList.toggle('active', this.spectrogram.isVisible);
     });
 
     // Export

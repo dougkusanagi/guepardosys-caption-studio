@@ -3,16 +3,26 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "concurrently -k -n backend,frontend -c green,blue \"npm run backend\" \"npm run frontend\"",
+    "check:backend": "bun scripts/check-backend-deps.mjs",
+    "dev": "bun run check:backend && concurrently -k -n backend,frontend -c green,blue \"bun run backend:serve\" \"bun run frontend\"",
     "frontend": "vite --config web/frontend/vite.config.js",
-    "backend": "uv run uvicorn web.server:app --reload --port 3000",
+    "backend": "bun run check:backend && bun run backend:serve",
+    "backend:serve": "uv run uvicorn web.server:app --reload --port 3000",
     "build": "vite build --config web/frontend/vite.config.js",
     "preview": "vite preview --config web/frontend/vite.config.js"
   },
   "dependencies": {
+    "@radix-ui/react-alert-dialog": "^1.1.15",
+    "@radix-ui/react-dialog": "^1.1.15",
+    "@radix-ui/react-scroll-area": "^1.2.10",
+    "@radix-ui/react-select": "^2.2.6",
+    "@radix-ui/react-slot": "^1.2.4",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
     "lucide-react": "^1.7.0",
     "react": "^19.2.4",
-    "react-dom": "^19.2.4"
+    "react-dom": "^19.2.4",
+    "tailwind-merge": "^3.5.0"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^6.0.1",

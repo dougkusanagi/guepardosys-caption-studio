@@ -69,10 +69,6 @@ export function burnSubtitles(params) {
   return postJson('/api/process/burn-subtitles', params, 'Burn subtitles failed');
 }
 
-export function prepareSpectrogramAudio(params) {
-  return postJson('/api/project/spectrogram-audio', params, 'Audio preparation failed');
-}
-
 export function cropVideoRequest(params) {
   return postJson('/api/process/crop', params, 'Crop failed');
 }
