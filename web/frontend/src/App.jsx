@@ -947,8 +947,7 @@ function ToolbarButton({ children, icon, active = false, onClick }) {
       type="button"
       variant="toolbar"
       size="toolbar"
-      data-state={active ? 'on' : 'off'}
-      className="gap-1.5"
+      className={cn('gap-1.5', active ? 'bg-primary-50 text-primary-700 hover:bg-primary-100' : '')}
       onClick={onClick}
     >
       {icon}

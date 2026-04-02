@@ -14,7 +14,7 @@ const buttonVariants = cva(
         outline: 'border border-surface-200 bg-white text-surface-700 hover:bg-surface-50',
         ghost: 'text-surface-600 hover:bg-surface-100 hover:text-surface-800',
         destructive: 'bg-red-600 text-white shadow-sm hover:bg-red-700 active:scale-[0.98]',
-        toolbar: 'text-surface-600 hover:bg-surface-100 hover:text-surface-700 data-[state=on]:bg-primary-50 data-[state=on]:text-primary-700',
+        toolbar: 'text-surface-600 hover:bg-surface-100 hover:text-surface-700',
         transport: 'text-surface-600 hover:bg-surface-100 hover:text-surface-800',
       },
       size: {

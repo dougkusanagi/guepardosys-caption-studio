@@ -492,30 +492,46 @@ export class Timeline {
 
     if (this.waveformData.length === 0) return;
 
-    const mid = h / 2;
     const samplesPerPixel = this.waveformData.length / w;
-    const amp = this.waveformAmplitude;
+    const amp = Math.max(0.4, Math.min(this.waveformAmplitude, 5));
+    const peaks = [];
+    const nonZeroPeaks = [];
 
-    ctx.fillStyle = '#22c55e';
-    ctx.globalAlpha = 0.6;
-
-    for (let px = 0; px < w; px++) {
+    for (let px = 0; px < w; px += 1) {
       const sampleIdx = Math.floor(px * samplesPerPixel);
-      const endIdx = Math.min(Math.floor((px + 1) * samplesPerPixel), this.waveformData.length);
+      const endIdx = Math.min(Math.max(sampleIdx + 1, Math.floor((px + 1) * samplesPerPixel)), this.waveformData.length);
 
       let maxVal = 0;
-      for (let i = sampleIdx; i < endIdx; i++) {
+      for (let i = sampleIdx; i < endIdx; i += 1) {
         if (this.waveformData[i] > maxVal) maxVal = this.waveformData[i];
       }
+      peaks.push(maxVal);
+      if (maxVal > 0) nonZeroPeaks.push(maxVal);
+    }
 
-      const barH = Math.min(maxVal * amp * (h * 0.8), h - 2);
-      ctx.fillRect(px, mid - barH / 2, 1, barH);
+    const sortedPeaks = nonZeroPeaks.sort((a, b) => a - b);
+    const referencePeak = this._percentile(sortedPeaks, 0.985) || this._percentile(sortedPeaks, 0.9) || 1;
+    const verticalPadding = h <= 40 ? 2 : 3;
+    const availableHeight = Math.max(h - verticalPadding * 2, 1);
+    const mid = h / 2;
+
+    ctx.fillStyle = '#16a34a';
+    ctx.globalAlpha = 0.95;
+
+    for (let px = 0; px < w; px += 1) {
+      const normalizedPeak = referencePeak > 0 ? Math.max(0, Math.min(peaks[px] / referencePeak, 1)) : 0;
+      const shapedPeak = normalizedPeak > 0 ? Math.pow(normalizedPeak, 0.58) : 0;
+      const scaledPeak = Math.max(0, Math.min(shapedPeak * amp, 1));
+      const barH = scaledPeak > 0 ? Math.max(1.5, scaledPeak * availableHeight) : 0;
+      if (barH > 0) {
+        ctx.fillRect(px, mid - barH / 2, 1, barH);
+      }
     }
 
     ctx.globalAlpha = 1;
 
-    ctx.strokeStyle = '#16a34a40';
-    ctx.lineWidth = 0.5;
+    ctx.strokeStyle = '#16a34a26';
+    ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(0, mid);
     ctx.lineTo(w, mid);
@@ -536,6 +552,12 @@ export class Timeline {
     }
 
     this._drawSelection(ctx, h);
+  }
+
+  _percentile(sortedValues, ratio) {
+    if (!sortedValues.length) return 0;
+    const index = Math.max(0, Math.min(sortedValues.length - 1, Math.floor((sortedValues.length - 1) * ratio)));
+    return sortedValues[index];
   }
 
   _drawSubtitleTrack() {
