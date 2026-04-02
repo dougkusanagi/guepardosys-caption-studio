@@ -149,10 +149,6 @@
             <i data-lucide="monitor-check" class="w-4 h-4"></i>
             <span>Processado</span>
           </button>
-          <button id="btn-toggle-spectrogram" class="toolbar-btn" title="Espectrograma">
-            <i data-lucide="audio-waveform" class="w-4 h-4"></i>
-            <span>Espectrograma</span>
-          </button>
         </div>
 
         <!-- Zoom -->
@@ -205,18 +201,6 @@
           </div>
         </div>
       </div>
-
-      <!-- Spectrogram Panel -->
-      <div id="spectrogram-panel" class="hidden border-t border-surface-200 bg-white">
-        <div class="flex items-center gap-2 px-4 py-2 border-b border-surface-100">
-          <i data-lucide="audio-waveform" class="w-3.5 h-3.5 text-primary-500"></i>
-          <span class="text-xs font-semibold text-surface-600 uppercase tracking-wider">Espectrograma</span>
-        </div>
-        <div class="px-4 py-2 overflow-x-auto" style="height: 120px">
-          <canvas id="spectrogram-canvas" class="h-full rounded-lg" style="min-width: 100%"></canvas>
-        </div>
-      </div>
-
       <!-- Transport Controls -->
       <div id="transport" class="bg-white border-t border-surface-200 px-6 py-3 flex-shrink-0">
         <div class="flex items-center gap-4">

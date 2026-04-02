@@ -25,11 +25,11 @@ const CardDescription = React.forwardRef(function CardDescription({ className, .
 });
 
 const CardContent = React.forwardRef(function CardContent({ className, ...props }, ref) {
-  return <div ref={ref} className={cn('p-6 pt-0', className)} {...props} />;
+  return <div ref={ref} className={cn('p-6', className)} {...props} />;
 });
 
 const CardFooter = React.forwardRef(function CardFooter({ className, ...props }, ref) {
-  return <div ref={ref} className={cn('flex items-center p-6 pt-0', className)} {...props} />;
+  return <div ref={ref} className={cn('flex items-center p-6', className)} {...props} />;
 });
 
 export {

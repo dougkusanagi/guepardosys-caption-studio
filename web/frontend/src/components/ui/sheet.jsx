@@ -22,8 +22,8 @@ const SheetOverlay = React.forwardRef(function SheetOverlay({ className, ...prop
 const sideClasses = {
   top: 'inset-x-0 top-0 border-b',
   bottom: 'inset-x-0 bottom-0 border-t',
-  left: 'inset-y-0 left-0 h-full w-80 border-r',
-  right: 'inset-y-0 right-0 h-full w-80 border-l',
+  left: 'left-0 top-0 bottom-0 w-80 border-r',
+  right: 'right-0 top-0 bottom-0 w-80 border-l',
 };
 
 const SheetContent = React.forwardRef(function SheetContent(
