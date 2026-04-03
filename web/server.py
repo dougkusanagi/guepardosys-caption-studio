@@ -23,7 +23,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from web.services import ffmpeg_svc, whisper_svc, subtitle_svc
+from web.services import ffmpeg_svc, whisper_svc, subtitle_svc, preset_svc
 
 # --- Paths ---
 BASE_DIR = Path(__file__).parent
@@ -503,6 +503,41 @@ async def delete_project_endpoint(project_name: str):
     if file_path.exists():
         file_path.unlink()
 
+    return {"ok": True}
+
+
+class PresetCreate(BaseModel):
+    name: str
+    style: dict[str, Any]
+
+
+class PresetUpdate(BaseModel):
+    name: str | None = None
+    style: dict[str, Any] | None = None
+
+
+@app.get("/api/presets")
+async def list_presets_endpoint():
+    """List all subtitle style presets."""
+    return preset_svc.list_presets()
+
+
+@app.post("/api/presets")
+async def create_preset_endpoint(data: PresetCreate):
+    """Create a new subtitle style preset."""
+    return preset_svc.create_preset(data.name, data.style)
+
+
+@app.put("/api/presets/{preset_id}")
+async def update_preset_endpoint(preset_id: str, data: PresetUpdate):
+    """Update an existing subtitle style preset."""
+    return preset_svc.update_preset(preset_id, data.name, data.style)
+
+
+@app.delete("/api/presets/{preset_id}")
+async def delete_preset_endpoint(preset_id: str):
+    """Delete a subtitle style preset."""
+    preset_svc.delete_preset(preset_id)
     return {"ok": True}
 
 

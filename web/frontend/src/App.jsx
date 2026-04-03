@@ -79,6 +79,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from './components/ui/sheet.jsx';
+import { PresetSelector } from './components/preset-selector.jsx';
 import {
   burnSubtitles,
   deleteProject,
@@ -1660,6 +1661,13 @@ function SubtitleSidebar({ open, settings, setSettings, style, setStyle, subtitl
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
+                  <div>
+                    <Label className="mb-2 block">Presets</Label>
+                    <PresetSelector
+                      currentStyle={style}
+                      onStyleChange={setStyle}
+                    />
+                  </div>
                   <SelectField label="Fonte" value={style.fontName} onChange={(value) => setStyle((prev) => ({ ...prev, fontName: value }))}>
                     <option value="Arial">Arial</option>
                     <option value="Roboto">Roboto</option>

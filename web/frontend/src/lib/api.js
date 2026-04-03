@@ -109,3 +109,46 @@ export async function deleteProject(projectName) {
   if (!res.ok) throw new Error('Delete failed');
   return res.json();
 }
+
+export async function listPresets() {
+  const res = await fetch(`${BASE_URL}/api/presets`);
+  if (!res.ok) throw new Error('Failed to list presets');
+  return res.json();
+}
+
+export async function createPreset(name, style) {
+  const res = await fetch(`${BASE_URL}/api/presets`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, style }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Failed to create preset');
+  }
+  return res.json();
+}
+
+export async function updatePreset(presetId, data) {
+  const res = await fetch(`${BASE_URL}/api/presets/${encodeURIComponent(presetId)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Failed to update preset');
+  }
+  return res.json();
+}
+
+export async function deletePreset(presetId) {
+  const res = await fetch(`${BASE_URL}/api/presets/${encodeURIComponent(presetId)}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Failed to delete preset');
+  }
+  return res.json();
+}
