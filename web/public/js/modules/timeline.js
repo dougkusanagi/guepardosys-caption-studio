@@ -514,6 +514,8 @@ export class Timeline {
     const verticalPadding = h <= 40 ? 2 : 3;
     const availableHeight = Math.max(h - verticalPadding * 2, 1);
     const mid = h / 2;
+    const minBarHeight = Math.min(5, Math.max(2.25, availableHeight * 0.055));
+    const columnW = 1.12;
 
     ctx.fillStyle = '#16a34a';
     ctx.globalAlpha = 0.95;
@@ -522,10 +524,8 @@ export class Timeline {
       const normalizedPeak = referencePeak > 0 ? Math.max(0, Math.min(peaks[px] / referencePeak, 1)) : 0;
       const shapedPeak = normalizedPeak > 0 ? Math.pow(normalizedPeak, 0.58) : 0;
       const scaledPeak = Math.max(0, Math.min(shapedPeak * amp, 1));
-      const barH = scaledPeak > 0 ? Math.max(1.5, scaledPeak * availableHeight) : 0;
-      if (barH > 0) {
-        ctx.fillRect(px, mid - barH / 2, 1, barH);
-      }
+      const barH = Math.max(minBarHeight, scaledPeak * availableHeight);
+      ctx.fillRect(px, mid - barH / 2, columnW, barH);
     }
 
     ctx.globalAlpha = 1;

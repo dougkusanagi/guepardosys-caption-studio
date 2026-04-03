@@ -2570,6 +2570,27 @@ function buildBurnStyle(style, displayScale = 1) {
   };
 }
 
+/**
+ * Outline via text-shadow: filled disk of offsets (not rings of samples) avoids both
+ * miter spikes (-webkit-text-stroke) and scalloped “petals” from sparse angular sampling.
+ */
+function buildDiskOutlineTextShadows(outlinePx, color) {
+  const w = Math.max(0, Math.ceil(Number(outlinePx) || 0));
+  if (w <= 0) return [];
+  const c = color || '#000000';
+  // w===1: include diagonals so a 1px outline matches a full 8-neighbour ring (not a thin +).
+  const maxSq = w === 1 ? 2 : w * w;
+  const layers = [];
+  for (let dy = -w; dy <= w; dy += 1) {
+    for (let dx = -w; dx <= w; dx += 1) {
+      if (dx === 0 && dy === 0) continue;
+      if (dx * dx + dy * dy > maxSq) continue;
+      layers.push(`${dx}px ${dy}px 0 ${c}`);
+    }
+  }
+  return layers;
+}
+
 function buildSubtitlePreviewStyle(style) {
   const outline = Math.max(0, Number(style?.outline) || 0);
   const shadow = Math.max(0, Number(style?.shadow) || 0);
@@ -2592,6 +2613,14 @@ function buildSubtitlePreviewStyle(style) {
   const textAlign = alignment === 1 ? 'left' : alignment === 3 ? 'right' : 'center';
   const alignItems = isCenterAligned ? 'center' : isBottomAligned ? 'flex-end' : 'flex-start';
 
+  const outlineColor = style?.outlineColor || '#000000';
+  const outlineShadows = buildDiskOutlineTextShadows(outline, outlineColor);
+  const dropShadow = shadow > 0 ? `0 ${shadow}px ${shadow * 4}px rgba(0, 0, 0, 0.82)` : '';
+  const textShadow =
+    outlineShadows.length || dropShadow
+      ? [...outlineShadows, dropShadow].filter(Boolean).join(', ')
+      : 'none';
+
   return {
     container: {
       top: `calc(${bandTop}% - ${decorationPadding}px)`,
@@ -2606,9 +2635,7 @@ function buildSubtitlePreviewStyle(style) {
       fontFamily: style?.fontName || 'Arial',
       fontSize: `${Math.max(12, Number(style?.fontSize) || 24)}px`,
       fontWeight: style?.bold ? 700 : 600,
-      WebkitTextStroke: outline > 0 ? `${outline}px ${style?.outlineColor || '#000000'}` : undefined,
-      paintOrder: 'stroke fill',
-      textShadow: shadow > 0 ? `0 ${shadow}px ${shadow * 4}px rgba(0, 0, 0, 0.82)` : 'none',
+      textShadow,
       textAlign,
     },
   };
@@ -2759,6 +2786,9 @@ function drawAudioTrack(canvas, width, height, waveform, duration, intervals, se
   const availableHeight = Math.max(height - verticalPadding * 2, 1);
   const mid = height / 2;
   const effectiveAmplitude = clamp(amplitude, 0.4, 5);
+  // Faixa mínima visível (silêncio quase zero) + colunas levemente sobrepostas evitam “frestas” entre pixels.
+  const minBarHeight = Math.min(5, Math.max(2.25, availableHeight * 0.055));
+  const columnW = 1.12;
 
   ctx.fillStyle = '#16a34a';
   ctx.globalAlpha = 0.95;
@@ -2767,10 +2797,8 @@ function drawAudioTrack(canvas, width, height, waveform, duration, intervals, se
     const normalizedPeak = referencePeak > 0 ? clamp(peaks[px] / referencePeak, 0, 1) : 0;
     const shapedPeak = normalizedPeak > 0 ? Math.pow(normalizedPeak, 0.58) : 0;
     const scaledPeak = clamp(shapedPeak * effectiveAmplitude, 0, 1);
-    const barHeight = scaledPeak > 0 ? Math.max(1.5, scaledPeak * availableHeight) : 0;
-    if (barHeight > 0) {
-      ctx.fillRect(px, mid - barHeight / 2, 1, barHeight);
-    }
+    const barHeight = Math.max(minBarHeight, scaledPeak * availableHeight);
+    ctx.fillRect(px, mid - barHeight / 2, columnW, barHeight);
   }
 
   ctx.globalAlpha = 1;
