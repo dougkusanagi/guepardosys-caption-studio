@@ -2,6 +2,16 @@ import { Bookmark, Check, ChevronsUpDown, MoreVertical, Pencil, Save, Trash2 } f
 import { useEffect, useRef, useState } from 'react';
 
 import { createPreset, deletePreset, listPresets, updatePreset } from '../lib/api.js';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from './ui/alert-dialog.jsx';
 import { Button } from './ui/button.jsx';
 import {
   Dialog,
@@ -14,7 +24,7 @@ import {
 import { Input } from './ui/input.jsx';
 import { Label } from './ui/label.jsx';
 
-export function PresetSelector({ currentStyle, onStyleChange }) {
+export function PresetSelector({ currentStyle, onStyleChange, onToast }) {
   const [presets, setPresets] = useState([]);
   const [selectedId, setSelectedId] = useState('');
   const [open, setOpen] = useState(false);
@@ -25,6 +35,8 @@ export function PresetSelector({ currentStyle, onStyleChange }) {
   const [loading, setLoading] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [actionsOpen, setActionsOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [presetToDelete, setPresetToDelete] = useState(null);
   const actionsRef = useRef(null);
 
   useEffect(() => {
@@ -73,8 +85,9 @@ export function PresetSelector({ currentStyle, onStyleChange }) {
       setSelectedId(created.id);
       setShowDialog(false);
       setNewName('');
+      onToast?.('Preset criado com sucesso!', 'success');
     } catch (err) {
-      alert(`Erro ao criar preset: ${err.message}`);
+      onToast?.(`Erro ao criar preset: ${err.message}`, 'error');
     } finally {
       setLoading(false);
     }
@@ -86,8 +99,9 @@ export function PresetSelector({ currentStyle, onStyleChange }) {
     try {
       const updated = await updatePreset(selectedId, { name: undefined, style: currentStyle });
       setPresets((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+      onToast?.('Preset atualizado com sucesso!', 'success');
     } catch (err) {
-      alert(`Erro ao salvar: ${err.message}`);
+      onToast?.(`Erro ao salvar: ${err.message}`, 'error');
     } finally {
       setLoading(false);
     }
@@ -99,29 +113,37 @@ export function PresetSelector({ currentStyle, onStyleChange }) {
     try {
       const updated = await updatePreset(editingPreset.id, { name: newName.trim(), style: undefined });
       setPresets((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
-      if (editingPreset.id === selectedId) {
-      }
       setShowDialog(false);
       setNewName('');
       setEditingPreset(null);
+      onToast?.('Preset renomeado com sucesso!', 'success');
     } catch (err) {
-      alert(`Erro ao renomear: ${err.message}`);
+      onToast?.(`Erro ao renomear: ${err.message}`, 'error');
     } finally {
       setLoading(false);
     }
   }
 
-  async function handleDelete(preset) {
-    if (!window.confirm(`Excluir preset "${preset.name}"?`)) return;
+  function requestDelete(preset) {
+    setPresetToDelete(preset);
+    setDeleteDialogOpen(true);
+    setActionsOpen(false);
+  }
+
+  async function confirmDelete() {
+    if (!presetToDelete) return;
     try {
-      await deletePreset(preset.id);
-      setPresets((prev) => prev.filter((p) => p.id !== preset.id));
-      if (selectedId === preset.id) {
+      await deletePreset(presetToDelete.id);
+      setPresets((prev) => prev.filter((p) => p.id !== presetToDelete.id));
+      if (selectedId === presetToDelete.id) {
         setSelectedId('');
       }
-      setActionsOpen(false);
+      onToast?.(`Preset "${presetToDelete.name}" excluído.`, 'info');
     } catch (err) {
-      alert(`Erro ao excluir: ${err.message}`);
+      onToast?.(`Erro ao excluir: ${err.message}`, 'error');
+    } finally {
+      setDeleteDialogOpen(false);
+      setPresetToDelete(null);
     }
   }
 
@@ -228,7 +250,7 @@ export function PresetSelector({ currentStyle, onStyleChange }) {
                   {!isDefault && (
                     <button
                       type="button"
-                      onClick={() => handleDelete(selectedPreset)}
+                      onClick={() => requestDelete(selectedPreset)}
                       className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50"
                     >
                       <Trash2 className="h-4 w-4" />
@@ -286,6 +308,23 @@ export function PresetSelector({ currentStyle, onStyleChange }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir preset?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir o preset &quot;{presetToDelete?.name}&quot;? Esta a&ccedil;&atilde;o n&atilde;o pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-red-600 hover:bg-red-700">
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

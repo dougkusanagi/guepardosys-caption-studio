@@ -55,6 +55,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from './components/ui/dialog.jsx';
@@ -156,6 +157,11 @@ function App() {
   const [cropActive, setCropActive] = useState(false);
   const [cropRect, setCropRect] = useState(DEFAULT_CROP_RECT);
   const [toasts, setToasts] = useState([]);
+  const [showSaveDialog, setShowSaveDialog] = useState(false);
+  const [saveProjectName, setSaveProjectName] = useState('');
+  const [showDeleteProjectDialog, setShowDeleteProjectDialog] = useState(false);
+  const [projectToDelete, setProjectToDelete] = useState('');
+  const [showExportDialog, setShowExportDialog] = useState(false);
 
   // Initialize API (detects Tauri vs browser)
   useEffect(() => {
@@ -392,13 +398,13 @@ function App() {
     }
   }
 
-  async function runExport() {
+  async function runExport(exportMode = 'embedded') {
     if (!projectId || !filename) return;
 
     try {
       let sourceFile = currentOutputPath || getOriginalSourceFile();
 
-      if (subtitles.length > 0 && !outputHasBurnedSubtitles(sourceFile)) {
+      if (subtitles.length > 0 && !outputHasBurnedSubtitles(sourceFile) && (exportMode === 'embedded' || exportMode === 'both')) {
         const subtitlePayload = getSubtitlesForSource(sourceFile);
         const burnScale = playback.getDisplayScaleForSource(sourceFile);
         setShowProcessingModal(true);
@@ -431,6 +437,22 @@ function App() {
       document.body.removeChild(anchor);
       URL.revokeObjectURL(url);
       pushToast('Vídeo exportado com sucesso!', 'success');
+
+      if (exportMode === 'separate' || exportMode === 'both') {
+        const assContent = generateAssSubtitles(subtitles, subtitleStyle);
+        const subtitleBlob = new Blob([assContent], { type: 'text/plain' });
+        const subtitleUrl = URL.createObjectURL(subtitleBlob);
+        const subtitleAnchor = document.createElement('a');
+        subtitleAnchor.href = subtitleUrl;
+        subtitleAnchor.download = `legendas_${Date.now()}.ass`;
+        document.body.appendChild(subtitleAnchor);
+        subtitleAnchor.click();
+        document.body.removeChild(subtitleAnchor);
+        URL.revokeObjectURL(subtitleUrl);
+        if (exportMode === 'both') {
+          pushToast('Legendas separadas exportadas com sucesso!', 'success');
+        }
+      }
     } catch (err) {
       setShowProcessingModal(false);
       pushToast(`Erro ao exportar: ${err.message}`, 'error');
@@ -439,12 +461,16 @@ function App() {
 
   async function saveCurrentProject() {
     if (!projectId || !filename) return;
-    const name = window.prompt('Nome do projeto:', originalName?.replace(/\.\w+$/, '') || 'Meu Projeto');
-    if (!name) return;
+    setSaveProjectName(originalName?.replace(/\.\w+$/, '') || 'Meu Projeto');
+    setShowSaveDialog(true);
+  }
 
+  async function confirmSaveProject() {
+    if (!saveProjectName.trim()) return;
+    setShowSaveDialog(false);
     try {
       await saveProject({
-        name,
+        name: saveProjectName.trim(),
         projectId,
         filename,
         originalName,
@@ -467,7 +493,7 @@ function App() {
         },
         waveform: timelineWaveform,
       });
-      pushToast(`Projeto "${name}" salvo com sucesso!`, 'success');
+      pushToast(`Projeto "${saveProjectName.trim()}" salvo com sucesso!`, 'success');
     } catch (err) {
       pushToast(`Erro ao salvar: ${err.message}`, 'error');
     }
@@ -540,11 +566,16 @@ function App() {
   }
 
   async function removeSavedProject(projectName) {
-    if (!window.confirm(`Excluir projeto "${projectName}"?`)) return;
+    setProjectToDelete(projectName);
+    setShowDeleteProjectDialog(true);
+  }
+
+  async function confirmDeleteProject() {
+    setShowDeleteProjectDialog(false);
     try {
-      await deleteProject(projectName);
-      setProjects((prev) => prev.filter((project) => project.name !== projectName));
-      pushToast(`Projeto "${projectName}" excluído.`, 'info');
+      await deleteProject(projectToDelete);
+      setProjects((prev) => prev.filter((project) => project.name !== projectToDelete));
+      pushToast(`Projeto "${projectToDelete}" excluído.`, 'info');
     } catch (err) {
       pushToast(`Erro ao excluir: ${err.message}`, 'error');
     }
@@ -606,7 +637,7 @@ function App() {
         onGoHome={() => setShowHomeConfirm(true)}
         onSave={saveCurrentProject}
         onOpenProjects={openProjectList}
-        onExport={runExport}
+        onExport={() => setShowExportDialog(true)}
       />
 
       {!editorVisible ? (
@@ -680,6 +711,7 @@ function App() {
         onClose={() => setShowSubtitleSidebar(false)}
         onGenerate={runSubtitleGeneration}
         onBurn={runBurnSubtitles}
+        onToast={pushToast}
       />
 
       <SilenceSidebar
@@ -705,6 +737,95 @@ function App() {
         onOpen={openProject}
         onDelete={removeSavedProject}
       />
+
+      <Dialog open={showSaveDialog} onOpenChange={setShowSaveDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Salvar Projeto</DialogTitle>
+            <DialogDescription>Escolha um nome para salvar o projeto atual.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <Label>Nome do projeto</Label>
+              <Input
+                value={saveProjectName}
+                onChange={(e) => setSaveProjectName(e.target.value)}
+                placeholder="Ex: Meu Projeto"
+                onKeyDown={(e) => e.key === 'Enter' && confirmSaveProject()}
+                autoFocus
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowSaveDialog(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={confirmSaveProject} disabled={!saveProjectName.trim()}>
+              Salvar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={showDeleteProjectDialog} onOpenChange={setShowDeleteProjectDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir projeto?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir o projeto &quot;{projectToDelete}&quot;? Esta a&ccedil;&atilde;o n&atilde;o pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDeleteProject} className="bg-red-600 hover:bg-red-700">
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <Dialog open={showExportDialog} onOpenChange={setShowExportDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Exportar Projeto</DialogTitle>
+            <DialogDescription>Escolha como deseja exportar as legendas.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <Card
+              className="cursor-pointer border-surface-200 bg-surface-50 transition-colors hover:border-primary-200 hover:bg-primary-50"
+              onClick={() => { setShowExportDialog(false); runExport('embedded'); }}
+            >
+              <CardContent className="p-4">
+                <p className="text-sm font-semibold text-surface-800">Legendas embutidas</p>
+                <p className="text-xs text-surface-500 mt-1">Queima as legendas diretamente no v&iacute;deo.</p>
+              </CardContent>
+            </Card>
+            <Card
+              className="cursor-pointer border-surface-200 bg-surface-50 transition-colors hover:border-primary-200 hover:bg-primary-50"
+              onClick={() => { setShowExportDialog(false); runExport('separate'); }}
+            >
+              <CardContent className="p-4">
+                <p className="text-sm font-semibold text-surface-800">Legendas separadas</p>
+                <p className="text-xs text-surface-500 mt-1">Exporta o v&iacute;deo e um arquivo de legenda .ass separado.</p>
+              </CardContent>
+            </Card>
+            <Card
+              className="cursor-pointer border-surface-200 bg-surface-50 transition-colors hover:border-primary-200 hover:bg-primary-50"
+              onClick={() => { setShowExportDialog(false); runExport('both'); }}
+            >
+              <CardContent className="p-4">
+                <p className="text-sm font-semibold text-surface-800">Ambos</p>
+                <p className="text-xs text-surface-500 mt-1">Exporta o v&iacute;deo com legendas embutidas e tamb&eacute;m o arquivo .ass separado.</p>
+              </CardContent>
+            </Card>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowExportDialog(false)}>
+              Cancelar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <ToastViewport toasts={toasts} />
     </div>
@@ -2480,6 +2601,50 @@ function shouldUseDockedPreview(info) {
 
 function outputHasBurnedSubtitles(outputPath) {
   return /\/subtitled_[^/]+\.mp4$/i.test(outputPath || '');
+}
+
+function generateAssSubtitles(subtitles, style) {
+  const alignment = Number(style?.alignment) || 2;
+  const fontName = style?.fontName || 'Arial';
+  const fontSize = Number(style?.fontSize) || 24;
+  const primaryColor = hexToASSColor(style?.primaryColor || '#ffffff');
+  const outlineColor = hexToASSColor(style?.outlineColor || '#000000');
+  const outline = Number(style?.outline) || 2;
+  const shadow = Number(style?.shadow) || 1;
+  const bold = style?.bold ? 1 : 0;
+
+  const lines = [
+    '[Script Info]',
+    'Title: Legendas StudioCut',
+    'ScriptType: v4.00+',
+    'WrapStyle: 0',
+    'PlayResX: 1920',
+    'PlayResY: 1080',
+    '',
+    '[V4+ Styles]',
+    'Format: Name, Fontname, Fontsize, PrimaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding',
+    `Style: Default,${fontName},${fontSize},${primaryColor},${outlineColor},&H80000000,${bold},0,0,0,100,100,0,0,1,${outline},${shadow},${alignment},10,10,10,1`,
+    '',
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+  ];
+
+  for (const sub of subtitles) {
+    const start = formatAssTime(sub.start);
+    const end = formatAssTime(sub.end);
+    const text = sub.text.replace(/\n/g, '\\N');
+    lines.push(`Dialogue: 0,${start},${end},Default,,0,0,0,,${text}`);
+  }
+
+  return lines.join('\r\n') + '\r\n';
+}
+
+function formatAssTime(seconds) {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+  const cs = Math.floor((seconds % 1) * 100);
+  return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}.${String(cs).padStart(2, '0')}`;
 }
 
 function setupCanvas(canvas, width, height) {

@@ -79,7 +79,7 @@ function SubtitlePreview({ subtitle }) {
   );
 }
 
-export function SubtitleSidebar({ open, settings, setSettings, style, setStyle, subtitles, onClose, onGenerate, onBurn }) {
+export function SubtitleSidebar({ open, settings, setSettings, style, setStyle, subtitles, onClose, onGenerate, onBurn, onToast }) {
   return (
     <Sheet open={open} onOpenChange={(next) => { if (!next) onClose(); }}>
       <SheetContent side="right" className="top-14 bottom-0 h-auto w-[480px] rounded-none border-l border-surface-200 p-0">
@@ -128,6 +128,7 @@ export function SubtitleSidebar({ open, settings, setSettings, style, setStyle, 
                   <PresetSelector
                     currentStyle={style}
                     onStyleChange={setStyle}
+                    onToast={onToast}
                   />
                   <SelectField label="Fonte" value={style.fontName} onChange={(value) => setStyle((prev) => ({ ...prev, fontName: value }))}>
                     <option value="Arial">Arial</option>
