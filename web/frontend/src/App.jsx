@@ -328,7 +328,7 @@ function App() {
       pushToast(`Silêncios removidos! ${formatDuration(result.stats.removedDuration)} cortados.`, 'success');
     } catch (err) {
       setShowProcessingModal(false);
-      pushToast(`Erro: ${err.message}`, 'error');
+      pushToast(`Erro: ${err.message || err}`, 'error');
     }
   }
 
@@ -362,7 +362,7 @@ function App() {
       pushToast(`${result.subtitles.length} legendas geradas com sucesso!`, 'success');
     } catch (err) {
       setShowProcessingModal(false);
-      pushToast(`Erro: ${err.message}`, 'error');
+      pushToast(`Erro: ${err.message || err}`, 'error');
     }
   }
 
@@ -397,7 +397,7 @@ function App() {
       pushToast('Legendas aplicadas ao vídeo!', 'success');
     } catch (err) {
       setShowProcessingModal(false);
-      pushToast(`Erro: ${err.message}`, 'error');
+      pushToast(`Erro: ${err.message || err}`, 'error');
     }
   }
 
