@@ -1,14 +1,13 @@
 {
-  "name": "remove-silence-frontend",
+  "name": "studiocut",
   "private": true,
   "type": "module",
   "scripts": {
-    "check:backend": "bun scripts/check-backend-deps.mjs",
-    "dev": "bun run check:backend && concurrently -k -n backend,frontend -c green,blue \"bun run backend:serve\" \"bun run frontend\"",
+    "dev": "bun run frontend",
+    "dev:tauri": "tauri dev",
     "frontend": "vite --config web/frontend/vite.config.js",
-    "backend": "bun run check:backend && bun run backend:serve",
-    "backend:serve": "uv run uvicorn web.server:app --reload --port 3000",
     "build": "vite build --config web/frontend/vite.config.js",
+    "build:tauri": "tauri build",
     "preview": "vite preview --config web/frontend/vite.config.js"
   },
   "dependencies": {
@@ -25,6 +24,7 @@
     "tailwind-merge": "^3.5.0"
   },
   "devDependencies": {
+    "@tauri-apps/cli": "^2.10.1",
     "@vitejs/plugin-react": "^6.0.1",
     "concurrently": "^9.2.1",
     "vite": "^8.0.3"

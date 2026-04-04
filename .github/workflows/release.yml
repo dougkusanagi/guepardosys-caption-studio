@@ -1,0 +1,104 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      release_name:
+        description: 'Release title'
+        required: false
+      release_notes:
+        description: 'Release notes'
+        required: false
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [windows-latest, ubuntu-22.04, macos-latest]
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # --- System setup ---
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      # --- Linux system deps ---
+      - name: Install Linux deps
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libgtk-3-dev libwebkit2gtk-4.1-dev \
+            libappindicator3-dev librsvg2-dev \
+            patchelf pkg-config wget
+
+      # --- Download FFmpeg binaries ---
+      - name: Download FFmpeg (Windows)
+        if: matrix.platform == 'windows-latest'
+        run: |
+          mkdir -p src-tauri/binaries
+          $url = "https://github.com/GyanD/codexffmpeg/releases/download/7.1/ffmpeg-7.1-full_build.zip"
+          $zip = "$env:TEMP\ffmpeg.zip"
+          Invoke-WebRequest -Uri $url -OutFile $zip
+          Expand-Archive -Path $zip -DestinationPath "$env:TEMP\ffmpeg" -Force
+          Get-ChildItem "$env:TEMP\ffmpeg\*\bin\ffmpeg.exe" -Recurse | Select-Object -First 1 | Copy-Item -Destination "src-tauri/binaries/ffmpeg-x86_64-pc-windows-msvc.exe"
+          Get-ChildItem "$env:TEMP\ffmpeg\*\bin\ffprobe.exe" -Recurse | Select-Object -First 1 | Copy-Item -Destination "src-tauri/binaries/ffprobe-x86_64-pc-windows-msvc.exe"
+        shell: pwsh
+
+      - name: Download FFmpeg (Linux)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          mkdir -p src-tauri/binaries
+          wget -q -O /tmp/ffmpeg.tar.xz "https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz"
+          tar xf /tmp/ffmpeg.tar.xz -C /tmp
+          find /tmp -name ffmpeg -type f | head -1 | xargs -I{} cp {} src-tauri/binaries/ffmpeg-x86_64-unknown-linux-gnu
+          find /tmp -name ffprobe -type f | head -1 | xargs -I{} cp {} src-tauri/binaries/ffprobe-x86_64-unknown-linux-gnu
+          chmod +x src-tauri/binaries/ffmpeg-x86_64-unknown-linux-gnu
+          chmod +x src-tauri/binaries/ffprobe-x86_64-unknown-linux-gnu
+
+      - name: Download FFmpeg (macOS)
+        if: matrix.platform == 'macos-latest'
+        run: |
+          mkdir -p src-tauri/binaries
+          curl -sL "https://evermeet.cx/ffmpeg/getrelease/zip" -o /tmp/ffmpeg.zip
+          unzip -o /tmp/ffmpeg.zip -d /tmp/ffmpeg
+          cp /tmp/ffmpeg/ffmpeg src-tauri/binaries/ffmpeg-aarch64-apple-darwin
+          curl -sL "https://evermeet.cx/ffprobe/getrelease/zip" -o /tmp/ffprobe.zip
+          unzip -o /tmp/ffprobe.zip -d /tmp/ffprobe
+          cp /tmp/ffprobe/ffprobe src-tauri/binaries/ffprobe-aarch64-apple-darwin
+          chmod +x src-tauri/binaries/ffmpeg-aarch64-apple-darwin
+          chmod +x src-tauri/binaries/ffprobe-aarch64-apple-darwin
+
+      # --- Build Tauri ---
+      - name: Install Node deps
+        run: bun install
+
+      - name: Build frontend
+        run: bun run build
+
+      - name: Build Tauri app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: ${{ github.event.inputs.release_name || github.ref_name }}
+          releaseBody: ${{ github.event.inputs.release_notes || 'StudioCut — AI Video Editor. Silence removal and subtitle generation powered by Whisper.' }}
+          releaseDraft: true
+          prerelease: false

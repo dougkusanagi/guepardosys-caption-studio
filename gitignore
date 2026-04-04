@@ -31,3 +31,19 @@ web/projects/
 !web/uploads/.gitkeep
 !web/processed/.gitkeep
 !web/projects/.gitkeep
+
+# Tauri
+src-tauri/target/
+src-tauri/gen/
+
+# Sidecar build artifacts
+sidecar/dist/
+sidecar/build/
+sidecar/*.spec
+
+# Bundled binaries (downloaded / built externally)
+src-tauri/binaries/*
+!src-tauri/binaries/.gitkeep
+
+# Whisper models (downloaded at runtime or bundled during build)
+models/

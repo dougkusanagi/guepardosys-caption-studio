@@ -1,6 +1,26 @@
+import * as tauri from './tauri';
+
+let _mode = 'browser';
+
+export async function init() {
+  const isT = tauri.init();
+  _mode = isT ? 'tauri' : 'browser';
+  return isT;
+}
+
+function isTauri() {
+  return _mode === 'tauri';
+}
+
 const BASE_URL = '';
 
 export async function uploadVideo(file, { onUploadProgress, onProcessingState } = {}) {
+  if (isTauri()) {
+    const path = typeof file === 'string' ? file : file.path;
+    if (!path) throw new Error('File path not available in Tauri mode. Use file dialog.');
+    return tauri.uploadVideo(path);
+  }
+
   const formData = new FormData();
   formData.append('video', file);
 
@@ -42,38 +62,30 @@ export async function uploadVideo(file, { onUploadProgress, onProcessingState } 
   });
 }
 
-async function postJson(path, payload, defaultError) {
-  const res = await fetch(`${BASE_URL}${path}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error || defaultError);
-  }
-
-  return res.json();
-}
-
-export function removeSilence(params) {
+export async function removeSilence(params) {
+  if (isTauri()) return tauri.removeSilence(params);
   return postJson('/api/process/remove-silence', params, 'Processing failed');
 }
 
-export function generateSubtitles(params) {
+export async function generateSubtitles(params) {
+  if (isTauri()) return tauri.generateSubtitles(params);
   return postJson('/api/process/subtitles', params, 'Subtitle generation failed');
 }
 
-export function burnSubtitles(params) {
+export async function burnSubtitles(params) {
+  if (isTauri()) return tauri.burnSubtitles(params);
   return postJson('/api/process/burn-subtitles', params, 'Burn subtitles failed');
 }
 
-export function cropVideoRequest(params) {
+export async function cropVideoRequest(params) {
+  if (isTauri()) return tauri.cropVideo(params);
   return postJson('/api/process/crop', params, 'Crop failed');
 }
 
 export async function exportVideo(params) {
+  if (isTauri()) {
+    return { path: params.sourceFile };
+  }
   const res = await fetch(`${BASE_URL}/api/export`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -83,11 +95,13 @@ export async function exportVideo(params) {
   return res.blob();
 }
 
-export function saveProject(data) {
+export async function saveProject(data) {
+  if (isTauri()) return tauri.saveProject(data);
   return postJson('/api/project/save', data, 'Save failed');
 }
 
 export async function loadProject(projectName) {
+  if (isTauri()) return tauri.loadProject(projectName);
   const res = await fetch(`${BASE_URL}/api/project/load/${encodeURIComponent(projectName)}`);
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
@@ -97,12 +111,14 @@ export async function loadProject(projectName) {
 }
 
 export async function listProjects() {
+  if (isTauri()) return tauri.listProjects();
   const res = await fetch(`${BASE_URL}/api/project/list`);
   if (!res.ok) throw new Error('Failed to list projects');
   return res.json();
 }
 
 export async function deleteProject(projectName) {
+  if (isTauri()) return tauri.deleteProject(projectName);
   const res = await fetch(`${BASE_URL}/api/project/delete/${encodeURIComponent(projectName)}`, {
     method: 'DELETE',
   });
@@ -111,12 +127,14 @@ export async function deleteProject(projectName) {
 }
 
 export async function listPresets() {
+  if (isTauri()) return tauri.listPresets();
   const res = await fetch(`${BASE_URL}/api/presets`);
   if (!res.ok) throw new Error('Failed to list presets');
   return res.json();
 }
 
 export async function createPreset(name, style) {
+  if (isTauri()) return tauri.createPreset(name, style);
   const res = await fetch(`${BASE_URL}/api/presets`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -130,6 +148,7 @@ export async function createPreset(name, style) {
 }
 
 export async function updatePreset(presetId, data) {
+  if (isTauri()) return tauri.updatePreset(presetId, data);
   const res = await fetch(`${BASE_URL}/api/presets/${encodeURIComponent(presetId)}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
@@ -143,6 +162,7 @@ export async function updatePreset(presetId, data) {
 }
 
 export async function deletePreset(presetId) {
+  if (isTauri()) return tauri.deletePreset(presetId);
   const res = await fetch(`${BASE_URL}/api/presets/${encodeURIComponent(presetId)}`, {
     method: 'DELETE',
   });
@@ -150,5 +170,41 @@ export async function deletePreset(presetId) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.error || 'Failed to delete preset');
   }
+  return res.json();
+}
+
+export async function listModels() {
+  if (isTauri()) return tauri.listModels();
+  const res = await fetch(`${BASE_URL}/api/models/list`);
+  if (!res.ok) throw new Error('Failed to list models');
+  return res.json();
+}
+
+export async function downloadModel(modelName) {
+  if (isTauri()) return tauri.downloadModel(modelName);
+  const res = await fetch(`${BASE_URL}/api/models/download`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model: modelName }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Failed to download model');
+  }
+  return res.json();
+}
+
+async function postJson(path, payload, defaultError) {
+  const res = await fetch(`${BASE_URL}${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || defaultError);
+  }
+
   return res.json();
 }

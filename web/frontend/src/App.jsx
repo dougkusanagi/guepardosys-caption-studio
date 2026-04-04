@@ -85,12 +85,14 @@ import {
   deleteProject,
   exportVideo,
   generateSubtitles,
+  init as initApi,
   listProjects,
   loadProject,
   removeSilence,
   saveProject,
   uploadVideo,
 } from './lib/api.js';
+import * as tauri from './lib/tauri.js';
 import { clamp, cn, formatDuration, formatTime, hexToASSColor } from './lib/utils.js';
 
 const DEFAULT_SILENCE_SETTINGS = {
@@ -163,6 +165,11 @@ function App() {
   const [cropActive, setCropActive] = useState(false);
   const [cropRect, setCropRect] = useState(DEFAULT_CROP_RECT);
   const [toasts, setToasts] = useState([]);
+
+  // Initialize API (detects Tauri vs browser)
+  useEffect(() => {
+    initApi().catch(() => {});
+  }, []);
 
   const playback = usePlaybackController();
   const clientId = useWsClient((data) => {
@@ -273,7 +280,15 @@ function App() {
       });
       const shouldDock = shouldUseDockedPreview(result.info);
       setDockProcessedPreview(shouldDock);
-      playback.loadOriginal(result.file.path, {
+
+      // In Tauri mode, convert the file path to an asset URL
+      let videoSrc = result.file.path;
+      if (tauri.isTauri() && result.file._localPath) {
+        const { convertFileSrc } = window.__TAURI__.core;
+        videoSrc = convertFileSrc(result.file._localPath);
+      }
+
+      playback.loadOriginal(videoSrc, {
         showOriginal: !shouldDock,
         showProcessed: shouldDock,
       });
@@ -784,6 +799,17 @@ function UploadScreen({ onUpload, uploadState }) {
   const isProcessing = uploadState.phase === 'processing';
   const uploadProgress = isProcessing ? 100 : uploadState.progress;
 
+  async function handleFileSelect() {
+    if (tauri.isTauri()) {
+      const path = await tauri.openFilePicker();
+      if (path) {
+        onUpload({ path, name: path.split('/').pop() || path.split('\\').pop() || 'video.mp4' });
+      }
+      return;
+    }
+    inputRef.current?.click();
+  }
+
   function handleFiles(files) {
     const file = files?.[0];
     if (file) onUpload(file);
@@ -801,10 +827,10 @@ function UploadScreen({ onUpload, uploadState }) {
             Remova silêncios, gere legendas automáticas, corte e edite seus vídeos com inteligência artificial
           </p>
 
-          <label
-            htmlFor="file-input"
+          <div
             id="drop-zone"
             className="block rounded-2xl border-2 border-dashed border-surface-300 bg-surface-50/60 p-12 cursor-pointer transition-all duration-300 group hover:border-primary-400 hover:bg-primary-50/50"
+            onClick={handleFileSelect}
             onDragEnter={(event) => { event.preventDefault(); event.currentTarget.classList.add('drop-zone-active'); }}
             onDragOver={(event) => { event.preventDefault(); event.currentTarget.classList.add('drop-zone-active'); }}
             onDragLeave={(event) => { event.preventDefault(); event.currentTarget.classList.remove('drop-zone-active'); }}
@@ -820,20 +846,22 @@ function UploadScreen({ onUpload, uploadState }) {
               </div>
               <div>
                 <p className="font-semibold text-surface-700 group-hover:text-primary-700 transition-colors">
-                  Arraste um vídeo ou clique para selecionar
+                  {tauri.isTauri() ? 'Clique para selecionar um vídeo' : 'Arraste um vídeo ou clique para selecionar'}
                 </p>
                 <p className="text-sm text-surface-400 mt-1">MP4, MOV, AVI, MKV, WebM • Até 2GB</p>
               </div>
             </div>
-            <input
-              ref={inputRef}
-              id="file-input"
-              type="file"
-              accept="video/*"
-              className="hidden"
-              onChange={(event) => handleFiles(event.target.files)}
-            />
-          </label>
+            {!tauri.isTauri() && (
+              <input
+                ref={inputRef}
+                id="file-input"
+                type="file"
+                accept="video/*"
+                className="hidden"
+                onChange={(event) => handleFiles(event.target.files)}
+              />
+            )}
+          </div>
 
           {showUploadState ? (
             <div id="upload-progress" className="mt-6 space-y-4 text-left">
@@ -1995,6 +2023,20 @@ function useWsClient(onProgress) {
   const onProgressEvent = useEffectEvent(onProgress);
 
   useEffect(() => {
+    const isT = tauri.init();
+    if (isT) {
+      // Tauri mode: use event listeners instead of WebSocket
+      const generatedId = crypto.randomUUID();
+      setClientId(generatedId);
+
+      tauri.onProgress((data) => {
+        onProgressEvent(data);
+      }).catch(() => {});
+
+      return;
+    }
+
+    // Browser mode: use WebSocket
     let ws;
     let cancelled = false;
     let reconnectAttempts = 0;
