@@ -1,5 +1,5 @@
-import { Bookmark, BookmarkPlus, Pencil, Trash2 } from 'lucide-react';
-import { useState } from 'react';
+import { Bookmark, Check, ChevronsUpDown, MoreVertical, Pencil, Save, Trash2 } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 
 import { createPreset, deletePreset, listPresets, updatePreset } from '../lib/api.js';
 import { Button } from './ui/button.jsx';
@@ -13,42 +13,56 @@ import {
 } from './ui/dialog.jsx';
 import { Input } from './ui/input.jsx';
 import { Label } from './ui/label.jsx';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from './ui/select.jsx';
 
 export function PresetSelector({ currentStyle, onStyleChange }) {
   const [presets, setPresets] = useState([]);
   const [selectedId, setSelectedId] = useState('');
-  const [showCreate, setShowCreate] = useState(false);
-  const [showRename, setShowRename] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [showDialog, setShowDialog] = useState(false);
+  const [dialogMode, setDialogMode] = useState('create');
   const [newName, setNewName] = useState('');
   const [editingPreset, setEditingPreset] = useState(null);
   const [loading, setLoading] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [actionsOpen, setActionsOpen] = useState(false);
+  const actionsRef = useRef(null);
 
-  async function loadPresets() {
-    try {
-      const list = await listPresets();
-      setPresets(list);
-      setLoaded(true);
-    } catch {
-      setPresets([]);
-      setLoaded(true);
+  useEffect(() => {
+    async function load() {
+      try {
+        const list = await listPresets();
+        setPresets(list);
+        setLoaded(true);
+      } catch {
+        setPresets([]);
+        setLoaded(true);
+      }
     }
-  }
+    load();
+  }, []);
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (actionsRef.current && !actionsRef.current.contains(event.target)) {
+        setActionsOpen(false);
+      }
+    }
+    if (actionsOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [actionsOpen]);
 
   function handleSelect(value) {
     const preset = presets.find((p) => p.id === value);
     if (preset) {
       setSelectedId(value);
       onStyleChange(preset.style);
+      setOpen(false);
     }
   }
+
+  const selectedPreset = presets.find((p) => p.id === selectedId);
 
   async function handleCreate() {
     if (!newName.trim()) return;
@@ -57,10 +71,23 @@ export function PresetSelector({ currentStyle, onStyleChange }) {
       const created = await createPreset(newName.trim(), currentStyle);
       setPresets((prev) => [...prev, created]);
       setSelectedId(created.id);
-      setShowCreate(false);
+      setShowDialog(false);
       setNewName('');
     } catch (err) {
       alert(`Erro ao criar preset: ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleSaveToCurrent() {
+    if (!selectedId) return;
+    setLoading(true);
+    try {
+      const updated = await updatePreset(selectedId, { name: undefined, style: currentStyle });
+      setPresets((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+    } catch (err) {
+      alert(`Erro ao salvar: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -70,9 +97,11 @@ export function PresetSelector({ currentStyle, onStyleChange }) {
     if (!newName.trim() || !editingPreset) return;
     setLoading(true);
     try {
-      const updated = await updatePreset(editingPreset.id, { name: newName.trim() });
+      const updated = await updatePreset(editingPreset.id, { name: newName.trim(), style: undefined });
       setPresets((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
-      setShowRename(false);
+      if (editingPreset.id === selectedId) {
+      }
+      setShowDialog(false);
       setNewName('');
       setEditingPreset(null);
     } catch (err) {
@@ -90,6 +119,7 @@ export function PresetSelector({ currentStyle, onStyleChange }) {
       if (selectedId === preset.id) {
         setSelectedId('');
       }
+      setActionsOpen(false);
     } catch (err) {
       alert(`Erro ao excluir: ${err.message}`);
     }
@@ -98,126 +128,160 @@ export function PresetSelector({ currentStyle, onStyleChange }) {
   function openRename(preset) {
     setEditingPreset(preset);
     setNewName(preset.name);
-    setShowRename(true);
+    setDialogMode('rename');
+    setShowDialog(true);
+    setActionsOpen(false);
   }
+
+  function openCreate() {
+    setDialogMode('create');
+    setEditingPreset(null);
+    setNewName('');
+    setShowDialog(true);
+    setActionsOpen(false);
+  }
+
+  function handleSubmit() {
+    if (dialogMode === 'create') {
+      handleCreate();
+    } else {
+      handleRename();
+    }
+  }
+
+  const isDefault = selectedId === 'default';
 
   return (
     <>
-      <div className="flex items-center gap-2">
-        <Select value={selectedId} onValueChange={handleSelect}>
-          <SelectTrigger className="h-8 text-xs" onFocus={loadPresets}>
-            <SelectValue placeholder="Selecionar preset" />
-          </SelectTrigger>
-          <SelectContent>
-            {presets.map((preset) => (
-              <SelectItem key={preset.id} value={preset.id}>
-                {preset.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      <div className="space-y-2">
+        <Label className="text-xs text-surface-500">Preset de estilo</Label>
 
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8"
-          title="Salvar estilo atual como preset"
-          onClick={() => {
-            setNewName('');
-            setShowCreate(true);
-          }}
-        >
-          <BookmarkPlus className="w-4 h-4" />
-        </Button>
+        <div className="flex gap-1.5">
+          <div className="relative flex-1">
+            <button
+              type="button"
+              onClick={() => setOpen(!open)}
+              className="flex h-9 w-full items-center justify-between rounded-lg border border-surface-200 bg-surface-50 px-3 text-sm text-surface-700 transition-colors hover:bg-surface-100 focus:outline-none focus:ring-2 focus:ring-primary-400"
+            >
+              <span className="truncate">
+                {loaded && selectedPreset ? selectedPreset.name : 'Selecionar preset'}
+              </span>
+              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 text-surface-400" />
+            </button>
 
-        {loaded && selectedId && (
-          <div className="flex items-center gap-0.5">
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8"
-              title="Renomear"
-              onClick={() => {
-                const preset = presets.find((p) => p.id === selectedId);
-                if (preset) openRename(preset);
-              }}
-              disabled={selectedId === 'default'}
-            >
-              <Pencil className="w-3.5 h-3.5" />
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 text-red-500 hover:text-red-600"
-              title="Excluir"
-              onClick={() => {
-                const preset = presets.find((p) => p.id === selectedId);
-                if (preset) handleDelete(preset);
-              }}
-              disabled={selectedId === 'default'}
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-            </Button>
+            {open && (
+              <>
+                <div className="fixed inset-0 z-[110]" onClick={() => setOpen(false)} />
+                <div className="absolute z-[120] mt-1 w-full max-h-60 overflow-auto rounded-xl border border-surface-200 bg-white p-1 shadow-xl">
+                  {presets.map((preset) => (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      onClick={() => handleSelect(preset.id)}
+                      className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm text-surface-700 transition-colors hover:bg-primary-50 hover:text-primary-700 ${
+                        selectedId === preset.id ? 'bg-primary-50 text-primary-700 font-medium' : ''
+                      }`}
+                    >
+                      <span className="truncate">{preset.name}</span>
+                      {selectedId === preset.id && <Check className="ml-2 h-4 w-4 text-primary-600" />}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
-        )}
+
+          {loaded && selectedId && (
+            <div className="relative" ref={actionsRef}>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="h-9 w-9 shrink-0"
+                onClick={() => setActionsOpen(!actionsOpen)}
+              >
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+
+              {actionsOpen && (
+                <div className="absolute right-0 top-full z-[120] mt-1 w-48 rounded-xl border border-surface-200 bg-white p-1 shadow-xl">
+                  {!isDefault && (
+                    <button
+                      type="button"
+                      onClick={handleSaveToCurrent}
+                      disabled={loading}
+                      className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-surface-700 transition-colors hover:bg-primary-50 hover:text-primary-700 disabled:opacity-50"
+                    >
+                      <Save className="h-4 w-4" />
+                      Salvar altera&ccedil;&otilde;es
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => openRename(selectedPreset)}
+                    disabled={isDefault}
+                    className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-surface-700 transition-colors hover:bg-primary-50 hover:text-primary-700 disabled:opacity-50"
+                  >
+                    <Pencil className="h-4 w-4" />
+                    Renomear
+                  </button>
+                  {!isDefault && (
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(selectedPreset)}
+                      className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Excluir
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          <Button
+            type="button"
+            variant="outline"
+            className="h-9 shrink-0 gap-1.5 px-3"
+            onClick={openCreate}
+          >
+            <Bookmark className="h-4 w-4" />
+            Novo
+          </Button>
+        </div>
       </div>
 
-      <Dialog open={showCreate} onOpenChange={setShowCreate}>
+      <Dialog open={showDialog} onOpenChange={(val) => { if (!val) { setShowDialog(false); setNewName(''); setEditingPreset(null); } }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Salvar Preset</DialogTitle>
-            <DialogDescription>Salve o estilo atual como um preset reutilizável.</DialogDescription>
+            <DialogTitle>
+              {dialogMode === 'create' ? 'Salvar Preset' : 'Renomear Preset'}
+            </DialogTitle>
+            <DialogDescription>
+              {dialogMode === 'create'
+                ? 'Salve o estilo atual como um preset reutiliz&aacute;vel.'
+                : 'Alterar o nome do preset.'}
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div>
-              <Label>Nome do preset</Label>
+              <Label>{dialogMode === 'create' ? 'Nome do preset' : 'Novo nome'}</Label>
               <Input
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
-                placeholder="Ex: Estilo TikTok"
-                onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
+                placeholder={dialogMode === 'create' ? 'Ex: Estilo TikTok' : 'Nome do preset'}
+                onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
                 autoFocus
               />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowCreate(false)}>
+            <Button variant="outline" onClick={() => { setShowDialog(false); setNewName(''); setEditingPreset(null); }}>
               Cancelar
             </Button>
-            <Button onClick={handleCreate} disabled={loading || !newName.trim()}>
-              Salvar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={showRename} onOpenChange={setShowRename}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Renomear Preset</DialogTitle>
-            <DialogDescription>Alterar o nome do preset.</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div>
-              <Label>Novo nome</Label>
-              <Input
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-                placeholder="Nome do preset"
-                onKeyDown={(e) => e.key === 'Enter' && handleRename()}
-                autoFocus
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowRename(false)}>
-              Cancelar
-            </Button>
-            <Button onClick={handleRename} disabled={loading || !newName.trim()}>
-              Renomear
+            <Button onClick={handleSubmit} disabled={loading || !newName.trim()}>
+              {dialogMode === 'create' ? 'Salvar' : 'Renomear'}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -680,9 +680,9 @@ fn main() {
             std::fs::create_dir_all(app_data_dir.join("projects")).ok();
             std::fs::create_dir_all(app_data_dir.join("whisper-models")).ok();
 
-            init_bundled_model(app.handle(), &app_data_dir).ok();
-
             preset::init_presets(&app_data_dir).ok();
+
+            init_bundled_model(app.handle(), &app_data_dir).ok();
 
             let ffmpeg_path = resolve_sidecar_path(app.handle(), "ffmpeg");
             let ffprobe_path = resolve_sidecar_path(app.handle(), "ffprobe");
@@ -719,14 +719,14 @@ fn main() {
 
 fn init_bundled_model(app_handle: &tauri::AppHandle, app_data_dir: &std::path::Path) -> Result<(), String> {
     let models_dir = app_data_dir.join("whisper-models");
-    let dest = models_dir.join("ggml-small.bin");
+    let dest = models_dir.join("ggml-tiny.bin");
 
     if dest.exists() {
         return Ok(());
     }
 
     if let Ok(resource_path) = app_handle.path().resolve(
-        "models/ggml-small.bin",
+        "models/ggml-tiny.bin",
         tauri::path::BaseDirectory::Resource,
     ) {
         if resource_path.exists() {

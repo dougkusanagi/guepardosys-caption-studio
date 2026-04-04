@@ -15,14 +15,11 @@ import {
   Maximize2,
   Monitor,
   MonitorCheck,
-  Palette,
   Plus,
   Save,
   Scissors,
   SkipBack,
   SkipForward,
-  Sparkles,
-  Stamp,
   Subtitles,
   TextCursorInput,
   Trash2,
@@ -34,7 +31,7 @@ import {
   ZoomIn,
   ZoomOut,
 } from 'lucide-react';
-import { Children, isValidElement, startTransition, useEffect, useEffectEvent, useRef, useState } from 'react';
+import { startTransition, useEffect, useEffectEvent, useRef, useState } from 'react';
 
 import {
   AlertDialog,
@@ -66,20 +63,14 @@ import { Label } from './components/ui/label.jsx';
 import { Progress } from './components/ui/progress.jsx';
 import { ScrollArea } from './components/ui/scroll-area.jsx';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from './components/ui/select.jsx';
-import {
   Sheet,
   SheetContent,
   SheetDescription,
   SheetHeader,
   SheetTitle,
 } from './components/ui/sheet.jsx';
-import { PresetSelector } from './components/preset-selector.jsx';
+import { SubtitleSidebar } from './components/subtitle-sidebar.jsx';
+import { ColorField, InputField, SelectField } from './components/form-fields.jsx';
 import {
   burnSubtitles,
   deleteProject,
@@ -1639,169 +1630,6 @@ function CropOverlay({ active, videoRef, rect, onRectChange, onCropChange }) {
   );
 }
 
-function SubtitleSidebar({ open, settings, setSettings, style, setStyle, subtitles, onClose, onGenerate, onBurn }) {
-  return (
-    <Sheet open={open} onOpenChange={(next) => { if (!next) onClose(); }}>
-      <SheetContent side="right" className="top-14 bottom-0 h-auto w-80 rounded-none border-l border-surface-200 p-0">
-        <div className="flex h-full flex-col">
-          <SheetHeader className="border-b border-surface-100 px-5 py-4 pr-12">
-            <SheetTitle className="flex items-center gap-2">
-              <Subtitles className="w-4 h-4 text-primary-500" />
-              Legendas IA
-            </SheetTitle>
-            <SheetDescription>Configure transcrição e estilo antes de gerar ou aplicar as legendas.</SheetDescription>
-          </SheetHeader>
-
-          <ScrollArea className="flex-1">
-            <div className="space-y-6 px-5 py-5">
-              <Card className="border-surface-200/80">
-                <CardHeader className="pb-4">
-                  <CardTitle className="text-sm">Configuração da transcrição</CardTitle>
-                  <CardDescription>Whisper será usado para transcrever e sincronizar as falas.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <SelectField label="Modelo Whisper" value={settings.model} onChange={(value) => setSettings((prev) => ({ ...prev, model: value }))}>
-                    <option value="tiny">Tiny (rápido)</option>
-                    <option value="base">Base</option>
-                    <option value="small">Small (recomendado)</option>
-                    <option value="medium">Medium</option>
-                    <option value="large">Large (preciso)</option>
-                  </SelectField>
-                  <SelectField label="Idioma" value={settings.language} onChange={(value) => setSettings((prev) => ({ ...prev, language: value }))}>
-                    <option value="pt">Português</option>
-                    <option value="en">Inglês</option>
-                    <option value="es">Espanhol</option>
-                    <option value="fr">Francês</option>
-                    <option value="de">Alemão</option>
-                  </SelectField>
-                </CardContent>
-              </Card>
-
-              <Card className="border-surface-200/80">
-                <CardHeader className="pb-4">
-                  <CardTitle className="flex items-center gap-2 text-sm">
-                    <Palette className="w-3.5 h-3.5 text-primary-500" />
-                    Estilo das Legendas
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div>
-                    <Label className="mb-2 block">Presets</Label>
-                    <PresetSelector
-                      currentStyle={style}
-                      onStyleChange={setStyle}
-                    />
-                  </div>
-                  <SelectField label="Fonte" value={style.fontName} onChange={(value) => setStyle((prev) => ({ ...prev, fontName: value }))}>
-                    <option value="Arial">Arial</option>
-                    <option value="Roboto">Roboto</option>
-                    <option value="Inter">Inter</option>
-                    <option value="Montserrat">Montserrat</option>
-                    <option value="Open Sans">Open Sans</option>
-                  </SelectField>
-                  <InputField label="Tamanho" type="number" value={style.fontSize} onChange={(value) => setStyle((prev) => ({ ...prev, fontSize: parseInt(value, 10) || 24 }))} />
-                  <div className="grid grid-cols-2 gap-3">
-                    <ColorField label="Cor do Texto" value={style.primaryColor} onChange={(value) => setStyle((prev) => ({ ...prev, primaryColor: value }))} />
-                    <ColorField label="Cor do Contorno" value={style.outlineColor} onChange={(value) => setStyle((prev) => ({ ...prev, outlineColor: value }))} />
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <InputField label="Contorno" type="number" value={style.outline} onChange={(value) => setStyle((prev) => ({ ...prev, outline: parseInt(value, 10) || 0 }))} />
-                    <InputField label="Sombra" type="number" value={style.shadow} onChange={(value) => setStyle((prev) => ({ ...prev, shadow: parseInt(value, 10) || 0 }))} />
-                  </div>
-                  <SelectField label="Posição" value={String(style.alignment)} onChange={(value) => setStyle((prev) => ({ ...prev, alignment: parseInt(value, 10) }))}>
-                    <option value="2">Inferior Centro</option>
-                    <option value="8">Superior Centro</option>
-                    <option value="5">Centro</option>
-                    <option value="1">Inferior Esquerda</option>
-                    <option value="3">Inferior Direita</option>
-                  </SelectField>
-                  <InputField
-                    label="Posição Vertical (%)"
-                    type="number"
-                    min="0"
-                    max="100"
-                    step="1"
-                    value={style.positionY}
-                    onChange={(value) => setStyle((prev) => ({ ...prev, positionY: clamp(parseFloat(value) || 0, 0, 100) }))}
-                  />
-                  <InputField
-                    label="Altura da Faixa (%)"
-                    type="number"
-                    min="4"
-                    max="100"
-                    step="1"
-                    value={style.areaHeight}
-                    onChange={(value) => setStyle((prev) => ({ ...prev, areaHeight: clamp(parseFloat(value) || 0, 4, 100) }))}
-                  />
-                  <div>
-                    <Label className="mb-2 block">Negrito</Label>
-                    <div className="flex gap-2">
-                      <Button
-                        type="button"
-                        variant={style.bold ? 'default' : 'outline'}
-                        className="flex-1"
-                        onClick={() => setStyle((prev) => ({ ...prev, bold: true }))}
-                      >
-                        Sim
-                      </Button>
-                      <Button
-                        type="button"
-                        variant={!style.bold ? 'default' : 'outline'}
-                        className="flex-1"
-                        onClick={() => setStyle((prev) => ({ ...prev, bold: false }))}
-                      >
-                        Não
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <div className="space-y-2">
-                <Button type="button" className="w-full gap-2" onClick={onGenerate}>
-                  <Sparkles className="w-4 h-4" />
-                  Gerar Legendas com IA
-                </Button>
-                {subtitles.length ? (
-                  <Button type="button" variant="secondary" className="w-full gap-2" onClick={onBurn}>
-                    <Stamp className="w-4 h-4" />
-                    Aplicar no Vídeo
-                  </Button>
-                ) : null}
-              </div>
-
-              {subtitles.length ? (
-                <Card className="border-surface-200/80">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm">Legendas Geradas</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <ScrollArea className="max-h-[300px]">
-                      <div className="space-y-2">
-                        {subtitles.map((subtitle, index) => (
-                          <Card key={`${subtitle.start}-${subtitle.end}-${index}`} className="border-surface-200 bg-surface-50 shadow-none">
-                            <CardContent className="p-3">
-                              <div className="flex items-center justify-between mb-1">
-                                <span className="text-[10px] font-mono text-surface-400">{formatTime(subtitle.start)} → {formatTime(subtitle.end)}</span>
-                                <span className="text-[10px] text-surface-300">#{index + 1}</span>
-                              </div>
-                              <p className="text-xs text-surface-700 leading-relaxed">{subtitle.text}</p>
-                            </CardContent>
-                          </Card>
-                        ))}
-                      </div>
-                    </ScrollArea>
-                  </CardContent>
-                </Card>
-              ) : null}
-            </div>
-          </ScrollArea>
-        </div>
-      </SheetContent>
-    </Sheet>
-  );
-}
-
 function SilenceSidebar({ open, settings, setSettings, onClose, onRun }) {
   return (
     <Sheet open={open} onOpenChange={(next) => { if (!next) onClose(); }}>
@@ -1849,49 +1677,6 @@ function SilenceSidebar({ open, settings, setSettings, onClose, onRun }) {
         </div>
       </SheetContent>
     </Sheet>
-  );
-}
-
-function SelectField({ label, value, onChange, children }) {
-  const items = Children.toArray(children).filter(isValidElement);
-
-  return (
-    <div>
-      <Label className="mb-1.5 block">{label}</Label>
-      <Select value={String(value)} onValueChange={onChange}>
-        <SelectTrigger>
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {items.map((child, index) => (
-            <SelectItem key={`${child.props.value ?? child.props.children}-${index}`} value={String(child.props.value)}>
-              {child.props.children}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </div>
-  );
-}
-
-function InputField({ label, onChange, ...props }) {
-  return (
-    <div>
-      <Label className="mb-1 block normal-case tracking-normal font-medium text-surface-500">{label}</Label>
-      <Input
-        {...props}
-        onChange={onChange ? (event) => onChange(event.target.value) : undefined}
-      />
-    </div>
-  );
-}
-
-function ColorField({ label, value, onChange }) {
-  return (
-    <div>
-      <Label className="mb-1 block normal-case tracking-normal font-medium text-surface-500">{label}</Label>
-      <Input type="color" value={value} onChange={(event) => onChange(event.target.value)} className="h-10 cursor-pointer p-1" />
-    </div>
   );
 }
 

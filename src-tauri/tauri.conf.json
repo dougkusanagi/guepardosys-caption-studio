@@ -34,6 +34,7 @@
       "icons/icon.ico"
     ],
     "externalBin": ["binaries/ffmpeg", "binaries/ffprobe"],
-    "resources": ["models/ggml-small.bin"]
+    "resources": ["models/ggml-tiny.bin"],
+    "resources": ["models/ggml-tiny.bin"]
   }
 }
