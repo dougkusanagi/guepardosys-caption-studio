@@ -1,0 +1,2 @@
+- Sempre use componentes shadcn quando possivel ao invés de criar um do zero
+- Sempre use ícones lucide ao invés de emoticons para iconografia (a não ser que seja em um texto para passar uma mensagem/ideia)
