@@ -1,2 +1,3 @@
-- Sempre use componentes shadcn quando possivel ao invés de criar um do zero
+- Sempre use componentes shadcn quando possivel ao invés de criar um do zero, principalmente no caso de dialogs, alerts, etc
 - Sempre use ícones lucide ao invés de emoticons para iconografia (a não ser que seja em um texto para passar uma mensagem/ideia)
+- Sempre um toastr para mensagens informativas temporárias, se não houver um instalado, instale
