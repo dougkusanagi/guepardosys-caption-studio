@@ -1,6 +1,6 @@
 import * as tauri from './tauri';
 
-let _mode = 'browser';
+let _mode = typeof window !== 'undefined' && window.__TAURI__ ? 'tauri' : 'browser';
 
 export async function init() {
   const isT = tauri.init();
@@ -9,7 +9,7 @@ export async function init() {
 }
 
 function isTauri() {
-  return _mode === 'tauri';
+  return typeof window !== 'undefined' && window.__TAURI__ ? true : _mode === 'tauri';
 }
 
 const BASE_URL = '';
@@ -18,7 +18,11 @@ export async function uploadVideo(file, { onUploadProgress, onProcessingState } 
   if (isTauri()) {
     const path = typeof file === 'string' ? file : file.path;
     if (!path) throw new Error('File path not available in Tauri mode. Use file dialog.');
-    return tauri.uploadVideo(path);
+    onUploadProgress?.(10);
+    const result = await tauri.uploadVideo(path);
+    onUploadProgress?.(100);
+    onProcessingState?.();
+    return result;
   }
 
   const formData = new FormData();

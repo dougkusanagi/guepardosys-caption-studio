@@ -670,6 +670,8 @@ async fn send_progress(window: &tauri::WebviewWindow, stage: &str, progress: i32
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
         .setup(|app| {
             let app_data_dir = app.path().app_data_dir().expect("Failed to get app data dir");
             std::fs::create_dir_all(&app_data_dir).ok();
@@ -714,19 +716,36 @@ fn main() {
 }
 
 fn resolve_sidecar_path(app_handle: &tauri::AppHandle, name: &str) -> String {
-    let full_name = if cfg!(windows) {
-        format!("{}.exe", name)
+    let target = std::env::consts::ARCH;
+    let triple = if cfg!(target_os = "windows") {
+        format!("{}-pc-windows-msvc", target)
+    } else if cfg!(target_os = "macos") {
+        format!("{}-apple-darwin", target)
     } else {
-        name.to_string()
+        format!("{}-unknown-linux-gnu", target)
     };
 
-    app_handle
-        .path()
-        .resolve(
-            format!("binaries/{}", full_name),
+    let suffixed = format!("{}-{}", name, triple);
+
+    for candidate in [&suffixed, name] {
+        if let Ok(path) = app_handle.path().resolve(
+            format!("binaries/{}", candidate),
             tauri::path::BaseDirectory::Resource,
-        )
-        .unwrap_or_else(|_| std::path::PathBuf::from(&full_name))
-        .to_string_lossy()
-        .to_string()
+        ) {
+            if path.exists() {
+                return path.to_string_lossy().to_string();
+            }
+        }
+
+        let dev_path = std::env::current_dir()
+            .ok()
+            .map(|cwd| cwd.join("src-tauri").join("binaries").join(candidate));
+        if let Some(ref p) = dev_path {
+            if p.exists() {
+                return p.to_string_lossy().to_string();
+            }
+        }
+    }
+
+    name.to_string()
 }

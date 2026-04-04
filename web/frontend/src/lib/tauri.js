@@ -1,8 +1,7 @@
 const { invoke } = window.__TAURI__?.core || {};
-const { open } = window.__TAURI__?.dialog || {};
 const { listen } = window.__TAURI__?.event || {};
 
-let _isTauri = false;
+let _isTauri = typeof window !== 'undefined' && !!window.__TAURI__;
 
 export function init() {
   _isTauri = !!window.__TAURI__;
@@ -10,7 +9,7 @@ export function init() {
 }
 
 export function isTauri() {
-  return _isTauri;
+  return typeof window !== 'undefined' && !!window.__TAURI__;
 }
 
 export async function getAppDataDir() {
@@ -20,6 +19,7 @@ export async function getAppDataDir() {
 
 export async function openFilePicker() {
   if (!_isTauri) return null;
+  const { open } = window.__TAURI__?.dialog || {};
   return open({
     multiple: false,
     filters: [{

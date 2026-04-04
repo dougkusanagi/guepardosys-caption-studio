@@ -3,11 +3,12 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "bun run frontend",
-    "dev:tauri": "tauri dev",
-    "frontend": "vite --config web/frontend/vite.config.js",
-    "build": "vite build --config web/frontend/vite.config.js",
-    "build:tauri": "tauri build",
+    "dev": "tauri dev",
+    "dev:frontend": "vite --config web/frontend/vite.config.js",
+    "frontend": "bun run dev:frontend",
+    "build": "tauri build",
+    "build:exe": "tauri build --no-bundle",
+    "build:frontend": "vite build --config web/frontend/vite.config.js",
     "preview": "vite preview --config web/frontend/vite.config.js"
   },
   "dependencies": {

@@ -281,12 +281,8 @@ function App() {
       const shouldDock = shouldUseDockedPreview(result.info);
       setDockProcessedPreview(shouldDock);
 
-      // In Tauri mode, convert the file path to an asset URL
+      // In Tauri mode, use the /uploads/ path (served by Vite middleware in dev, by Rust in prod)
       let videoSrc = result.file.path;
-      if (tauri.isTauri() && result.file._localPath) {
-        const { convertFileSrc } = window.__TAURI__.core;
-        videoSrc = convertFileSrc(result.file._localPath);
-      }
 
       playback.loadOriginal(videoSrc, {
         showOriginal: !shouldDock,
@@ -296,7 +292,7 @@ function App() {
       pushToast('Vídeo carregado com sucesso!', 'success');
     } catch (err) {
       setUploadState(DEFAULT_UPLOAD_STATE);
-      pushToast(`Erro ao enviar: ${err.message}`, 'error');
+      pushToast(`Erro ao enviar: ${err.message || err}`, 'error');
     }
   }
 
