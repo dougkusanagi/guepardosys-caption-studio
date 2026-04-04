@@ -1,0 +1,11 @@
+{
+  "identifier": "main-capability",
+  "description": "Main capability for the app",
+  "local": true,
+  "windows": ["main"],
+  "permissions": [
+    "shell:default",
+    "dialog:default",
+    "fs:default"
+  ]
+}
