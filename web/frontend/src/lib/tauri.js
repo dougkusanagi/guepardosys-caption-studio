@@ -169,3 +169,30 @@ export async function downloadModel(model) {
 export async function sendNotification(title, body) {
   return invoke('send_notification', { title, body });
 }
+
+export async function getWhisperModelsPath() {
+  const currentInvoke = window.__TAURI__?.core?.invoke;
+  if (!isTauri() || !currentInvoke) return '';
+  return currentInvoke('get_whisper_models_path');
+}
+
+export async function openFolder(path) {
+  const currentInvoke = window.__TAURI__?.core?.invoke;
+  if (!isTauri() || !currentInvoke) return false;
+  try {
+    await currentInvoke('open_folder', { path });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function chooseFolder() {
+  if (!isTauri()) return null;
+  const { open } = window.__TAURI__?.dialog || {};
+  if (!open) return null;
+  return open({
+    multiple: false,
+    directory: true,
+  });
+}

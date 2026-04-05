@@ -609,6 +609,46 @@ fn get_app_data_dir(state: tauri::State<'_, AppState>) -> String {
 }
 
 #[tauri::command]
+fn get_whisper_models_path(state: tauri::State<'_, AppState>) -> String {
+    let path = state.app_data_dir.join("whisper-models");
+    std::fs::create_dir_all(&path).ok();
+    path.to_string_lossy().to_string()
+}
+
+#[tauri::command]
+fn open_folder(path: String) -> Result<(), String> {
+    let folder = PathBuf::from(path.trim());
+    if folder.as_os_str().is_empty() {
+        return Err("Folder path is empty".into());
+    }
+
+    std::fs::create_dir_all(&folder).map_err(|e| format!("Failed to create folder: {}", e))?;
+
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("explorer")
+            .arg(&folder)
+            .spawn()
+            .map_err(|e| format!("Failed to open folder: {}", e))?;
+    }
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(&folder)
+            .spawn()
+            .map_err(|e| format!("Failed to open folder: {}", e))?;
+    }
+    #[cfg(target_os = "linux")]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(&folder)
+            .spawn()
+            .map_err(|e| format!("Failed to open folder: {}", e))?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
 fn list_presets(state: tauri::State<'_, AppState>) -> Result<Vec<preset::Preset>, String> {
     preset::list_presets(&state.app_data_dir).map_err(|e| e.to_string())
 }
@@ -1305,6 +1345,8 @@ fn main() {
             burn_subtitles,
             crop_video,
             get_app_data_dir,
+            get_whisper_models_path,
+            open_folder,
             list_presets,
             create_preset,
             update_preset,

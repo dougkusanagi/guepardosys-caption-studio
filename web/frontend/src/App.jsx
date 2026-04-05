@@ -25,7 +25,9 @@ import {
   TextCursorInput,
   Trash2,
   UploadCloud,
+  Settings,
   Video,
+  Layout,
   Volume1,
   Volume2,
   VolumeX,
@@ -210,14 +212,82 @@ function App() {
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [exportMode, setExportMode] = useState('embedded');
   const [lastSavedPath, setLastSavedPath] = useState(null);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [whisperModelsPath, setWhisperModelsPath] = useState('');
 
   // Initialize API (detects Tauri vs browser)
   useEffect(() => {
-    initApi().catch(() => {});
+    let cancelled = false;
+
+    async function initializeDesktopApi() {
+      try {
+        await initApi();
+        if (!tauri.isTauri()) return;
+
+        const path = await tauri.getWhisperModelsPath();
+        if (!cancelled && path) {
+          setWhisperModelsPath(path);
+        }
+      } catch {}
+    }
+
+    initializeDesktopApi();
+
     if ('Notification' in window && Notification.permission === 'default') {
       Notification.requestPermission().catch(() => {});
     }
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
+
+  useEffect(() => {
+    if (!showSettingsModal || whisperModelsPath || !tauri.isTauri()) return;
+
+    tauri.getWhisperModelsPath().then((path) => {
+      if (path) setWhisperModelsPath(path);
+    }).catch(() => {});
+  }, [showSettingsModal, whisperModelsPath]);
+
+  async function resolveWhisperModelsPath() {
+    if (whisperModelsPath) return whisperModelsPath;
+    if (!tauri.isTauri()) return '';
+
+    try {
+      const path = await tauri.getWhisperModelsPath();
+      if (path) {
+        setWhisperModelsPath(path);
+        return path;
+      }
+    } catch {}
+
+    return '';
+  }
+
+  async function chooseWhisperFolder() {
+    const selectedPath = await tauri.chooseFolder();
+    const path = Array.isArray(selectedPath) ? selectedPath[0] : selectedPath;
+    if (path) setWhisperModelsPath(path);
+  }
+
+  async function openWhisperFolder() {
+    const path = await resolveWhisperModelsPath();
+    if (!path) {
+      pushToast('Não foi possível localizar a pasta dos modelos Whisper.', 'error');
+      return;
+    }
+
+    const opened = await tauri.openFolder(path);
+    if (!opened) {
+      pushToast('Não foi possível abrir a pasta dos modelos Whisper.', 'error');
+    }
+  }
+
+  function saveSettings() {
+    pushToast('Configurações salvas', 'success');
+    setShowSettingsModal(false);
+  }
 
   const playback = usePlaybackController();
   const hasWideDockLayout = useMediaQuery('(min-width: 1101px)');
@@ -809,6 +879,7 @@ function App() {
         onSave={saveCurrentProject}
         onOpenProjects={openProjectList}
         onExport={() => setShowExportDialog(true)}
+        onOpenSettings={() => setShowSettingsModal(true)}
       />
 
       {!editorVisible ? (
@@ -819,6 +890,7 @@ function App() {
             playback={playback}
             selectionMode={selectionMode}
             zoom={timelineUi.zoom}
+            subtitlePanelOpen={showSubtitleSidebar}
             dockProcessedPreview={dockProcessedPreview}
             onToggleSilence={() => {
               setShowSilencePanel((prev) => !prev);
@@ -1018,12 +1090,31 @@ function App() {
         </DialogContent>
       </Dialog>
 
+      <Dialog open={showSettingsModal} onOpenChange={setShowSettingsModal}>
+        <DialogContent className="max-w-md p-6" showClose={false}>
+          <DialogHeader className="mb-2">
+            <DialogTitle>Configurações</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Label>Pasta dos modelos Whisper</Label>
+            <Input value={whisperModelsPath} readOnly />
+            <div className="flex gap-2">
+              <Button onClick={chooseWhisperFolder}>Escolher pasta</Button>
+              <Button variant="ghost" onClick={openWhisperFolder}>Abrir pasta</Button>
+            </div>
+          </div>
+          <DialogFooter className="mt-4">
+            <Button variant="outline" onClick={() => setShowSettingsModal(false)}>Cancelar</Button>
+            <Button onClick={saveSettings}>Salvar alterações</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <ToastViewport toasts={toasts} />
     </div>
   );
 }
 
-function Header({ editorVisible, originalName, videoInfo, onGoHome, onSave, onOpenProjects, onExport }) {
+function Header({ editorVisible, originalName, videoInfo, onGoHome, onSave, onOpenProjects, onExport, onOpenSettings }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef(null);
 
@@ -1066,7 +1157,7 @@ function Header({ editorVisible, originalName, videoInfo, onGoHome, onSave, onOp
                   className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm text-surface-700 hover:bg-primary-50 transition-colors ${!editorVisible ? 'hidden' : ''}`}
                   onClick={() => handleMenuAction(onGoHome)}
                 >
-                  <UploadCloud className="w-4 h-4" />
+                  <Clapperboard className="w-4 h-4" />
                   Novo projeto
                 </button>
                 <button
@@ -1091,8 +1182,16 @@ function Header({ editorVisible, originalName, videoInfo, onGoHome, onSave, onOp
                   className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-primary-700 hover:bg-primary-50 transition-colors ${!editorVisible ? 'hidden' : ''}`}
                   onClick={() => handleMenuAction(onExport)}
                 >
-                  <Download className="w-4 h-4" />
-                  Exportar
+                  <Video className="w-4 h-4" />
+                  Exportar Vídeo
+                </button>
+                <button
+                  type="button"
+                  className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-primary-700 hover:bg-primary-50 transition-colors ${!editorVisible ? 'hidden' : ''}`}
+                  onClick={() => onOpenSettings?.()}
+                >
+                  <Settings className="w-4 h-4" />
+                  Configurações
                 </button>
               </div>
             )}
@@ -1229,6 +1328,7 @@ function Toolbar({
   selectionMode,
   zoom,
   cropActive,
+  subtitlePanelOpen,
   dockProcessedPreview,
   onToggleSilence,
   onToggleSubtitles,
@@ -1250,7 +1350,7 @@ function Toolbar({
           <ToolbarButton icon={<Scissors className="w-4 h-4" />} onClick={onToggleSilence}>
             Remover Silêncio
           </ToolbarButton>
-          <ToolbarButton icon={<Subtitles className="w-4 h-4" />} onClick={onToggleSubtitles}>
+          <ToolbarButton icon={<Subtitles className="w-4 h-4" />} active={subtitlePanelOpen} onClick={onToggleSubtitles}>
             Legendas IA
           </ToolbarButton>
         </div>
@@ -1274,8 +1374,8 @@ function Toolbar({
         </div>
 
         <div className="flex items-center gap-1 pr-3 mr-3 border-r border-surface-200">
-          <ToolbarButton icon={<Eye className="w-4 h-4" />} active={dockProcessedPreview} onClick={onToggleDockedPreview}>
-            Preview lateral
+          <ToolbarButton icon={<Layout className="w-4 h-4" />} active={dockProcessedPreview} onClick={onToggleDockedPreview}>
+            Visualização Vertical
           </ToolbarButton>
         </div>
 

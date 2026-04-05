@@ -4,7 +4,6 @@ import { Button } from './ui/button.jsx';
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from './ui/card.jsx';
@@ -81,30 +80,24 @@ function SubtitlePreview({ subtitle }) {
 
 function SubtitleSidebarForm({ settings, setSettings, style, setStyle, subtitles, onGenerate, onToast }) {
   return (
-    <ScrollArea className="flex-1">
-      <div className="space-y-6 px-5 py-5">
-        <Card className="border-surface-200/80">
-          <CardHeader className="pb-4">
-            <CardTitle className="text-sm">Configura&ccedil;&atilde;o da transcri&ccedil;&atilde;o</CardTitle>
-            <CardDescription>Whisper ser&aacute; usado para transcrever e sincronizar as falas.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <SelectField label="Modelo Whisper" value={settings.model} onChange={(value) => setSettings((prev) => ({ ...prev, model: value }))}>
-              <option value="tiny">Tiny (r&aacute;pido)</option>
-              <option value="base">Base</option>
-              <option value="small">Small (recomendado)</option>
-              <option value="medium">Medium</option>
-              <option value="large">Large (preciso)</option>
-            </SelectField>
-            <SelectField label="Idioma" value={settings.language} onChange={(value) => setSettings((prev) => ({ ...prev, language: value }))}>
-              <option value="pt">Portugu&ecirc;s</option>
-              <option value="en">Ingl&ecirc;s</option>
-              <option value="es">Espanhol</option>
-              <option value="fr">Franc&ecirc;s</option>
-              <option value="de">Alem&atilde;o</option>
-            </SelectField>
-          </CardContent>
-        </Card>
+    <ScrollArea className="min-h-0 min-w-0 flex-1">
+      <div className="min-w-0 space-y-6 px-5 py-5">
+        <div className="space-y-3">
+          <SelectField label="Modelo Whisper" value={settings.model} onChange={(value) => setSettings((prev) => ({ ...prev, model: value }))}>
+            <option value="tiny">Tiny (r&aacute;pido)</option>
+            <option value="base">Base</option>
+            <option value="small">Small (recomendado)</option>
+            <option value="medium">Medium</option>
+            <option value="large">Large (preciso)</option>
+          </SelectField>
+          <SelectField label="Idioma" value={settings.language} onChange={(value) => setSettings((prev) => ({ ...prev, language: value }))}>
+            <option value="pt">Portugu&ecirc;s</option>
+            <option value="en">Ingl&ecirc;s</option>
+            <option value="es">Espanhol</option>
+            <option value="fr">Franc&ecirc;s</option>
+            <option value="de">Alem&atilde;o</option>
+          </SelectField>
+        </div>
 
         <Card className="border-surface-200/80">
           <CardHeader className="pb-4">
@@ -288,18 +281,16 @@ export function InlineSubtitlePanel({
 
   return (
     <aside className={cn('subtitle-settings-dock', className)}>
-      <div className="subtitle-settings-dock__surface">
-        <SubtitleSidebarHeader inline onClose={onClose} />
-        <SubtitleSidebarForm
-          settings={settings}
-          setSettings={setSettings}
-          style={style}
-          setStyle={setStyle}
-          subtitles={subtitles}
-          onGenerate={onGenerate}
-          onToast={onToast}
-        />
-      </div>
+      <SubtitleSidebarHeader inline onClose={onClose} />
+      <SubtitleSidebarForm
+        settings={settings}
+        setSettings={setSettings}
+        style={style}
+        setStyle={setStyle}
+        subtitles={subtitles}
+        onGenerate={onGenerate}
+        onToast={onToast}
+      />
     </aside>
   );
 }
