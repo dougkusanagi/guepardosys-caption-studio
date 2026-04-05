@@ -72,7 +72,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from './components/ui/sheet.jsx';
-import { SubtitleSidebar } from './components/subtitle-sidebar.jsx';
+import { InlineSubtitlePanel, SubtitleSidebar } from './components/subtitle-sidebar.jsx';
 import { ColorField, InputField, SelectField } from './components/form-fields.jsx';
 import {
   burnSubtitles,
@@ -151,6 +151,28 @@ function getProcessingTitleForStage(stage, fallbackTitle) {
   }
 }
 
+function useMediaQuery(query) {
+  const [matches, setMatches] = useState(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return false;
+    return window.matchMedia(query).matches;
+  });
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return undefined;
+
+    const mediaQuery = window.matchMedia(query);
+    const handleChange = () => setMatches(mediaQuery.matches);
+    handleChange();
+    mediaQuery.addEventListener('change', handleChange);
+
+    return () => {
+      mediaQuery.removeEventListener('change', handleChange);
+    };
+  }, [query]);
+
+  return matches;
+}
+
 function App() {
   const [projectId, setProjectId] = useState(null);
   const [filename, setFilename] = useState(null);
@@ -197,6 +219,7 @@ function App() {
   }, []);
 
   const playback = usePlaybackController();
+  const hasWideDockLayout = useMediaQuery('(min-width: 1101px)');
   const clientId = useWsClient((data) => {
     setProcessingState((prev) => ({
       ...prev,
@@ -691,6 +714,7 @@ function App() {
   }, [subtitles]);
 
   const dockedLayoutActive = dockProcessedPreview && playback.showProcessed;
+  const showInlineSubtitlePanel = dockedLayoutActive && showSubtitleSidebar && hasWideDockLayout;
   const originalSourceFile = getOriginalSourceFile();
   const processedOutputSource = currentOutputPath || processedVideoPath || '';
   const processedPreviewSource = getPreviewProcessedSource(
@@ -700,8 +724,8 @@ function App() {
   );
   const showProcessedSubtitleOverlay =
     subtitles.length > 0
-    && Boolean(processedOutputSource)
-    && !outputHasBurnedSubtitles(processedOutputSource);
+    && Boolean(processedPreviewSource)
+    && !outputHasBurnedSubtitles(processedPreviewSource);
   const shouldUseTimelinePreviewSubtitles =
     playback.hasEditedTimeline()
     && processedPreviewSource
@@ -756,7 +780,13 @@ function App() {
             onZoomToSlider={(val) => setTimelineUi((prev) => ({ ...prev, zoom: 0.5 + (val / 100) * 49.5 }))}
           />
 
-          <div className={`editor-workspace ${dockedLayoutActive ? 'editor-workspace--docked' : ''}`}>
+          <div
+            className={cn(
+              'editor-workspace',
+              dockedLayoutActive && 'editor-workspace--docked',
+              showInlineSubtitlePanel && 'editor-workspace--with-subtitle-panel',
+            )}
+          >
             <div className="editor-main-column">
               <PreviewArea
                 playback={playback}
@@ -786,12 +816,24 @@ function App() {
                 onSeek={playback.seek}
               />
             </div>
+
+            <InlineSubtitlePanel
+              open={showInlineSubtitlePanel}
+              settings={subtitleSettings}
+              setSettings={setSubtitleSettings}
+              style={subtitleStyle}
+              setStyle={setSubtitleStyle}
+              subtitles={subtitles}
+              onClose={() => setShowSubtitleSidebar(false)}
+              onGenerate={runSubtitleGeneration}
+              onToast={pushToast}
+            />
           </div>
         </div>
       )}
 
       <SubtitleSidebar
-        open={showSubtitleSidebar}
+        open={showSubtitleSidebar && !showInlineSubtitlePanel}
         settings={subtitleSettings}
         setSettings={setSubtitleSettings}
         style={subtitleStyle}

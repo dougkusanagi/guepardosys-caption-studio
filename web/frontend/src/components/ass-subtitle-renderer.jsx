@@ -11,6 +11,7 @@ function AssSubtitleRendererInner({
   onFailureChange,
 }) {
   const rendererRef = useRef(null);
+  const [canvasElement, setCanvasElement] = useState(null);
   const [videoMetrics, setVideoMetrics] = useState({
     videoWidth: 0,
     videoHeight: 0,
@@ -68,7 +69,7 @@ function AssSubtitleRendererInner({
   }, [videoElement]);
 
   useEffect(() => {
-    if (!videoElement) return undefined;
+    if (!videoElement || !canvasElement) return undefined;
 
     let cancelled = false;
 
@@ -78,7 +79,8 @@ function AssSubtitleRendererInner({
       try {
         const renderer = new JASSUB({
           video: videoElement,
-          subContent: trackContent,
+          canvas: canvasElement,
+          subContent: '',
           queryFonts: 'local',
         });
 
@@ -110,7 +112,7 @@ function AssSubtitleRendererInner({
         void renderer.destroy().catch(() => {});
       }
     };
-  }, [videoElement, onFailureChange]);
+  }, [canvasElement, onFailureChange, videoElement]);
 
   useEffect(() => {
     const renderer = rendererRef.current;
@@ -140,7 +142,14 @@ function AssSubtitleRendererInner({
     };
   }, [enabled, onFailureChange, playRes.height, playRes.width, trackContent]);
 
-  return null;
+  return (
+    <canvas
+      ref={setCanvasElement}
+      aria-hidden="true"
+      className="absolute inset-0 m-auto pointer-events-none z-[12]"
+      style={{ display: enabled ? 'block' : 'none' }}
+    />
+  );
 }
 
 export const AssSubtitleRenderer = memo(AssSubtitleRendererInner);

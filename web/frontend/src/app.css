@@ -9,6 +9,8 @@
 }
 
 .editor-workspace {
+  --preview-dock-width: clamp(280px, 26vw, 420px);
+  --subtitle-panel-width: clamp(340px, 30vw, 460px);
   position: relative;
   display: flex;
   flex-direction: column;
@@ -25,7 +27,11 @@
 }
 
 .editor-workspace--docked .editor-main-column {
-  padding-right: clamp(280px, 26vw, 420px);
+  padding-right: var(--preview-dock-width);
+}
+
+.editor-workspace--with-subtitle-panel .editor-main-column {
+  padding-right: calc(var(--preview-dock-width) + var(--subtitle-panel-width));
 }
 
 .preview-area {
@@ -51,7 +57,7 @@
   top: 0;
   right: 0;
   bottom: 0;
-  width: clamp(280px, 26vw, 420px);
+  width: var(--preview-dock-width);
   min-width: 280px;
   min-height: 0;
   padding: 0.75rem;
@@ -59,6 +65,38 @@
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 252, 0.98) 100%);
   box-shadow: -18px 0 32px rgba(15, 23, 42, 0.08);
   z-index: 10;
+}
+
+.editor-workspace--with-subtitle-panel .editor-preview-dock {
+  right: var(--subtitle-panel-width);
+}
+
+.subtitle-settings-dock {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: var(--subtitle-panel-width);
+  min-width: 320px;
+  min-height: 0;
+  padding: 0.75rem 0.75rem 0.75rem 0;
+  border-left: 1px solid rgba(226, 232, 240, 0.95);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 252, 0.98) 100%);
+  box-shadow: -18px 0 32px rgba(15, 23, 42, 0.08);
+  z-index: 11;
+}
+
+.subtitle-settings-dock__surface {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  border-radius: 1rem;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
+  backdrop-filter: blur(10px);
 }
 
 .modal-backdrop {
