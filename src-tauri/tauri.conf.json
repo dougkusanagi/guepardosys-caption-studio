@@ -5,7 +5,7 @@
   "build": {
     "beforeDevCommand": "bun run frontend",
     "devUrl": "http://127.0.0.1:5173",
-    "beforeBuildCommand": "bun run build",
+    "beforeBuildCommand": "bun run build:frontend",
     "frontendDist": "../web/dist"
   },
   "app": {
@@ -35,7 +35,6 @@
       "icons/icon.ico"
     ],
     "externalBin": ["binaries/ffmpeg", "binaries/ffprobe"],
-    "resources": ["models/ggml-tiny.bin"],
     "resources": ["models/ggml-tiny.bin"]
   }
 }
