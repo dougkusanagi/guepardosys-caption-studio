@@ -8,7 +8,7 @@ mod subtitle;
 mod whisper;
 
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 use tauri::Emitter;
@@ -20,6 +20,13 @@ struct AppState {
     app_data_dir: PathBuf,
     ffmpeg_path: String,
     ffprobe_path: String,
+}
+
+const VALID_WHISPER_MODELS: &[&str] = &["tiny", "base", "small", "medium", "large", "large-v3"];
+
+struct EnsureWhisperModelResult {
+    path: PathBuf,
+    already_exists: bool,
 }
 
 // --- Request Models ---
@@ -147,6 +154,8 @@ async fn remove_silence(
         return Err("Arquivo não encontrado".into());
     }
 
+    ensure_whisper_model(&state.app_data_dir, &req.model, &window, true).await?;
+
     send_progress(&window, "transcribe", 0, "Extraindo áudio...").await;
 
     let audio_path = project_dir.join("audio_16k.wav");
@@ -161,13 +170,13 @@ async fn remove_silence(
     send_progress(&window, "transcribe", 10, "Transcrevendo com Whisper...").await;
 
     let window_clone = window.clone();
-    let transcription =
-        whisper::transcribe_with_progress(whisper::TranscribeOptions {
-            app_data_dir: &state.app_data_dir,
-            audio_path: &audio_path,
-            model_name: &req.model,
-            language: &req.language,
-            on_progress: Some(std::sync::Arc::new(std::sync::Mutex::new(Some(Box::new(move |pct| {
+    let transcription = whisper::transcribe_with_progress(whisper::TranscribeOptions {
+        app_data_dir: &state.app_data_dir,
+        audio_path: &audio_path,
+        model_name: &req.model,
+        language: &req.language,
+        on_progress: Some(std::sync::Arc::new(std::sync::Mutex::new(Some(Box::new(
+            move |pct| {
                 let mapped = 10 + (pct * 70 / 100);
                 let _ = window_clone.emit(
                     "processing_progress",
@@ -178,10 +187,11 @@ async fn remove_silence(
                         "message": format!("Transcrevendo com Whisper... {}%", pct),
                     }),
                 );
-            }))))),
-        })
-        .await
-        .map_err(|e| e.to_string())?;
+            },
+        ))))),
+    })
+    .await
+    .map_err(|e| e.to_string())?;
 
     send_progress(
         &window,
@@ -285,6 +295,8 @@ async fn generate_subtitles(
         return Err("Arquivo não encontrado".into());
     }
 
+    ensure_whisper_model(&state.app_data_dir, &req.model, &window, true).await?;
+
     send_progress(&window, "subtitles", 0, "Extraindo áudio...").await;
 
     let audio_path = project_dir.join("audio_sub.wav");
@@ -299,13 +311,13 @@ async fn generate_subtitles(
     send_progress(&window, "subtitles", 10, "Gerando legendas com IA...").await;
 
     let window_clone = window.clone();
-    let transcription =
-        whisper::transcribe_with_progress(whisper::TranscribeOptions {
-            app_data_dir: &state.app_data_dir,
-            audio_path: &audio_path,
-            model_name: &req.model,
-            language: &req.language,
-            on_progress: Some(std::sync::Arc::new(std::sync::Mutex::new(Some(Box::new(move |pct| {
+    let transcription = whisper::transcribe_with_progress(whisper::TranscribeOptions {
+        app_data_dir: &state.app_data_dir,
+        audio_path: &audio_path,
+        model_name: &req.model,
+        language: &req.language,
+        on_progress: Some(std::sync::Arc::new(std::sync::Mutex::new(Some(Box::new(
+            move |pct| {
                 let mapped = 10 + (pct * 85 / 100);
                 let _ = window_clone.emit(
                     "processing_progress",
@@ -316,10 +328,11 @@ async fn generate_subtitles(
                         "message": format!("Gerando legendas com IA... {}%", pct),
                     }),
                 );
-            }))))),
-        })
-        .await
-        .map_err(|e| e.to_string())?;
+            },
+        ))))),
+    })
+    .await
+    .map_err(|e| e.to_string())?;
 
     let subtitles = whisper::get_subtitle_segments(&transcription);
 
@@ -978,69 +991,119 @@ async fn download_model(
     model: String,
     window: tauri::WebviewWindow,
 ) -> Result<serde_json::Value, String> {
-    let valid_models = ["base", "small", "medium", "large", "large-v3"];
-    if !valid_models.contains(&model.as_str()) {
-        return Err(format!(
-            "Modelo inválido. Opções: {}",
-            valid_models.join(", ")
-        ));
+    let ensure_result = ensure_whisper_model(&state.app_data_dir, &model, &window, false).await?;
+
+    Ok(serde_json::json!({
+        "name": model,
+        "path": ensure_result.path.to_string_lossy().to_string(),
+        "already_exists": ensure_result.already_exists,
+        "downloaded": !ensure_result.already_exists,
+    }))
+}
+
+// --- Helpers ---
+
+fn validate_whisper_model(model: &str) -> Result<(), String> {
+    if VALID_WHISPER_MODELS.contains(&model) {
+        return Ok(());
     }
 
-    let models_dir = state.app_data_dir.join("whisper-models");
-    std::fs::create_dir_all(&models_dir).map_err(|e| e.to_string())?;
+    Err(format!(
+        "Modelo inválido. Opções: {}",
+        VALID_WHISPER_MODELS.join(", ")
+    ))
+}
 
-    let dest = models_dir.join(format!("ggml-{}.bin", model));
-    if dest.exists() {
-        return Ok(serde_json::json!({
-            "name": model,
-            "path": dest.to_string_lossy().to_string(),
-            "already_exists": true,
-        }));
-    }
+fn whisper_model_path(app_data_dir: &Path, model: &str) -> PathBuf {
+    app_data_dir
+        .join("whisper-models")
+        .join(format!("ggml-{}.bin", model))
+}
 
+fn emit_model_download_progress(
+    window: &tauri::WebviewWindow,
+    progress: i32,
+    message: &str,
+    mirror_to_processing: bool,
+) {
     let _ = window.emit(
         "model_download_progress",
         serde_json::json!({
-            "progress": 0,
-            "message": format!("Baixando modelo {}...", model),
+            "progress": progress,
+            "message": message,
         }),
     );
 
+    if mirror_to_processing {
+        let _ = window.emit(
+            "processing_progress",
+            serde_json::json!({
+                "type": "progress",
+                "stage": "model_download",
+                "progress": progress,
+                "message": message,
+            }),
+        );
+    }
+}
+
+async fn ensure_whisper_model(
+    app_data_dir: &Path,
+    model: &str,
+    window: &tauri::WebviewWindow,
+    mirror_to_processing: bool,
+) -> Result<EnsureWhisperModelResult, String> {
+    validate_whisper_model(model)?;
+
+    let models_dir = app_data_dir.join("whisper-models");
+    std::fs::create_dir_all(&models_dir).map_err(|e| e.to_string())?;
+
+    let dest = whisper_model_path(app_data_dir, model);
+    if dest.exists() {
+        return Ok(EnsureWhisperModelResult {
+            path: dest,
+            already_exists: true,
+        });
+    }
+
+    emit_model_download_progress(
+        window,
+        0,
+        &format!("Baixando modelo Whisper {}...", model),
+        mirror_to_processing,
+    );
+
+    let model_name = model.to_string();
+    let progress_window = window.clone();
     let url = format!(
         "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-{}.bin",
         model
     );
 
-    let window_clone = window.clone();
     whisper::download_model(&url, &dest, move |progress| {
-        let pct = (progress * 100.0) as i32;
-        let _ = window_clone.emit(
-            "model_download_progress",
-            serde_json::json!({
-                "progress": pct,
-                "message": format!("Baixando modelo... {}%", pct),
-            }),
+        let pct = (progress * 100.0).round() as i32;
+        emit_model_download_progress(
+            &progress_window,
+            pct,
+            &format!("Baixando modelo Whisper {}... {}%", model_name, pct),
+            mirror_to_processing,
         );
     })
     .await
-    .map_err(|e| format!("Falha ao baixar modelo: {}", e))?;
+    .map_err(|e| format!("Falha ao baixar modelo '{}': {}", model, e))?;
 
-    let _ = window.emit(
-        "model_download_progress",
-        serde_json::json!({
-            "progress": 100,
-            "message": "Modelo baixado!",
-        }),
+    emit_model_download_progress(
+        window,
+        100,
+        &format!("Modelo Whisper {} pronto.", model),
+        mirror_to_processing,
     );
 
-    Ok(serde_json::json!({
-        "name": model,
-        "path": dest.to_string_lossy().to_string(),
-        "downloaded": true,
-    }))
+    Ok(EnsureWhisperModelResult {
+        path: dest,
+        already_exists: false,
+    })
 }
-
-// --- Helpers ---
 
 fn normalize_path_for_comparison(path: &std::path::Path) -> PathBuf {
     #[cfg(windows)]

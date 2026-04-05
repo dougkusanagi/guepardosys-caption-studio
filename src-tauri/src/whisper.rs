@@ -287,29 +287,58 @@ where
 
     let response = reqwest::get(url)
         .await
-        .map_err(|e| format!("Falha na requisição: {}", e))?;
+        .map_err(|e| format!("Falha na requisição: {}", e))?
+        .error_for_status()
+        .map_err(|e| format!("Resposta inválida do servidor: {}", e))?;
 
     let total_size = response
         .content_length()
         .ok_or("Não foi possível determinar o tamanho do arquivo")?;
 
-    let mut file = tokio::fs::File::create(dest)
+    let temp_name = dest
+        .file_name()
+        .and_then(|name| name.to_str())
+        .map(|name| format!("{}.part", name))
+        .unwrap_or_else(|| "model.bin.part".to_string());
+    let temp_dest = dest.with_file_name(temp_name);
+
+    if tokio::fs::try_exists(&temp_dest).await.unwrap_or(false) {
+        tokio::fs::remove_file(&temp_dest).await.ok();
+    }
+
+    let mut file = tokio::fs::File::create(&temp_dest)
         .await
         .map_err(|e| format!("Falha ao criar arquivo: {}", e))?;
 
     let mut stream = response.bytes_stream();
     let mut downloaded: u64 = 0;
 
-    use futures::StreamExt;
-    while let Some(chunk) = stream.next().await {
-        let chunk = chunk.map_err(|e| format!("Erro no download: {}", e))?;
-        file.write_all(&chunk)
+    let result: Result<(), String> = async {
+        use futures::StreamExt;
+
+        while let Some(chunk) = stream.next().await {
+            let chunk = chunk.map_err(|e| format!("Erro no download: {}", e))?;
+            file.write_all(&chunk)
+                .await
+                .map_err(|e| format!("Erro ao escrever: {}", e))?;
+            downloaded += chunk.len() as u64;
+            on_progress(downloaded as f64 / total_size as f64);
+        }
+
+        file.flush().await.map_err(|e| e.to_string())?;
+        drop(file);
+
+        tokio::fs::rename(&temp_dest, dest)
             .await
-            .map_err(|e| format!("Erro ao escrever: {}", e))?;
-        downloaded += chunk.len() as u64;
-        on_progress(downloaded as f64 / total_size as f64);
+            .map_err(|e| format!("Falha ao finalizar download: {}", e))?;
+
+        Ok(())
+    }
+    .await;
+
+    if result.is_err() {
+        tokio::fs::remove_file(&temp_dest).await.ok();
     }
 
-    file.flush().await.map_err(|e| e.to_string())?;
-    Ok(())
+    result
 }

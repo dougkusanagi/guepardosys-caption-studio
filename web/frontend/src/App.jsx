@@ -131,6 +131,24 @@ const DEFAULT_TIMELINE_UI = {
 const DEFAULT_CROP_RECT = { x: 0.1, y: 0.1, w: 0.8, h: 0.8 };
 const DEFAULT_UPLOAD_STATE = { phase: 'idle', progress: 0 };
 
+function getProcessingTitleForStage(stage, fallbackTitle) {
+  switch (stage) {
+    case 'model_download':
+      return 'Baixando Modelo Whisper';
+    case 'transcribe':
+    case 'cut':
+      return 'Removendo Silêncio';
+    case 'subtitles':
+      return 'Gerando Legendas';
+    case 'burn':
+      return 'Preparando Exportação';
+    case 'crop':
+      return 'Recortando Vídeo';
+    default:
+      return fallbackTitle;
+  }
+}
+
 function App() {
   const [projectId, setProjectId] = useState(null);
   const [filename, setFilename] = useState(null);
@@ -180,6 +198,7 @@ function App() {
   const clientId = useWsClient((data) => {
     setProcessingState((prev) => ({
       ...prev,
+      title: getProcessingTitleForStage(data.stage, prev.title),
       message: data.message || prev.message,
       progress: data.progress ?? prev.progress,
     }));
