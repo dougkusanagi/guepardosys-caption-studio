@@ -13,6 +13,7 @@ import {
   Loader2,
   Lock,
   Maximize2,
+  Menu,
   Monitor,
   MonitorCheck,
   Plus,
@@ -713,6 +714,65 @@ function App() {
     playback.setSubtitles(subtitles);
   }, [subtitles]);
 
+  useEffect(() => {
+    function handleKeyDown(event) {
+      if (
+        event.target.tagName === 'INPUT' ||
+        event.target.tagName === 'TEXTAREA' ||
+        event.target.tagName === 'SELECT' ||
+        event.target.isContentEditable
+      ) {
+        return;
+      }
+
+      if (event.code === 'Space') {
+        event.preventDefault();
+        playback.togglePlay();
+        return;
+      }
+
+      if (event.key === 'ArrowLeft') {
+        event.preventDefault();
+        if (event.shiftKey) {
+          playback.skip(-5);
+        } else {
+          playback.skip(-1);
+        }
+        return;
+      }
+
+      if (event.key === 'ArrowRight') {
+        event.preventDefault();
+        if (event.shiftKey) {
+          playback.skip(5);
+        } else {
+          playback.skip(1);
+        }
+        return;
+      }
+
+      if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        playback.setVolume(clamp(playback.volume + 0.05, 0, 1));
+        return;
+      }
+
+      if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        playback.setVolume(clamp(playback.volume - 0.05, 0, 1));
+        return;
+      }
+
+      if (event.key === 'm' || event.key === 'M') {
+        playback.toggleMute();
+        return;
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   const dockedLayoutActive = dockProcessedPreview && playback.showProcessed;
   const showInlineSubtitlePanel = dockedLayoutActive && showSubtitleSidebar && hasWideDockLayout;
   const originalSourceFile = getOriginalSourceFile();
@@ -964,10 +1024,79 @@ function App() {
 }
 
 function Header({ editorVisible, originalName, videoInfo, onGoHome, onSave, onOpenProjects, onExport }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
+        setMenuOpen(false);
+      }
+    }
+    if (menuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [menuOpen]);
+
+  function handleMenuAction(action) {
+    setMenuOpen(false);
+    action();
+  }
+
   return (
     <header id="app-header" className="bg-white/80 backdrop-blur-xl border-b border-surface-200 sticky top-0 z-50">
       <div className="max-w-[1920px] mx-auto px-6 h-14 flex items-center justify-between">
         <div className="flex items-center gap-3">
+          <div className="relative" ref={menuRef}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => setMenuOpen(!menuOpen)}
+              title="Menu"
+            >
+              <Menu className="w-5 h-5" />
+            </Button>
+            {menuOpen && (
+              <div className="absolute top-full left-0 mt-2 w-56 rounded-lg border border-surface-200 bg-white shadow-lg py-1 z-50">
+                <button
+                  type="button"
+                  className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm text-surface-700 hover:bg-primary-50 transition-colors ${!editorVisible ? 'hidden' : ''}`}
+                  onClick={() => handleMenuAction(onGoHome)}
+                >
+                  <UploadCloud className="w-4 h-4" />
+                  Novo projeto
+                </button>
+                <button
+                  type="button"
+                  className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm text-surface-700 hover:bg-primary-50 transition-colors ${!editorVisible ? 'hidden' : ''}`}
+                  onClick={() => handleMenuAction(onSave)}
+                >
+                  <Save className="w-4 h-4" />
+                  Salvar
+                </button>
+                <button
+                  type="button"
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-surface-700 hover:bg-primary-50 transition-colors"
+                  onClick={() => handleMenuAction(onOpenProjects)}
+                >
+                  <FolderOpen className="w-4 h-4" />
+                  Abrir
+                </button>
+                <div className={`my-1 border-t border-surface-100 ${!editorVisible ? 'hidden' : ''}`} />
+                <button
+                  type="button"
+                  className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-primary-700 hover:bg-primary-50 transition-colors ${!editorVisible ? 'hidden' : ''}`}
+                  onClick={() => handleMenuAction(onExport)}
+                >
+                  <Download className="w-4 h-4" />
+                  Exportar
+                </button>
+              </div>
+            )}
+          </div>
           <div className="w-8 h-8 bg-gradient-to-br from-primary-500 to-primary-700 rounded-lg flex items-center justify-center">
             <Clapperboard className="w-4 h-4 text-white" />
           </div>
@@ -983,50 +1112,7 @@ function Header({ editorVisible, originalName, videoInfo, onGoHome, onSave, onOp
           <span>{formatDuration(videoInfo?.duration || 0)}</span>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Button
-            type="button"
-            onClick={onGoHome}
-            variant="ghost"
-            size="sm"
-            className={`${editorVisible ? 'inline-flex' : 'hidden'} gap-1.5`}
-            title="Voltar ao início"
-          >
-            <UploadCloud className="w-4 h-4" />
-            Novo projeto
-          </Button>
-          <Button
-            type="button"
-            onClick={onSave}
-            variant="ghost"
-            size="sm"
-            className={`${editorVisible ? 'inline-flex' : 'hidden'} gap-1.5`}
-            title="Salvar Projeto"
-          >
-            <Save className="w-4 h-4" />
-            Salvar
-          </Button>
-          <Button
-            type="button"
-            onClick={onOpenProjects}
-            variant="ghost"
-            size="sm"
-            className="gap-1.5"
-            title="Carregar Projeto"
-          >
-            <FolderOpen className="w-4 h-4" />
-            Abrir
-          </Button>
-          <Button
-            type="button"
-            onClick={onExport}
-            size="sm"
-            className={`${editorVisible ? 'inline-flex' : 'hidden'} gap-2`}
-          >
-            <Download className="w-4 h-4" />
-            Exportar
-          </Button>
-        </div>
+        <div className="w-8" />
       </div>
     </header>
   );
