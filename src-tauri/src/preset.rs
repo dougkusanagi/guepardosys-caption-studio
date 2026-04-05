@@ -167,7 +167,11 @@ pub fn delete_preset(app_data_dir: &Path, preset_id: &str) -> Result<(), String>
     if presets.len() == len_before {
         return Err("Preset não encontrado".into());
     }
-    if preset_id == "default" && presets.iter().any(|p| p.id == "default" && p.name == "Padrão") {
+    if preset_id == "default"
+        && presets
+            .iter()
+            .any(|p| p.id == "default" && p.name == "Padrão")
+    {
         return Err("Não é possível excluir o preset padrão".into());
     }
     save_presets(app_data_dir, &presets)

@@ -62,6 +62,7 @@ import {
 import { Input } from './components/ui/input.jsx';
 import { Label } from './components/ui/label.jsx';
 import { Progress } from './components/ui/progress.jsx';
+import { RadioGroup, RadioGroupItem } from './components/ui/radio-group.jsx';
 import { ScrollArea } from './components/ui/scroll-area.jsx';
 import {
   Sheet,
@@ -82,6 +83,8 @@ import {
   loadProject,
   removeSilence,
   saveProject,
+  saveProjectDialog,
+  sendNativeNotification,
   uploadVideo,
 } from './lib/api.js';
 import * as tauri from './lib/tauri.js';
@@ -162,10 +165,15 @@ function App() {
   const [showDeleteProjectDialog, setShowDeleteProjectDialog] = useState(false);
   const [projectToDelete, setProjectToDelete] = useState('');
   const [showExportDialog, setShowExportDialog] = useState(false);
+  const [exportMode, setExportMode] = useState('embedded');
+  const [lastSavedPath, setLastSavedPath] = useState(null);
 
   // Initialize API (detects Tauri vs browser)
   useEffect(() => {
     initApi().catch(() => {});
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission().catch(() => {});
+    }
   }, []);
 
   const playback = usePlaybackController();
@@ -187,6 +195,11 @@ function App() {
     window.setTimeout(() => {
       setToasts((prev) => prev.filter((toast) => toast.id !== id));
     }, duration);
+
+    if (type === 'success' || type === 'error') {
+      const title = type === 'success' ? 'StudioCut' : 'Erro - StudioCut';
+      sendNativeNotification(title, message).catch(() => {});
+    }
   }
 
   function resetEditorState() {
@@ -240,9 +253,6 @@ function App() {
     processedPath = processedVideoPath,
     originalSource = getOriginalSourceFile(),
   ) {
-    if (outputHasBurnedSubtitles(outputPath)) {
-      return processedPath || originalSource || outputPath || '';
-    }
     return outputPath || processedPath || originalSource || '';
   }
 
@@ -389,7 +399,7 @@ function App() {
 
       setShowProcessingModal(false);
       setCurrentOutputPath(result.outputPath);
-      playback.loadProcessed(getPreviewProcessedSource(result.outputPath));
+      playback.loadProcessed(result.outputPath);
       playback.setSubtitles(subtitles);
       pushToast('Legendas aplicadas ao vídeo!', 'success');
     } catch (err) {
@@ -403,10 +413,12 @@ function App() {
 
     try {
       let sourceFile = currentOutputPath || getOriginalSourceFile();
+      let exportStyle = null;
 
       if (subtitles.length > 0 && !outputHasBurnedSubtitles(sourceFile) && (exportMode === 'embedded' || exportMode === 'both')) {
         const subtitlePayload = getSubtitlesForSource(sourceFile);
         const burnScale = playback.getDisplayScaleForSource(sourceFile);
+        exportStyle = buildBurnStyle(subtitleStyle, burnScale);
         setShowProcessingModal(true);
         setProcessingState({
           title: 'Preparando Exportação',
@@ -420,14 +432,50 @@ function App() {
           clientId,
           sourceFile,
           subtitles: subtitlePayload,
-          style: buildBurnStyle(subtitleStyle, burnScale),
+          style: exportStyle,
         });
 
         setShowProcessingModal(false);
         sourceFile = burnResult.outputPath;
+        setCurrentOutputPath(sourceFile);
+        playback.loadProcessed(sourceFile);
+        playback.setSubtitles(subtitles);
       }
 
-      const blob = await exportVideo({ projectId, sourceFile });
+      const shouldExportSubtitleFile = exportMode === 'separate' || exportMode === 'both';
+      const exportSubtitles = shouldExportSubtitleFile ? getSubtitlesForSource(sourceFile) : [];
+      const subtitleFileStyle = shouldExportSubtitleFile
+        ? exportStyle || buildBurnStyle(subtitleStyle, playback.getDisplayScaleForSource(sourceFile))
+        : null;
+      const subtitleContent = exportSubtitles.length > 0
+        ? generateAssSubtitles(exportSubtitles, subtitleFileStyle, videoInfo?.video)
+        : null;
+
+      const result = await exportVideo({
+        projectId,
+        sourceFile,
+        originalName,
+        subtitleContent: !tauri.isTauri() && shouldExportSubtitleFile ? subtitleContent : null,
+        subtitles: tauri.isTauri() && shouldExportSubtitleFile ? exportSubtitles : null,
+        style: tauri.isTauri() && shouldExportSubtitleFile ? subtitleFileStyle : null,
+      });
+
+      if (tauri.isTauri()) {
+        if (result?.cancelled) {
+          return;
+        }
+
+        if (result?.videoPath && result?.subtitlePath) {
+          pushToast('Vídeo e legendas exportados com sucesso!', 'success');
+        } else if (result?.videoPath) {
+          pushToast('Vídeo exportado com sucesso!', 'success');
+        } else if (result?.subtitlePath) {
+          pushToast('Legendas exportadas com sucesso!', 'success');
+        }
+        return;
+      }
+
+      const blob = result;
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement('a');
       anchor.href = url;
@@ -438,9 +486,8 @@ function App() {
       URL.revokeObjectURL(url);
       pushToast('Vídeo exportado com sucesso!', 'success');
 
-      if (exportMode === 'separate' || exportMode === 'both') {
-        const assContent = generateAssSubtitles(subtitles, subtitleStyle);
-        const subtitleBlob = new Blob([assContent], { type: 'text/plain' });
+      if (shouldExportSubtitleFile && subtitleContent) {
+        const subtitleBlob = new Blob([subtitleContent], { type: 'text/plain' });
         const subtitleUrl = URL.createObjectURL(subtitleBlob);
         const subtitleAnchor = document.createElement('a');
         subtitleAnchor.href = subtitleUrl;
@@ -455,7 +502,8 @@ function App() {
       }
     } catch (err) {
       setShowProcessingModal(false);
-      pushToast(`Erro ao exportar: ${err.message}`, 'error');
+      const errorMsg = err?.message || String(err) || 'Erro desconhecido';
+      pushToast(`Erro ao exportar: ${errorMsg}`, 'error');
     }
   }
 
@@ -469,7 +517,7 @@ function App() {
     if (!saveProjectName.trim()) return;
     setShowSaveDialog(false);
     try {
-      await saveProject({
+      const result = await saveProject({
         name: saveProjectName.trim(),
         projectId,
         filename,
@@ -493,9 +541,56 @@ function App() {
         },
         waveform: timelineWaveform,
       });
+      if (result?.savedPath) {
+        setLastSavedPath(result.savedPath);
+      }
       pushToast(`Projeto "${saveProjectName.trim()}" salvo com sucesso!`, 'success');
     } catch (err) {
-      pushToast(`Erro ao salvar: ${err.message}`, 'error');
+      const errorMsg = err?.message || String(err) || 'Erro desconhecido';
+      pushToast(`Erro ao salvar: ${errorMsg}`, 'error');
+    }
+  }
+
+  async function confirmSaveProjectToPath() {
+    if (!saveProjectName.trim()) return;
+    try {
+      const result = await saveProjectDialog({
+        name: saveProjectName.trim(),
+        projectId,
+        filename,
+        originalName,
+        videoInfo,
+        originalDuration: videoInfo?.duration || 0,
+        originalWaveform,
+        subtitles,
+        editIntervals,
+        processedVideoPath,
+        currentOutputPath,
+        subtitleSettings,
+        subtitleStyle,
+        layout: {
+          dockProcessedPreview,
+        },
+        timeline: {
+          ...timelineUi,
+          intervals: editIntervals,
+          subtitles: timelineSubtitles,
+        },
+        waveform: timelineWaveform,
+      });
+      if (result?.cancelled) {
+        return;
+      }
+      setShowSaveDialog(false);
+      if (result?.savedPath) {
+        setLastSavedPath(result.savedPath);
+      }
+      pushToast(`Projeto "${saveProjectName.trim()}" salvo com sucesso!`, 'success');
+    } catch (err) {
+      const errorMsg = err?.message || String(err) || 'Erro desconhecido';
+      if (errorMsg !== 'Save cancelled') {
+        pushToast(`Erro ao salvar: ${errorMsg}`, 'error');
+      }
     }
   }
 
@@ -618,15 +713,10 @@ function App() {
     playback.setSubtitles(subtitles);
   }, [subtitles]);
 
-  useEffect(() => {
-    if (!currentOutputPath || !outputHasBurnedSubtitles(currentOutputPath)) return;
-    const previewSource = getPreviewProcessedSource(currentOutputPath);
-    if (!previewSource || previewSource === currentOutputPath) return;
-    setCurrentOutputPath(previewSource);
-    playback.loadProcessed(previewSource);
-  }, [subtitleStyle, subtitles, currentOutputPath, processedVideoPath, filename]);
-
   const dockedLayoutActive = dockProcessedPreview && playback.showProcessed;
+  const processedPreviewSource = currentOutputPath || processedVideoPath || '';
+  const showProcessedSubtitleOverlay =
+    subtitles.length > 0 && !outputHasBurnedSubtitles(processedPreviewSource);
 
   return (
     <div className="app-shell">
@@ -663,9 +753,10 @@ function App() {
             onToggleOriginal={playback.toggleOriginal}
             onToggleProcessed={handleToggleProcessed}
             onToggleDockedPreview={handleToggleDockedPreview}
-            onZoomIn={() => setTimelineUi((prev) => ({ ...prev, zoom: clamp(prev.zoom * 1.5, 0.5, 20) }))}
-            onZoomOut={() => setTimelineUi((prev) => ({ ...prev, zoom: clamp(prev.zoom / 1.5, 0.5, 20) }))}
+            onZoomIn={() => setTimelineUi((prev) => ({ ...prev, zoom: clamp(prev.zoom * 1.5, 0.5, 50) }))}
+            onZoomOut={() => setTimelineUi((prev) => ({ ...prev, zoom: clamp(prev.zoom / 1.5, 0.5, 50) }))}
             onZoomFit={() => setTimelineUi((prev) => ({ ...prev, zoom: 1 }))}
+            onZoomToSlider={(val) => setTimelineUi((prev) => ({ ...prev, zoom: 0.5 + (val / 100) * 49.5 }))}
           />
 
           <div className={`editor-workspace ${dockedLayoutActive ? 'editor-workspace--docked' : ''}`}>
@@ -675,7 +766,7 @@ function App() {
                 cropActive={cropActive}
                 cropRect={cropRect}
                 subtitleStyle={subtitleStyle}
-                showSubtitleOverlay={subtitles.length > 0}
+                showSubtitleOverlay={showProcessedSubtitleOverlay}
                 dockProcessedPreview={dockedLayoutActive}
                 onCropRectChange={setCropRect}
                 onCropChange={handleCropChange}
@@ -760,6 +851,9 @@ function App() {
             <Button variant="outline" onClick={() => setShowSaveDialog(false)}>
               Cancelar
             </Button>
+            <Button variant="secondary" onClick={confirmSaveProjectToPath} disabled={!saveProjectName.trim()}>
+              Salvar em...
+            </Button>
             <Button onClick={confirmSaveProject} disabled={!saveProjectName.trim()}>
               Salvar
             </Button>
@@ -784,44 +878,42 @@ function App() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <Dialog open={showExportDialog} onOpenChange={setShowExportDialog}>
+      <Dialog open={showExportDialog} onOpenChange={(open) => { setShowExportDialog(open); if (open) setExportMode('embedded'); }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Exportar Projeto</DialogTitle>
-            <DialogDescription>Escolha como deseja exportar as legendas.</DialogDescription>
+            <DialogDescription>Escolha como deseja exportar o vídeo e as legendas.</DialogDescription>
           </DialogHeader>
-          <div className="space-y-3 py-2">
-            <Card
-              className="cursor-pointer border-surface-200 bg-surface-50 transition-colors hover:border-primary-200 hover:bg-primary-50"
-              onClick={() => { setShowExportDialog(false); runExport('embedded'); }}
-            >
-              <CardContent className="p-4">
-                <p className="text-sm font-semibold text-surface-800">Legendas embutidas</p>
+          <RadioGroup value={exportMode} onValueChange={setExportMode} className="gap-3 py-2">
+            <div className="flex items-start space-x-3 rounded-lg border border-surface-200 p-4 cursor-pointer transition-colors hover:bg-primary-50/50 has-[[data-state=checked]]:border-primary-500 has-[[data-state=checked]]:bg-primary-50/50" onClick={() => setExportMode('embedded')}>
+              <RadioGroupItem value="embedded" className="mt-1" />
+              <div className="flex-1">
+                <Label className="text-sm font-semibold text-surface-800 uppercase-normal tracking-normal normal-case">Legendas embutidas</Label>
                 <p className="text-xs text-surface-500 mt-1">Queima as legendas diretamente no v&iacute;deo.</p>
-              </CardContent>
-            </Card>
-            <Card
-              className="cursor-pointer border-surface-200 bg-surface-50 transition-colors hover:border-primary-200 hover:bg-primary-50"
-              onClick={() => { setShowExportDialog(false); runExport('separate'); }}
-            >
-              <CardContent className="p-4">
-                <p className="text-sm font-semibold text-surface-800">Legendas separadas</p>
+              </div>
+            </div>
+            <div className="flex items-start space-x-3 rounded-lg border border-surface-200 p-4 cursor-pointer transition-colors hover:bg-primary-50/50 has-[[data-state=checked]]:border-primary-500 has-[[data-state=checked]]:bg-primary-50/50" onClick={() => setExportMode('separate')}>
+              <RadioGroupItem value="separate" className="mt-1" />
+              <div className="flex-1">
+                <Label className="text-sm font-semibold text-surface-800 uppercase-normal tracking-normal normal-case">Legendas separadas</Label>
                 <p className="text-xs text-surface-500 mt-1">Exporta o v&iacute;deo e um arquivo de legenda .ass separado.</p>
-              </CardContent>
-            </Card>
-            <Card
-              className="cursor-pointer border-surface-200 bg-surface-50 transition-colors hover:border-primary-200 hover:bg-primary-50"
-              onClick={() => { setShowExportDialog(false); runExport('both'); }}
-            >
-              <CardContent className="p-4">
-                <p className="text-sm font-semibold text-surface-800">Ambos</p>
+              </div>
+            </div>
+            <div className="flex items-start space-x-3 rounded-lg border border-surface-200 p-4 cursor-pointer transition-colors hover:bg-primary-50/50 has-[[data-state=checked]]:border-primary-500 has-[[data-state=checked]]:bg-primary-50/50" onClick={() => setExportMode('both')}>
+              <RadioGroupItem value="both" className="mt-1" />
+              <div className="flex-1">
+                <Label className="text-sm font-semibold text-surface-800 uppercase-normal tracking-normal normal-case">Ambos</Label>
                 <p className="text-xs text-surface-500 mt-1">Exporta o v&iacute;deo com legendas embutidas e tamb&eacute;m o arquivo .ass separado.</p>
-              </CardContent>
-            </Card>
-          </div>
+              </div>
+            </div>
+          </RadioGroup>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowExportDialog(false)}>
               Cancelar
+            </Button>
+            <Button onClick={() => { setShowExportDialog(false); runExport(exportMode); }}>
+              <Download className="w-4 h-4" />
+              Exportar
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1023,6 +1115,7 @@ function Toolbar({
   onZoomIn,
   onZoomOut,
   onZoomFit,
+  onZoomToSlider,
 }) {
   return (
     <div id="toolbar" className="bg-white border-b border-surface-200 px-6 py-2">
@@ -1065,6 +1158,16 @@ function Toolbar({
           <ToolbarIconButton onClick={onZoomOut} title="Zoom Out">
             <ZoomOut className="w-4 h-4" />
           </ToolbarIconButton>
+          <input
+            type="range"
+            min="0"
+            max="100"
+            step="1"
+            value={((zoom - 0.5) / 49.5) * 100}
+            onChange={(e) => onZoomToSlider(Number(e.target.value))}
+            className="w-24 h-1 accent-primary-600 cursor-pointer"
+            title="Zoom"
+          />
           <span className="text-xs font-mono text-surface-500 w-12 text-center">{Math.round(zoom * 100)}%</span>
           <ToolbarIconButton onClick={onZoomIn} title="Zoom In">
             <ZoomIn className="w-4 h-4" />
@@ -1634,21 +1737,24 @@ function TimelinePanel({
         </div>
       </div>
 
-      <div id="timeline-scrollbar-track" ref={scrollbarTrackRef} className="h-[14px] bg-surface-50 border-t border-surface-100 relative cursor-pointer" onClick={(event) => {
-        if (!scrollbarTrackRef.current || event.target.id === 'timeline-scrollbar-thumb') return;
-        const rect = scrollbarTrackRef.current.getBoundingClientRect();
-        const ratio = (event.clientX - rect.left) / rect.width;
-        setScrollLeft(clamp(ratio * scrollMax, 0, scrollMax));
-      }}>
-        <div
-          id="timeline-scrollbar-thumb"
-          className="absolute top-[2px] h-[10px] bg-surface-300 hover:bg-surface-400 rounded-full transition-colors cursor-grab active:cursor-grabbing"
-          style={{ left: `${thumbLeft}px`, width: `${thumbWidth}px` }}
-          onMouseDown={(event) => {
-            event.preventDefault();
-            setThumbDrag({ startX: event.clientX, startLeft: thumbLeft });
-          }}
-        />
+      <div className="flex h-[14px]">
+        <div className="w-[180px] min-w-[180px] border-r border-surface-200 bg-surface-50" />
+        <div id="timeline-scrollbar-track" ref={scrollbarTrackRef} className="flex-1 bg-surface-50 border-t border-surface-100 relative cursor-pointer" onClick={(event) => {
+          if (!scrollbarTrackRef.current || event.target.id === 'timeline-scrollbar-thumb') return;
+          const rect = scrollbarTrackRef.current.getBoundingClientRect();
+          const ratio = (event.clientX - rect.left) / rect.width;
+          setScrollLeft(clamp(ratio * scrollMax, 0, scrollMax));
+        }}>
+          <div
+            id="timeline-scrollbar-thumb"
+            className="absolute top-[2px] h-[10px] bg-surface-300 hover:bg-surface-400 rounded-full transition-colors cursor-grab active:cursor-grabbing"
+            style={{ left: `${thumbLeft}px`, width: `${thumbWidth}px` }}
+            onMouseDown={(event) => {
+              event.preventDefault();
+              setThumbDrag({ startX: event.clientX, startLeft: thumbLeft });
+            }}
+          />
+        </div>
       </div>
     </div>
   );
@@ -2070,13 +2176,12 @@ function usePlaybackController() {
 
   function getElementDisplayScale(video) {
     if (!video) return 1;
-    const frame = video.closest('.video-frame');
-    const frameRect = frame?.getBoundingClientRect();
-    const renderedWidth = frameRect?.width || frame?.clientWidth || video.clientWidth || 0;
-    const renderedHeight = frameRect?.height || frame?.clientHeight || video.clientHeight || 0;
+    const rect = video.getBoundingClientRect();
+    const renderedWidth = rect.width || video.clientWidth || 0;
+    const renderedHeight = rect.height || video.clientHeight || 0;
     const widthScale = renderedWidth > 0 && video.videoWidth > 0 ? video.videoWidth / renderedWidth : 0;
     const heightScale = renderedHeight > 0 && video.videoHeight > 0 ? video.videoHeight / renderedHeight : 0;
-    const scale = Math.max(widthScale, heightScale);
+    const scale = Math.min(widthScale, heightScale);
     return Number.isFinite(scale) && scale > 0 ? scale : 1;
   }
 
@@ -2509,10 +2614,9 @@ function buildBurnStyle(style, displayScale = 1) {
   return {
     fontName: style.fontName,
     fontSize: Number((style.fontSize * safeScale).toFixed(2)),
-    primaryColor: hexToASSColor(style.primaryColor),
-    outlineColor: hexToASSColor(style.outlineColor),
-    backColor: '&H80000000',
-    bold: style.bold ? -1 : 0,
+    primaryColor: style.primaryColor,
+    outlineColor: style.outlineColor,
+    bold: !!style.bold,
     outline: Number((style.outline * safeScale).toFixed(2)),
     shadow: Number((style.shadow * safeScale).toFixed(2)),
     alignment: style.alignment,
@@ -2525,16 +2629,21 @@ function buildBurnStyle(style, displayScale = 1) {
 /**
  * Outline via text-shadow: filled disk of offsets (not rings of samples) avoids both
  * miter spikes (-webkit-text-stroke) and scalloped “petals” from sparse angular sampling.
+ * Subpixel sampling keeps the preview closer to libass/FFmpeg, which otherwise renders
+ * small outlines visibly thicker than an integer-only CSS shadow approximation.
  */
 function buildDiskOutlineTextShadows(outlinePx, color) {
-  const w = Math.max(0, Math.ceil(Number(outlinePx) || 0));
-  if (w <= 0) return [];
+  const radius = Math.max(0, Number(outlinePx) || 0);
+  if (radius <= 0) return [];
   const c = color || '#000000';
-  // w===1: include diagonals so a 1px outline matches a full 8-neighbour ring (not a thin +).
-  const maxSq = w === 1 ? 2 : w * w;
+  const step = radius <= 3 ? 0.5 : 1;
+  const steps = Math.ceil(radius / step);
+  const maxSq = (radius + step * 0.35) ** 2;
   const layers = [];
-  for (let dy = -w; dy <= w; dy += 1) {
-    for (let dx = -w; dx <= w; dx += 1) {
+  for (let y = -steps; y <= steps; y += 1) {
+    const dy = Number((y * step).toFixed(2));
+    for (let x = -steps; x <= steps; x += 1) {
+      const dx = Number((x * step).toFixed(2));
       if (dx === 0 && dy === 0) continue;
       if (dx * dx + dy * dy > maxSq) continue;
       layers.push(`${dx}px ${dy}px 0 ${c}`);
@@ -2567,7 +2676,7 @@ function buildSubtitlePreviewStyle(style) {
 
   const outlineColor = style?.outlineColor || '#000000';
   const outlineShadows = buildDiskOutlineTextShadows(outline, outlineColor);
-  const dropShadow = shadow > 0 ? `0 ${shadow}px ${shadow * 4}px rgba(0, 0, 0, 0.82)` : '';
+  const dropShadow = shadow > 0 ? `${shadow}px ${shadow}px 0 rgba(0, 0, 0, 0.82)` : '';
   const textShadow =
     outlineShadows.length || dropShadow
       ? [...outlineShadows, dropShadow].filter(Boolean).join(', ')
@@ -2586,7 +2695,8 @@ function buildSubtitlePreviewStyle(style) {
       color: style?.primaryColor || '#ffffff',
       fontFamily: style?.fontName || 'Arial',
       fontSize: `${Math.max(12, Number(style?.fontSize) || 24)}px`,
-      fontWeight: style?.bold ? 700 : 600,
+      fontWeight: style?.bold ? 700 : 400,
+      lineHeight: '1.05',
       textShadow,
       textAlign,
     },
@@ -2603,7 +2713,7 @@ function outputHasBurnedSubtitles(outputPath) {
   return /\/subtitled_[^/]+\.mp4$/i.test(outputPath || '');
 }
 
-function generateAssSubtitles(subtitles, style) {
+function generateAssSubtitles(subtitles, style, playRes) {
   const alignment = Number(style?.alignment) || 2;
   const fontName = style?.fontName || 'Arial';
   const fontSize = Number(style?.fontSize) || 24;
@@ -2611,19 +2721,38 @@ function generateAssSubtitles(subtitles, style) {
   const outlineColor = hexToASSColor(style?.outlineColor || '#000000');
   const outline = Number(style?.outline) || 2;
   const shadow = Number(style?.shadow) || 1;
-  const bold = style?.bold ? 1 : 0;
+  const bold = style?.bold ? -1 : 0;
+  const playResX = Number(playRes?.width) || 1920;
+  const playResY = Number(playRes?.height) || 1080;
+  const positionY = clamp(Number(style?.positionY) || 88, 0, 100);
+  const areaHeight = clamp(Number(style?.areaHeight) || 18, 4, 100);
+  const decorationPadding = Math.max(12, outline * 3 + shadow * 4);
+  const xPos = alignment === 1
+    ? 56
+    : alignment === 3
+      ? playResX - 56
+      : playResX / 2;
+  const yPos = (positionY / 100) * playResY;
+  const clipHeight = (areaHeight / 100) * playResY;
+  const [clipTopRaw, clipBottomRaw] = alignment === 1 || alignment === 2 || alignment === 3
+    ? [yPos - clipHeight - decorationPadding, yPos + decorationPadding]
+    : alignment === 5
+      ? [yPos - clipHeight / 2 - decorationPadding, yPos + clipHeight / 2 + decorationPadding]
+      : [yPos - decorationPadding, yPos + clipHeight + decorationPadding];
+  const clipTop = clamp(clipTopRaw, 0, Math.max(0, playResY - 1));
+  const clipBottom = clamp(clipBottomRaw, clipTop + 1, playResY);
 
   const lines = [
     '[Script Info]',
     'Title: Legendas StudioCut',
     'ScriptType: v4.00+',
     'WrapStyle: 0',
-    'PlayResX: 1920',
-    'PlayResY: 1080',
+    `PlayResX: ${playResX}`,
+    `PlayResY: ${playResY}`,
     '',
     '[V4+ Styles]',
-    'Format: Name, Fontname, Fontsize, PrimaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding',
-    `Style: Default,${fontName},${fontSize},${primaryColor},${outlineColor},&H80000000,${bold},0,0,0,100,100,0,0,1,${outline},${shadow},${alignment},10,10,10,1`,
+    'Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding',
+    `Style: Default,${fontName},${fontSize},${primaryColor},&H000000FF,${outlineColor},&H80000000,${bold},0,0,0,100,100,0,0,1,${outline},${shadow},${alignment},10,10,0,1`,
     '',
     '[Events]',
     'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
@@ -2633,7 +2762,8 @@ function generateAssSubtitles(subtitles, style) {
     const start = formatAssTime(sub.start);
     const end = formatAssTime(sub.end);
     const text = sub.text.replace(/\n/g, '\\N');
-    lines.push(`Dialogue: 0,${start},${end},Default,,0,0,0,,${text}`);
+    const overrideTag = `{\\an${alignment}\\pos(${xPos.toFixed(2)},${yPos.toFixed(2)})\\clip(0,${clipTop.toFixed(2)},${playResX.toFixed(2)},${clipBottom.toFixed(2)})}`;
+    lines.push(`Dialogue: 0,${start},${end},Default,,0,0,0,,${overrideTag}${text}`);
   }
 
   return lines.join('\r\n') + '\r\n';

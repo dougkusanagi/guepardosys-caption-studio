@@ -105,8 +105,25 @@ export async function cropVideo(params) {
   });
 }
 
+export async function exportVideo(params) {
+  return invoke('export_video', {
+    req: {
+      projectId: params.projectId,
+      sourceFile: params.sourceFile,
+      originalName: params.originalName || null,
+      subtitleContent: params.subtitleContent || null,
+      subtitles: params.subtitles || null,
+      style: params.style || null,
+    },
+  });
+}
+
 export async function saveProject(data) {
   return invoke('save_project', { data });
+}
+
+export async function saveProjectDialog(data) {
+  return invoke('save_project_dialog', { data });
 }
 
 export async function listProjects() {
@@ -147,4 +164,8 @@ export async function listModels() {
 
 export async function downloadModel(model) {
   return invoke('download_model', { model });
+}
+
+export async function sendNotification(title, body) {
+  return invoke('send_notification', { title, body });
 }

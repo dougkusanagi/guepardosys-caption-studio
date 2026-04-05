@@ -5,7 +5,18 @@ use once_cell::sync::Lazy;
 use serde::Serialize;
 use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters};
 
-static MODEL_CACHE: Lazy<Mutex<Option<(String, Arc<WhisperContext>)>>> = Lazy::new(|| Mutex::new(None));
+static MODEL_CACHE: Lazy<Mutex<Option<(String, Arc<WhisperContext>)>>> =
+    Lazy::new(|| Mutex::new(None));
+
+pub type ProgressCallback = Arc<Mutex<Option<Box<dyn FnMut(i32) + Send>>>>;
+
+pub struct TranscribeOptions<'a> {
+    pub app_data_dir: &'a Path,
+    pub audio_path: &'a Path,
+    pub model_name: &'a str,
+    pub language: &'a str,
+    pub on_progress: Option<ProgressCallback>,
+}
 
 #[derive(Serialize, Clone)]
 pub struct WordTimestamp {
@@ -29,12 +40,17 @@ pub struct TranscriptionResult {
     pub language: String,
 }
 
-pub async fn transcribe(
-    app_data_dir: &Path,
-    audio_path: &Path,
-    model_name: &str,
-    language: &str,
+pub async fn transcribe_with_progress(
+    options: TranscribeOptions<'_>,
 ) -> Result<TranscriptionResult, String> {
+    let TranscribeOptions {
+        app_data_dir,
+        audio_path,
+        model_name,
+        language,
+        on_progress,
+    } = options;
+
     let models_dir = app_data_dir.join("whisper-models");
     let model_path = models_dir.join(format!("ggml-{}.bin", model_name));
 
@@ -50,18 +66,22 @@ pub async fn transcribe(
         match &*cache {
             Some((name, ctx)) if name == model_name => ctx.clone(),
             _ => {
-                let ctx = Arc::new(WhisperContext::new_with_params(
-                    &model_path,
-                    WhisperContextParameters::default(),
-                )
-                .map_err(|e| format!("Falha ao carregar modelo: {}", e))?);
+                let ctx = Arc::new(
+                    WhisperContext::new_with_params(
+                        &model_path,
+                        WhisperContextParameters::default(),
+                    )
+                    .map_err(|e| format!("Falha ao carregar modelo: {}", e))?,
+                );
                 *cache = Some((model_name.to_string(), ctx.clone()));
                 ctx
             }
         }
     };
 
-    let mut state = context.create_state().map_err(|e: whisper_rs::WhisperError| e.to_string())?;
+    let mut state = context
+        .create_state()
+        .map_err(|e: whisper_rs::WhisperError| e.to_string())?;
 
     let mut params = FullParams::new(SamplingStrategy::Greedy { best_of: 1 });
     params.set_language(Some(language));
@@ -72,7 +92,18 @@ pub async fn transcribe(
     params.set_print_realtime(false);
     params.set_n_threads(num_cpus::get() as i32);
 
-    // Read audio file as f32 samples (16kHz mono WAV expected)
+    let on_progress_arc = on_progress.unwrap_or_else(|| Arc::new(Mutex::new(None)));
+    params.set_progress_callback_safe({
+        let on_progress_arc = on_progress_arc.clone();
+        move |progress| {
+            if let Ok(mut cb_opt) = on_progress_arc.lock() {
+                if let Some(cb) = cb_opt.as_mut() {
+                    cb(progress);
+                }
+            }
+        }
+    });
+
     let samples = load_wav(audio_path)?;
 
     state
@@ -84,8 +115,13 @@ pub async fn transcribe(
     let mut full_text = String::new();
 
     for i in 0..num_segments {
-        let segment = state.get_segment(i as i32).ok_or("Segment not found".to_string())?;
-        let text = segment.to_str_lossy().map_err(|e| e.to_string())?.to_string();
+        let segment = state
+            .get_segment(i as i32)
+            .ok_or("Segment not found".to_string())?;
+        let text = segment
+            .to_str_lossy()
+            .map_err(|e| e.to_string())?
+            .to_string();
         let start = segment.start_timestamp() as f64 / 100.0;
         let end = segment.end_timestamp() as f64 / 100.0;
 
@@ -123,13 +159,31 @@ pub async fn transcribe(
     }
 
     let lang_id = state.full_lang_id_from_state();
-    let lang = whisper_rs::get_lang_str(lang_id).unwrap_or("unknown").to_string();
+    let lang = whisper_rs::get_lang_str(lang_id)
+        .unwrap_or("unknown")
+        .to_string();
 
     Ok(TranscriptionResult {
         text: full_text,
         segments,
         language: lang,
     })
+}
+
+pub async fn transcribe(
+    app_data_dir: &Path,
+    audio_path: &Path,
+    model_name: &str,
+    language: &str,
+) -> Result<TranscriptionResult, String> {
+    transcribe_with_progress(TranscribeOptions {
+        app_data_dir,
+        audio_path,
+        model_name,
+        language,
+        on_progress: None,
+    })
+    .await
 }
 
 pub fn collect_speech_intervals(
@@ -190,7 +244,9 @@ pub fn drop_tiny_intervals(intervals: &[(f64, f64)], min_keep: f64) -> Vec<(f64,
         .collect()
 }
 
-pub fn get_subtitle_segments(transcription: &TranscriptionResult) -> Vec<crate::subtitle::SubtitleSegment> {
+pub fn get_subtitle_segments(
+    transcription: &TranscriptionResult,
+) -> Vec<crate::subtitle::SubtitleSegment> {
     transcription
         .segments
         .iter()
@@ -204,7 +260,8 @@ pub fn get_subtitle_segments(transcription: &TranscriptionResult) -> Vec<crate::
 }
 
 fn load_wav(path: &Path) -> Result<Vec<f32>, String> {
-    let mut reader = hound::WavReader::open(path).map_err(|e| format!("Falha ao abrir WAV: {}", e))?;
+    let mut reader =
+        hound::WavReader::open(path).map_err(|e| format!("Falha ao abrir WAV: {}", e))?;
     let spec = reader.spec();
 
     if spec.channels != 1 {

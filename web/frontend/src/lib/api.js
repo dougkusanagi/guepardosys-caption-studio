@@ -88,7 +88,7 @@ export async function cropVideoRequest(params) {
 
 export async function exportVideo(params) {
   if (isTauri()) {
-    return { path: params.sourceFile };
+    return tauri.exportVideo(params);
   }
   const res = await fetch(`${BASE_URL}/api/export`, {
     method: 'POST',
@@ -101,6 +101,11 @@ export async function exportVideo(params) {
 
 export async function saveProject(data) {
   if (isTauri()) return tauri.saveProject(data);
+  return postJson('/api/project/save', data, 'Save failed');
+}
+
+export async function saveProjectDialog(data) {
+  if (isTauri()) return tauri.saveProjectDialog(data);
   return postJson('/api/project/save', data, 'Save failed');
 }
 
@@ -196,6 +201,13 @@ export async function downloadModel(modelName) {
     throw new Error(err.error || 'Failed to download model');
   }
   return res.json();
+}
+
+export async function sendNativeNotification(title, body) {
+  if (isTauri()) return tauri.sendNotification(title, body);
+  if ('Notification' in window && Notification.permission === 'granted') {
+    new Notification(title, { body });
+  }
 }
 
 async function postJson(path, payload, defaultError) {

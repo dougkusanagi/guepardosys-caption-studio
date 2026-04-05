@@ -71,6 +71,10 @@ struct CropRequest {
 struct ExportRequest {
     projectId: String,
     sourceFile: String,
+    originalName: Option<String>,
+    subtitleContent: Option<String>,
+    subtitles: Option<Vec<subtitle::SubtitleSegment>>,
+    style: Option<HashMap<String, serde_json::Value>>,
 }
 
 // --- Response Types ---
@@ -119,6 +123,13 @@ struct CropResponse {
     info: ffmpeg::VideoInfo,
 }
 
+#[derive(Serialize)]
+struct ExportResponse {
+    cancelled: bool,
+    videoPath: Option<String>,
+    subtitlePath: Option<String>,
+}
+
 // --- Tauri Commands ---
 
 #[tauri::command]
@@ -149,17 +160,43 @@ async fn remove_silence(
 
     send_progress(&window, "transcribe", 10, "Transcrevendo com Whisper...").await;
 
-    let transcription = whisper::transcribe(&state.app_data_dir, &audio_path, &req.model, &req.language)
+    let window_clone = window.clone();
+    let transcription =
+        whisper::transcribe_with_progress(whisper::TranscribeOptions {
+            app_data_dir: &state.app_data_dir,
+            audio_path: &audio_path,
+            model_name: &req.model,
+            language: &req.language,
+            on_progress: Some(std::sync::Arc::new(std::sync::Mutex::new(Some(Box::new(move |pct| {
+                let mapped = 10 + (pct * 70 / 100);
+                let _ = window_clone.emit(
+                    "processing_progress",
+                    serde_json::json!({
+                        "type": "progress",
+                        "stage": "transcribe",
+                        "progress": mapped,
+                        "message": format!("Transcrevendo com Whisper... {}%", pct),
+                    }),
+                );
+            }))))),
+        })
         .await
         .map_err(|e| e.to_string())?;
 
-    send_progress(&window, "transcribe", 80, "Analisando intervalos de fala...").await;
+    send_progress(
+        &window,
+        "transcribe",
+        80,
+        "Analisando intervalos de fala...",
+    )
+    .await;
 
     let info = ffmpeg::get_video_info(&state.ffprobe_path, &input_path.to_string_lossy())
         .map_err(|e| e.to_string())?;
     let duration = info.duration;
 
-    let intervals = whisper::collect_speech_intervals(&transcription, duration, req.padStart, req.padEnd);
+    let intervals =
+        whisper::collect_speech_intervals(&transcription, duration, req.padStart, req.padEnd);
     let merged = whisper::merge_intervals(&intervals, req.minGap);
     let final_intervals = whisper::drop_tiny_intervals(&merged, req.minKeep);
 
@@ -171,14 +208,33 @@ async fn remove_silence(
 
     send_progress(&window, "cut", 0, "Cortando vídeo...").await;
 
-    let output_name = format!("processed_{}.mp4", Uuid::new_v4().simple().to_string().chars().take(8).collect::<String>());
+    let output_name = format!(
+        "processed_{}.mp4",
+        Uuid::new_v4()
+            .simple()
+            .to_string()
+            .chars()
+            .take(8)
+            .collect::<String>()
+    );
     let output_path = project_dir.join(&output_name);
 
-    ffmpeg::cut_video(
+    ffmpeg::cut_video_with_progress(
         &state.ffmpeg_path,
         &input_path.to_string_lossy(),
         &output_path.to_string_lossy(),
         &final_intervals,
+        |pct| {
+            let _ = window.emit(
+                "processing_progress",
+                serde_json::json!({
+                    "type": "progress",
+                    "stage": "cut",
+                    "progress": pct,
+                    "message": format!("Cortando vídeo... {}%", pct),
+                }),
+            );
+        },
     )
     .map_err(|e| e.to_string())?;
 
@@ -242,7 +298,26 @@ async fn generate_subtitles(
 
     send_progress(&window, "subtitles", 10, "Gerando legendas com IA...").await;
 
-    let transcription = whisper::transcribe(&state.app_data_dir, &audio_path, &req.model, &req.language)
+    let window_clone = window.clone();
+    let transcription =
+        whisper::transcribe_with_progress(whisper::TranscribeOptions {
+            app_data_dir: &state.app_data_dir,
+            audio_path: &audio_path,
+            model_name: &req.model,
+            language: &req.language,
+            on_progress: Some(std::sync::Arc::new(std::sync::Mutex::new(Some(Box::new(move |pct| {
+                let mapped = 10 + (pct * 85 / 100);
+                let _ = window_clone.emit(
+                    "processing_progress",
+                    serde_json::json!({
+                        "type": "progress",
+                        "stage": "subtitles",
+                        "progress": mapped,
+                        "message": format!("Gerando legendas com IA... {}%", pct),
+                    }),
+                );
+            }))))),
+        })
         .await
         .map_err(|e| e.to_string())?;
 
@@ -279,20 +354,15 @@ async fn burn_subtitles(
     } else {
         req.sourceFile
     };
-    let input_path = resolve_source_path(&state.app_data_dir, &source_file)
-        .ok_or_else(|| "Arquivo de origem não encontrado".to_string())?;
-
-    if !input_path.exists() {
-        return Err("Arquivo de origem não encontrado".into());
-    }
+    let input_path = resolve_source_path(&state.app_data_dir, &source_file)?;
 
     let mut subtitles = req.subtitles.unwrap_or_default();
     if subtitles.is_empty() {
         if !ass_path.exists() {
             return Err("Gere as legendas primeiro".into());
         }
-        subtitles = subtitle::parse_srt(&project_dir.join("subtitles.srt"))
-            .map_err(|e| e.to_string())?;
+        subtitles =
+            subtitle::parse_srt(&project_dir.join("subtitles.srt")).map_err(|e| e.to_string())?;
     }
 
     let play_res = get_video_play_res(&state, &input_path)?;
@@ -301,14 +371,33 @@ async fn burn_subtitles(
 
     send_progress(&window, "burn", 0, "Aplicando legendas...").await;
 
-    let output_name = format!("subtitled_{}.mp4", Uuid::new_v4().simple().to_string().chars().take(8).collect::<String>());
+    let output_name = format!(
+        "subtitled_{}.mp4",
+        Uuid::new_v4()
+            .simple()
+            .to_string()
+            .chars()
+            .take(8)
+            .collect::<String>()
+    );
     let output_path = project_dir.join(&output_name);
 
-    ffmpeg::burn_subtitles(
+    ffmpeg::burn_subtitles_with_progress(
         &state.ffmpeg_path,
         &input_path.to_string_lossy(),
         &ass_path.to_string_lossy(),
         &output_path.to_string_lossy(),
+        |pct| {
+            let _ = window.emit(
+                "processing_progress",
+                serde_json::json!({
+                    "type": "progress",
+                    "stage": "burn",
+                    "progress": pct,
+                    "message": format!("Aplicando legendas... {}%", pct),
+                }),
+            );
+        },
     )
     .map_err(|e| e.to_string())?;
 
@@ -337,10 +426,18 @@ async fn crop_video(
 
     send_progress(&window, "crop", 0, "Cortando vídeo...").await;
 
-    let output_name = format!("cropped_{}.mp4", Uuid::new_v4().simple().to_string().chars().take(8).collect::<String>());
+    let output_name = format!(
+        "cropped_{}.mp4",
+        Uuid::new_v4()
+            .simple()
+            .to_string()
+            .chars()
+            .take(8)
+            .collect::<String>()
+    );
     let output_path = project_dir.join(&output_name);
 
-    ffmpeg::crop_video(
+    ffmpeg::crop_video_with_progress(
         &state.ffmpeg_path,
         &input_path.to_string_lossy(),
         &output_path.to_string_lossy(),
@@ -348,6 +445,17 @@ async fn crop_video(
         req.y,
         req.width,
         req.height,
+        |pct| {
+            let _ = window.emit(
+                "processing_progress",
+                serde_json::json!({
+                    "type": "progress",
+                    "stage": "crop",
+                    "progress": pct,
+                    "message": format!("Cortando vídeo... {}%", pct),
+                }),
+            );
+        },
     )
     .map_err(|e| e.to_string())?;
 
@@ -367,13 +475,17 @@ async fn crop_video(
 async fn upload_video(
     state: tauri::State<'_, AppState>,
     path: String,
+    window: tauri::WebviewWindow,
 ) -> Result<serde_json::Value, String> {
     let input_path = PathBuf::from(&path);
     if !input_path.exists() {
         return Err("Arquivo não encontrado".into());
     }
 
-    let ext = input_path.extension().and_then(|e| e.to_str()).unwrap_or("");
+    let ext = input_path
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("");
     let allowed = ["mp4", "mov", "avi", "mkv", "webm", "m4v", "flv", "wmv"];
     if !allowed.contains(&ext.to_lowercase().as_str()) {
         return Err("Formato não suportado".into());
@@ -383,7 +495,46 @@ async fn upload_video(
     let filename = format!("{}.{}", file_id, ext);
     let uploads_dir = state.app_data_dir.join("uploads");
     let file_path = uploads_dir.join(&filename);
-    std::fs::copy(&input_path, &file_path).map_err(|e| e.to_string())?;
+
+    let file_size = input_path.metadata().map_err(|e| e.to_string())?.len();
+    let mut copied: u64 = 0;
+    let mut last_pct = 0i32;
+    {
+        let mut src = std::fs::File::open(&input_path).map_err(|e| e.to_string())?;
+        let mut dst = std::fs::File::create(&file_path).map_err(|e| e.to_string())?;
+        let mut buf = vec![0u8; 1024 * 1024];
+        loop {
+            let n = std::io::Read::read(&mut src, &mut buf).map_err(|e| e.to_string())?;
+            if n == 0 {
+                break;
+            }
+            std::io::Write::write_all(&mut dst, &buf[..n]).map_err(|e| e.to_string())?;
+            copied += n as u64;
+            let pct = ((copied as f64 / file_size as f64) * 40.0) as i32;
+            if pct != last_pct {
+                last_pct = pct;
+                let _ = window.emit(
+                    "processing_progress",
+                    serde_json::json!({
+                        "type": "progress",
+                        "stage": "upload",
+                        "progress": pct,
+                        "message": format!("Carregando vídeo... {}%", pct),
+                    }),
+                );
+            }
+        }
+    }
+
+    let _ = window.emit(
+        "processing_progress",
+        serde_json::json!({
+            "type": "progress",
+            "stage": "upload",
+            "progress": 45,
+            "message": "Analisando vídeo...",
+        }),
+    );
 
     let project_id = Uuid::new_v4().to_string();
     let project_dir = state.app_data_dir.join("processed").join(&project_id);
@@ -391,6 +542,16 @@ async fn upload_video(
 
     let info = ffmpeg::get_video_info(&state.ffprobe_path, &file_path.to_string_lossy())
         .map_err(|e| e.to_string())?;
+
+    let _ = window.emit(
+        "processing_progress",
+        serde_json::json!({
+            "type": "progress",
+            "stage": "upload",
+            "progress": 60,
+            "message": "Gerando waveform...",
+        }),
+    );
 
     let waveform_path = project_dir.join("waveform.json");
     let waveform = ffmpeg::generate_waveform(
@@ -400,8 +561,20 @@ async fn upload_video(
     )
     .map_err(|e| e.to_string())?;
 
-    let file_size = file_path.metadata().map_err(|e| e.to_string())?.len();
-    let original_name = input_path.file_name().and_then(|n| n.to_str()).unwrap_or("video.mp4");
+    let _ = window.emit(
+        "processing_progress",
+        serde_json::json!({
+            "type": "progress",
+            "stage": "upload",
+            "progress": 100,
+            "message": "Vídeo carregado!",
+        }),
+    );
+
+    let original_name = input_path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("video.mp4");
 
     Ok(serde_json::json!({
         "projectId": project_id,
@@ -452,17 +625,45 @@ fn delete_preset(state: tauri::State<'_, AppState>, preset_id: String) -> Result
 }
 
 #[tauri::command]
+fn send_notification(app: tauri::AppHandle, title: String, body: String) -> Result<(), String> {
+    use tauri_plugin_notification::NotificationExt;
+    app.notification()
+        .builder()
+        .title(&title)
+        .body(&body)
+        .show()
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 fn save_project(
     state: tauri::State<'_, AppState>,
     data: serde_json::Value,
 ) -> Result<serde_json::Value, String> {
-    let name = data.get("name").and_then(|v| v.as_str()).unwrap_or("untitled").trim().to_string();
+    let name = data
+        .get("name")
+        .and_then(|v| v.as_str())
+        .unwrap_or("untitled")
+        .trim()
+        .to_string();
     if name.is_empty() {
         return Err("Nome do projeto é obrigatório".into());
     }
 
-    let safe_name: String = name.chars().map(|c| if c.is_alphanumeric() || " _-".contains(c) { c } else { '_' }).collect();
+    let safe_name: String = name
+        .chars()
+        .map(|c| {
+            if c.is_alphanumeric() || " _-".contains(c) {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect();
     let projects_dir = state.app_data_dir.join("projects");
+
+    std::fs::create_dir_all(&projects_dir).map_err(|e| e.to_string())?;
+
     let file_path = projects_dir.join(format!("{}.json", safe_name));
 
     let mut data = data;
@@ -471,6 +672,7 @@ fn save_project(
         .unwrap()
         .as_secs();
     data["savedAt"] = serde_json::json!(now);
+    data["savedPath"] = serde_json::json!(file_path.to_string_lossy().to_string());
 
     std::fs::write(
         &file_path,
@@ -478,7 +680,9 @@ fn save_project(
     )
     .map_err(|e| e.to_string())?;
 
-    Ok(serde_json::json!({ "ok": true, "name": name.clone() }))
+    Ok(
+        serde_json::json!({ "ok": true, "name": name.clone(), "savedPath": file_path.to_string_lossy().to_string() }),
+    )
 }
 
 #[tauri::command]
@@ -504,7 +708,9 @@ fn list_projects(state: tauri::State<'_, AppState>) -> Result<Vec<serde_json::Va
         for entry in entries {
             if let Ok(text) = std::fs::read_to_string(entry.path()) {
                 if let Ok(data) = serde_json::from_str::<serde_json::Value>(&text) {
-                    let fallback_name = entry.path().file_stem()
+                    let fallback_name = entry
+                        .path()
+                        .file_stem()
                         .and_then(|s| s.to_str())
                         .unwrap_or("unknown")
                         .to_string();
@@ -523,9 +729,24 @@ fn list_projects(state: tauri::State<'_, AppState>) -> Result<Vec<serde_json::Va
 }
 
 #[tauri::command]
-fn load_project(state: tauri::State<'_, AppState>, project_name: String) -> Result<serde_json::Value, String> {
-    let safe_name: String = project_name.chars().map(|c| if c.is_alphanumeric() || " _-".contains(c) { c } else { '_' }).collect();
-    let file_path = state.app_data_dir.join("projects").join(format!("{}.json", safe_name));
+fn load_project(
+    state: tauri::State<'_, AppState>,
+    project_name: String,
+) -> Result<serde_json::Value, String> {
+    let safe_name: String = project_name
+        .chars()
+        .map(|c| {
+            if c.is_alphanumeric() || " _-".contains(c) {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect();
+    let file_path = state
+        .app_data_dir
+        .join("projects")
+        .join(format!("{}.json", safe_name));
 
     if !file_path.exists() {
         return Err("Projeto não encontrado".into());
@@ -537,14 +758,187 @@ fn load_project(state: tauri::State<'_, AppState>, project_name: String) -> Resu
 
 #[tauri::command]
 fn delete_project(state: tauri::State<'_, AppState>, project_name: String) -> Result<(), String> {
-    let safe_name: String = project_name.chars().map(|c| if c.is_alphanumeric() || " _-".contains(c) { c } else { '_' }).collect();
-    let file_path = state.app_data_dir.join("projects").join(format!("{}.json", safe_name));
+    let safe_name: String = project_name
+        .chars()
+        .map(|c| {
+            if c.is_alphanumeric() || " _-".contains(c) {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect();
+    let file_path = state
+        .app_data_dir
+        .join("projects")
+        .join(format!("{}.json", safe_name));
 
     if file_path.exists() {
         std::fs::remove_file(&file_path).map_err(|e| e.to_string())?;
     }
 
     Ok(())
+}
+
+#[tauri::command]
+fn save_project_dialog(
+    state: tauri::State<'_, AppState>,
+    data: serde_json::Value,
+    app: tauri::AppHandle,
+) -> Result<serde_json::Value, String> {
+    use tauri_plugin_dialog::DialogExt;
+
+    let name = data
+        .get("name")
+        .and_then(|v| v.as_str())
+        .unwrap_or("untitled")
+        .trim()
+        .to_string();
+    if name.is_empty() {
+        return Err("Nome do projeto é obrigatório".into());
+    }
+
+    let safe_name: String = name
+        .chars()
+        .map(|c| {
+            if c.is_alphanumeric() || " _-".contains(c) {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect();
+
+    let file_path = app
+        .dialog()
+        .file()
+        .set_file_name(&format!("{}.json", safe_name))
+        .add_filter("JSON", &["json"])
+        .blocking_save_file();
+
+    let file_path = file_path.ok_or_else(|| "Save cancelled".to_string())?;
+
+    let path_buf = match &file_path {
+        tauri_plugin_dialog::FilePath::Path(p) => p.clone(),
+        tauri_plugin_dialog::FilePath::Url(u) => u
+            .to_file_path()
+            .map_err(|_| "Invalid file URI".to_string())?,
+    };
+
+    let mut data = data;
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    let path_str = path_buf.to_string_lossy().to_string();
+    data["savedAt"] = serde_json::json!(now);
+    data["savedPath"] = serde_json::json!(path_str.clone());
+
+    std::fs::write(
+        &path_buf,
+        serde_json::to_string_pretty(&data).map_err(|e| e.to_string())?,
+    )
+    .map_err(|e| e.to_string())?;
+
+    let projects_dir = state.app_data_dir.join("projects");
+    std::fs::create_dir_all(&projects_dir).map_err(|e| e.to_string())?;
+    let internal_path = projects_dir.join(format!("{}.json", safe_name));
+    std::fs::write(
+        &internal_path,
+        serde_json::to_string_pretty(&data).map_err(|e| e.to_string())?,
+    )
+    .map_err(|e| e.to_string())?;
+
+    Ok(serde_json::json!({ "ok": true, "name": name.clone(), "savedPath": path_str }))
+}
+
+#[tauri::command]
+fn export_video(
+    state: tauri::State<'_, AppState>,
+    req: ExportRequest,
+    app: tauri::AppHandle,
+) -> Result<ExportResponse, String> {
+    use tauri_plugin_dialog::DialogExt;
+
+    let source_path = resolve_source_path(&state.app_data_dir, &req.sourceFile)?;
+    if !source_path.exists() {
+        return Err(format!(
+            "Arquivo de origem não encontrado: {}",
+            source_path.display()
+        ));
+    }
+
+    let base_name = export_base_name(
+        req.originalName.as_deref(),
+        source_path.file_stem().and_then(|stem| stem.to_str()),
+    );
+    let extension = source_path
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .filter(|ext| !ext.trim().is_empty())
+        .unwrap_or("mp4");
+    let suggested_name = format!("{}.{}", base_name, extension);
+
+    let file_path = app
+        .dialog()
+        .file()
+        .set_title("Escolha onde salvar o vídeo exportado")
+        .set_file_name(&suggested_name)
+        .add_filter("Vídeo", &[extension])
+        .blocking_save_file();
+
+    let Some(file_path) = file_path else {
+        return Ok(ExportResponse {
+            cancelled: true,
+            videoPath: None,
+            subtitlePath: None,
+        });
+    };
+
+    let selected_path = dialog_file_path_to_path_buf(&file_path)?;
+    let video_path = ensure_path_extension(&selected_path, extension);
+    let export_dir = video_path.parent().ok_or_else(|| {
+        format!(
+            "Não foi possível determinar a pasta de destino para {}",
+            video_path.display()
+        )
+    })?;
+    std::fs::create_dir_all(export_dir).map_err(|e| e.to_string())?;
+    std::fs::copy(&source_path, &video_path)
+        .map_err(|e| format!("Falha ao exportar vídeo: {}", e))?;
+
+    let subtitle_path = {
+        let subtitle_stem = video_path
+            .file_stem()
+            .and_then(|stem| stem.to_str())
+            .filter(|stem| !stem.trim().is_empty())
+            .unwrap_or(&base_name);
+
+        if let Some(subtitles) = req.subtitles.as_ref().filter(|items| !items.is_empty()) {
+            let path = export_dir.join(format!("{}_legendas.ass", subtitle_stem));
+            let play_res = get_video_play_res(&state, &source_path)?;
+            subtitle::write_ass(subtitles, &path, req.style.as_ref(), Some(play_res))
+                .map_err(|e| format!("Falha ao exportar legendas: {}", e))?;
+            Some(path)
+        } else if let Some(content) = req
+            .subtitleContent
+            .as_ref()
+            .filter(|text| !text.trim().is_empty())
+        {
+            let path = export_dir.join(format!("{}_legendas.ass", subtitle_stem));
+            std::fs::write(&path, content)
+                .map_err(|e| format!("Falha ao exportar legendas: {}", e))?;
+            Some(path)
+        } else {
+            None
+        }
+    };
+
+    Ok(ExportResponse {
+        cancelled: false,
+        videoPath: Some(video_path.to_string_lossy().to_string()),
+        subtitlePath: subtitle_path.map(|path| path.to_string_lossy().to_string()),
+    })
 }
 
 #[tauri::command]
@@ -558,7 +952,8 @@ fn list_models(state: tauri::State<'_, AppState>) -> Vec<serde_json::Value> {
                 let path = entry.path();
                 if path.extension().and_then(|e| e.to_str()) == Some("bin") {
                     if let Ok(metadata) = path.metadata() {
-                        let name = path.file_stem()
+                        let name = path
+                            .file_stem()
                             .and_then(|s| s.to_str())
                             .unwrap_or("")
                             .trim_start_matches("ggml-")
@@ -585,7 +980,10 @@ async fn download_model(
 ) -> Result<serde_json::Value, String> {
     let valid_models = ["base", "small", "medium", "large", "large-v3"];
     if !valid_models.contains(&model.as_str()) {
-        return Err(format!("Modelo inválido. Opções: {}", valid_models.join(", ")));
+        return Err(format!(
+            "Modelo inválido. Opções: {}",
+            valid_models.join(", ")
+        ));
     }
 
     let models_dir = state.app_data_dir.join("whisper-models");
@@ -600,10 +998,13 @@ async fn download_model(
         }));
     }
 
-    let _ = window.emit("model_download_progress", serde_json::json!({
-        "progress": 0,
-        "message": format!("Baixando modelo {}...", model),
-    }));
+    let _ = window.emit(
+        "model_download_progress",
+        serde_json::json!({
+            "progress": 0,
+            "message": format!("Baixando modelo {}...", model),
+        }),
+    );
 
     let url = format!(
         "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-{}.bin",
@@ -613,18 +1014,24 @@ async fn download_model(
     let window_clone = window.clone();
     whisper::download_model(&url, &dest, move |progress| {
         let pct = (progress * 100.0) as i32;
-        let _ = window_clone.emit("model_download_progress", serde_json::json!({
-            "progress": pct,
-            "message": format!("Baixando modelo... {}%", pct),
-        }));
+        let _ = window_clone.emit(
+            "model_download_progress",
+            serde_json::json!({
+                "progress": pct,
+                "message": format!("Baixando modelo... {}%", pct),
+            }),
+        );
     })
     .await
     .map_err(|e| format!("Falha ao baixar modelo: {}", e))?;
 
-    let _ = window.emit("model_download_progress", serde_json::json!({
-        "progress": 100,
-        "message": "Modelo baixado!",
-    }));
+    let _ = window.emit(
+        "model_download_progress",
+        serde_json::json!({
+            "progress": 100,
+            "message": "Modelo baixado!",
+        }),
+    );
 
     Ok(serde_json::json!({
         "name": model,
@@ -635,13 +1042,142 @@ async fn download_model(
 
 // --- Helpers ---
 
-fn resolve_source_path(app_data_dir: &std::path::Path, source_file: &str) -> Option<PathBuf> {
-    let source = app_data_dir.join(source_file.trim_start_matches('/'));
-    let source = source.canonicalize().ok()?;
-    if source.starts_with(app_data_dir) {
-        Some(source)
+fn normalize_path_for_comparison(path: &std::path::Path) -> PathBuf {
+    #[cfg(windows)]
+    {
+        let raw = path.to_string_lossy();
+        if let Some(stripped) = raw.strip_prefix(r"\\?\UNC\") {
+            return PathBuf::from(format!(r"\\{}", stripped));
+        }
+        if let Some(stripped) = raw.strip_prefix(r"\\?\") {
+            return PathBuf::from(stripped);
+        }
+    }
+
+    path.to_path_buf()
+}
+
+fn dialog_file_path_to_path_buf(
+    file_path: &tauri_plugin_dialog::FilePath,
+) -> Result<PathBuf, String> {
+    match file_path {
+        tauri_plugin_dialog::FilePath::Path(path) => Ok(path.clone()),
+        tauri_plugin_dialog::FilePath::Url(url) => url
+            .to_file_path()
+            .map_err(|_| "Invalid file URI".to_string()),
+    }
+}
+
+fn ensure_path_extension(path: &std::path::Path, extension: &str) -> PathBuf {
+    let clean_ext = extension.trim().trim_start_matches('.');
+    if clean_ext.is_empty() {
+        return path.to_path_buf();
+    }
+
+    match path.extension().and_then(|ext| ext.to_str()) {
+        Some(current) if current.eq_ignore_ascii_case(clean_ext) => path.to_path_buf(),
+        _ => path.with_extension(clean_ext),
+    }
+}
+
+fn sanitize_filename_stem(value: &str) -> String {
+    let sanitized: String = value
+        .chars()
+        .map(|c| {
+            if c.is_alphanumeric() || c == ' ' || c == '_' || c == '-' {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect();
+    let collapsed = sanitized.trim().trim_matches('.').to_string();
+    if collapsed.is_empty() {
+        "studiocut_export".to_string()
     } else {
-        None
+        collapsed
+    }
+}
+
+fn export_base_name(original_name: Option<&str>, fallback_stem: Option<&str>) -> String {
+    let raw = original_name
+        .and_then(|name| {
+            std::path::Path::new(name)
+                .file_stem()
+                .and_then(|stem| stem.to_str())
+        })
+        .or(fallback_stem)
+        .unwrap_or("studiocut_export");
+    let stem = sanitize_filename_stem(raw);
+    if stem.to_ascii_lowercase().ends_with("_studiocut") {
+        stem
+    } else {
+        format!("{}_studiocut", stem)
+    }
+}
+
+fn next_available_path(dir: &std::path::Path, stem: &str, extension: &str) -> PathBuf {
+    let clean_ext = extension.trim().trim_start_matches('.');
+    let with_ext = |name: &str| {
+        if clean_ext.is_empty() {
+            dir.join(name)
+        } else {
+            dir.join(format!("{}.{}", name, clean_ext))
+        }
+    };
+
+    let mut candidate = with_ext(stem);
+    let mut counter = 2;
+    while candidate.exists() {
+        candidate = with_ext(&format!("{} ({})", stem, counter));
+        counter += 1;
+    }
+
+    candidate
+}
+
+fn resolve_source_path(
+    app_data_dir: &std::path::Path,
+    source_file: &str,
+) -> Result<PathBuf, String> {
+    let trimmed = source_file.trim_start_matches('/');
+    let source = app_data_dir.join(trimmed);
+
+    if !source.exists() {
+        return Err(format!(
+            "Arquivo de origem não encontrado: {}",
+            source.display()
+        ));
+    }
+
+    let allowed_root = app_data_dir
+        .canonicalize()
+        .unwrap_or_else(|_| app_data_dir.to_path_buf());
+    let normalized_allowed_root = normalize_path_for_comparison(&allowed_root);
+
+    match source.canonicalize() {
+        Ok(canonical) => {
+            if normalize_path_for_comparison(&canonical).starts_with(&normalized_allowed_root) {
+                Ok(canonical)
+            } else {
+                Err(format!(
+                    "Arquivo fora do diretório permitido: {}",
+                    canonical.display()
+                ))
+            }
+        }
+        Err(e) => {
+            // Fallback: use the path as-is if canonicalize fails (e.g., Windows long paths)
+            if normalize_path_for_comparison(&source).starts_with(&normalized_allowed_root) {
+                Ok(source)
+            } else {
+                Err(format!(
+                    "Erro ao resolver caminho: {} ({})",
+                    e,
+                    source.display()
+                ))
+            }
+        }
     }
 }
 
@@ -672,8 +1208,12 @@ fn main() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_notification::init())
         .setup(|app| {
-            let app_data_dir = app.path().app_data_dir().expect("Failed to get app data dir");
+            let app_data_dir = app
+                .path()
+                .app_data_dir()
+                .expect("Failed to get app data dir");
             std::fs::create_dir_all(&app_data_dir).ok();
             std::fs::create_dir_all(app_data_dir.join("uploads")).ok();
             std::fs::create_dir_all(app_data_dir.join("processed")).ok();
@@ -707,17 +1247,23 @@ fn main() {
             update_preset,
             delete_preset,
             save_project,
+            save_project_dialog,
+            export_video,
             list_projects,
             load_project,
             delete_project,
             list_models,
             download_model,
+            send_notification,
         ])
         .run(tauri::generate_context!())
         .expect("error while running StudioCut");
 }
 
-fn init_bundled_model(app_handle: &tauri::AppHandle, app_data_dir: &std::path::Path) -> Result<(), String> {
+fn init_bundled_model(
+    app_handle: &tauri::AppHandle,
+    app_data_dir: &std::path::Path,
+) -> Result<(), String> {
     let models_dir = app_data_dir.join("whisper-models");
     let dest = models_dir.join("ggml-tiny.bin");
 
@@ -725,10 +1271,10 @@ fn init_bundled_model(app_handle: &tauri::AppHandle, app_data_dir: &std::path::P
         return Ok(());
     }
 
-    if let Ok(resource_path) = app_handle.path().resolve(
-        "models/ggml-tiny.bin",
-        tauri::path::BaseDirectory::Resource,
-    ) {
+    if let Ok(resource_path) = app_handle
+        .path()
+        .resolve("models/ggml-tiny.bin", tauri::path::BaseDirectory::Resource)
+    {
         if resource_path.exists() {
             std::fs::copy(&resource_path, &dest)
                 .map_err(|e| format!("Falha ao copiar modelo embutido: {}", e))?;
@@ -748,9 +1294,13 @@ fn resolve_sidecar_path(app_handle: &tauri::AppHandle, name: &str) -> String {
         format!("{}-unknown-linux-gnu", target)
     };
 
-    let suffixed = format!("{}-{}", name, triple);
+    let mut candidates = vec![format!("{}-{}", name, triple), name.to_string()];
+    if cfg!(target_os = "windows") {
+        candidates.insert(0, format!("{}-{}.exe", name, triple));
+        candidates.insert(1, format!("{}.exe", name));
+    }
 
-    for candidate in [&suffixed, name] {
+    for candidate in candidates {
         if let Ok(path) = app_handle.path().resolve(
             format!("binaries/{}", candidate),
             tauri::path::BaseDirectory::Resource,
@@ -760,9 +1310,18 @@ fn resolve_sidecar_path(app_handle: &tauri::AppHandle, name: &str) -> String {
             }
         }
 
+        if let Ok(current_exe) = std::env::current_exe() {
+            if let Some(exe_dir) = current_exe.parent() {
+                let exe_path = exe_dir.join(&candidate);
+                if exe_path.exists() {
+                    return exe_path.to_string_lossy().to_string();
+                }
+            }
+        }
+
         let dev_path = std::env::current_dir()
             .ok()
-            .map(|cwd| cwd.join("src-tauri").join("binaries").join(candidate));
+            .map(|cwd| cwd.join("src-tauri").join("binaries").join(&candidate));
         if let Some(ref p) = dev_path {
             if p.exists() {
                 return p.to_string_lossy().to_string();

@@ -13,8 +13,11 @@ __pycache__/
 # Build artifacts
 build/
 dist/
+.cargo-target/
 node_modules/
 web/dist/
+src-tauri/.dev-target/
+src-tauri/.dev-run/
 
 # OS / editor
 .DS_Store

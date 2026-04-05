@@ -169,17 +169,7 @@ video {
 .video-subtitle-overlay__text {
   position: relative;
   max-width: 100%;
-  line-height: 1.35;
   white-space: pre-wrap;
-}
-
-.video-subtitle-overlay__text::before {
-  content: "";
-  position: absolute;
-  inset: -10px -12px;
-  background: linear-gradient(180deg, rgba(15, 23, 42, 0), rgba(15, 23, 42, 0.45));
-  filter: blur(10px);
-  z-index: -1;
 }
 
 /* --- Animations --- */

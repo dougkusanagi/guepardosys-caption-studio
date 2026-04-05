@@ -38,16 +38,18 @@ Instale e abra. Na primeira vez que usar a transcrição, o modelo Whisper será
 
 ```bash
 bun install
-bun run dev:tauri
+bun run dev
 ```
 
 **Modo web (só frontend)** — abre o React no browser. Útil pra editar UI sem recompilar Rust:
 
 ```bash
-bun run dev
+bun run dev:frontend
 ```
 
-> No modo web, o frontend usa um backend Python legado via proxy. Para testar a stack completa (whisper-rs, FFmpeg, etc), use `bun run dev:tauri`.
+> No modo web, o frontend usa um backend Python legado via proxy. Para testar a stack completa (whisper-rs, FFmpeg, etc), use `bun run dev`.
+
+No Windows, os artefatos do Cargo ficam em `.cargo-target/`. Isso deixa o build mais isolado e facilita criar uma exclusão pontual no Defender caso algum antivírus trave o `.exe` em desenvolvimento.
 
 ### Download do modelo Whisper (dev)
 
@@ -64,7 +66,7 @@ Na primeira transcrição, o app baixa o modelo automaticamente. Se quiser baixa
 ### Build de produção
 
 ```bash
-bun run build:tauri
+bun run build
 ```
 
 O CI/CD automatiza o build para Windows, macOS e Linux. Basta criar uma tag `v0.1.0` e push.

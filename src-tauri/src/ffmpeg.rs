@@ -1,4 +1,5 @@
-use std::process::Command;
+use std::io::{BufRead, BufReader};
+use std::process::{Command, Stdio};
 
 use serde::Serialize;
 
@@ -30,9 +31,12 @@ pub struct AudioStream {
 pub fn get_video_info(ffprobe_path: &str, path: &str) -> Result<VideoInfo, String> {
     let output = Command::new(ffprobe_path)
         .args([
-            "-v", "error",
-            "-show_format", "-show_streams",
-            "-print_format", "json",
+            "-v",
+            "error",
+            "-show_format",
+            "-show_streams",
+            "-print_format",
+            "json",
             path,
         ])
         .output()
@@ -40,17 +44,32 @@ pub fn get_video_info(ffprobe_path: &str, path: &str) -> Result<VideoInfo, Strin
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!("ffprobe falhou: {}", stderr.lines().last().unwrap_or("erro desconhecido")));
+        return Err(format!(
+            "ffprobe falhou: {}",
+            stderr.lines().last().unwrap_or("erro desconhecido")
+        ));
     }
 
     let data: serde_json::Value = serde_json::from_slice(&output.stdout)
         .map_err(|e| format!("Não foi possível interpretar resposta do ffprobe: {}", e))?;
 
-    let fmt = data.get("format").and_then(|v| v.as_object()).cloned().unwrap_or_default();
-    let streams = data.get("streams").and_then(|v| v.as_array()).cloned().unwrap_or_default();
+    let fmt = data
+        .get("format")
+        .and_then(|v| v.as_object())
+        .cloned()
+        .unwrap_or_default();
+    let streams = data
+        .get("streams")
+        .and_then(|v| v.as_array())
+        .cloned()
+        .unwrap_or_default();
 
-    let video_stream = streams.iter().find(|s| s.get("codec_type").and_then(|v| v.as_str()) == Some("video"));
-    let audio_stream = streams.iter().find(|s| s.get("codec_type").and_then(|v| v.as_str()) == Some("audio"));
+    let video_stream = streams
+        .iter()
+        .find(|s| s.get("codec_type").and_then(|v| v.as_str()) == Some("video"));
+    let audio_stream = streams
+        .iter()
+        .find(|s| s.get("codec_type").and_then(|v| v.as_str()) == Some("audio"));
 
     let fps = video_stream
         .and_then(|s| s.get("r_frame_rate").and_then(|v| v.as_str()))
@@ -59,8 +78,14 @@ pub fn get_video_info(ffprobe_path: &str, path: &str) -> Result<VideoInfo, Strin
             if parts.len() == 2 {
                 let num: f64 = parts[0].parse().unwrap_or(30.0);
                 let den: f64 = parts[1].parse().unwrap_or(1.0);
-                if den > 0.0 { num / den } else { 30.0 }
-            } else { 30.0 }
+                if den > 0.0 {
+                    num / den
+                } else {
+                    30.0
+                }
+            } else {
+                30.0
+            }
         })
         .unwrap_or(30.0);
 
@@ -68,55 +93,179 @@ pub fn get_video_info(ffprobe_path: &str, path: &str) -> Result<VideoInfo, Strin
         duration: fmt.get("duration").and_then(|v| v.as_f64()).unwrap_or(0.0),
         size: fmt.get("size").and_then(|v| v.as_i64()).unwrap_or(0),
         bitrate: fmt.get("bit_rate").and_then(|v| v.as_i64()).unwrap_or(0),
-        format: fmt.get("format_name").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+        format: fmt
+            .get("format_name")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string(),
         video: video_stream.map(|s| VideoStream {
-            codec: s.get("codec_name").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+            codec: s
+                .get("codec_name")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
             width: s.get("width").and_then(|v| v.as_i64()).unwrap_or(0),
             height: s.get("height").and_then(|v| v.as_i64()).unwrap_or(0),
             fps: (fps * 100.0).round() / 100.0,
         }),
         audio: audio_stream.map(|s| AudioStream {
-            codec: s.get("codec_name").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-            sample_rate: s.get("sample_rate").and_then(|v| v.as_str()).and_then(|v| v.parse().ok()).unwrap_or(44100),
+            codec: s
+                .get("codec_name")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
+            sample_rate: s
+                .get("sample_rate")
+                .and_then(|v| v.as_str())
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(44100),
             channels: s.get("channels").and_then(|v| v.as_i64()).unwrap_or(2),
         }),
     })
 }
 
-pub fn extract_audio(ffmpeg_path: &str, input: &str, output: &str, sample_rate: u32) -> Result<(), String> {
+fn parse_duration_from_output(stderr: &str) -> Option<f64> {
+    for line in stderr.lines() {
+        if line.contains("Duration:") {
+            if let Some(idx) = line.find("Duration:") {
+                let rest = &line[idx + 9..];
+                let time_str = rest.split(',').next()?.trim();
+                let parts: Vec<&str> = time_str.split(':').collect();
+                if parts.len() == 3 {
+                    let h: f64 = parts[0].parse().ok()?;
+                    let m: f64 = parts[1].parse().ok()?;
+                    let s: f64 = parts[2].parse().ok()?;
+                    return Some(h * 3600.0 + m * 60.0 + s);
+                }
+            }
+        }
+    }
+    None
+}
+
+fn parse_time_from_progress(line: &str) -> Option<f64> {
+    if let Some(idx) = line.find("time=") {
+        let rest = &line[idx + 5..];
+        let time_str = rest.split_whitespace().next()?;
+        let parts: Vec<&str> = time_str.split(':').collect();
+        if parts.len() == 3 {
+            let h: f64 = parts[0].parse().ok()?;
+            let m: f64 = parts[1].parse().ok()?;
+            let s: f64 = parts[2].parse().ok()?;
+            return Some(h * 3600.0 + m * 60.0 + s);
+        }
+    }
+    None
+}
+
+fn run_ffmpeg_with_progress(
+    ffmpeg_path: &str,
+    args: &[&str],
+    mut on_progress: impl FnMut(i32),
+) -> Result<(), String> {
+    let mut child = Command::new(ffmpeg_path)
+        .args(args)
+        .stderr(Stdio::piped())
+        .stdout(Stdio::null())
+        .spawn()
+        .map_err(|e| format!("Falha ao executar ffmpeg: {}", e))?;
+
+    let stderr = child
+        .stderr
+        .take()
+        .ok_or("Não foi possível capturar stderr do ffmpeg")?;
+
+    let reader = BufReader::new(stderr);
+    let mut total_duration: Option<f64> = None;
+    let mut last_pct = 0i32;
+
+    for line in reader.lines() {
+        let line = match line {
+            Ok(l) => l,
+            Err(_) => continue,
+        };
+
+        if total_duration.is_none() {
+            if let Some(dur) = parse_duration_from_output(&line) {
+                total_duration = Some(dur);
+            }
+        }
+
+        if let Some(duration) = total_duration {
+            if let Some(current_time) = parse_time_from_progress(&line) {
+                if duration > 0.0 {
+                    let pct = ((current_time / duration) * 100.0).min(100.0) as i32;
+                    if pct != last_pct {
+                        last_pct = pct;
+                        on_progress(pct);
+                    }
+                }
+            }
+        }
+    }
+
+    let status = child
+        .wait()
+        .map_err(|e| format!("Falha ao aguardar ffmpeg: {}", e))?;
+
+    if !status.success() {
+        return Err("FFmpeg falhou durante o processamento".into());
+    }
+
+    on_progress(100);
+    Ok(())
+}
+
+fn run_ffmpeg(ffmpeg_path: &str, args: &[&str]) -> Result<(), String> {
     let output = Command::new(ffmpeg_path)
-        .args([
-            "-y", "-i", input,
-            "-vn", "-ac", "1", "-ar", &sample_rate.to_string(),
-            "-c:a", "pcm_s16le", output,
-        ])
+        .args(args)
         .output()
         .map_err(|e| format!("Falha ao executar ffmpeg: {}", e))?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!("Falha ao extrair áudio: {}", stderr.lines().last().unwrap_or("erro desconhecido")));
+        return Err(format!(
+            "FFmpeg falhou: {}",
+            stderr.lines().last().unwrap_or("erro desconhecido")
+        ));
     }
 
     Ok(())
 }
 
+pub fn extract_audio(
+    ffmpeg_path: &str,
+    input: &str,
+    output: &str,
+    sample_rate: u32,
+) -> Result<(), String> {
+    run_ffmpeg(
+        ffmpeg_path,
+        &[
+            "-y",
+            "-i",
+            input,
+            "-vn",
+            "-ac",
+            "1",
+            "-ar",
+            &sample_rate.to_string(),
+            "-c:a",
+            "pcm_s16le",
+            output,
+        ],
+    )
+}
+
 pub fn generate_waveform(ffmpeg_path: &str, input: &str, output: &str) -> Result<Vec<f64>, String> {
     let raw_path = format!("{}.tmp.raw", output);
 
-    let output_cmd = Command::new(ffmpeg_path)
-        .args([
-            "-y", "-i", input,
-            "-vn", "-ac", "1", "-ar", "400",
-            "-f", "s16le", &raw_path,
-        ])
-        .output()
-        .map_err(|e| format!("Falha ao executar ffmpeg: {}", e))?;
-
-    if !output_cmd.status.success() {
-        let stderr = String::from_utf8_lossy(&output_cmd.stderr);
-        return Err(format!("Falha ao gerar waveform: {}", stderr.lines().last().unwrap_or("erro desconhecido")));
-    }
+    run_ffmpeg(
+        ffmpeg_path,
+        &[
+            "-y", "-i", input, "-vn", "-ac", "1", "-ar", "400", "-f", "s16le", &raw_path,
+        ],
+    )?;
 
     let raw_data = std::fs::read(&raw_path).map_err(|e| format!("Falha ao ler raw: {}", e))?;
     let mut samples = Vec::new();
@@ -166,8 +315,14 @@ pub fn generate_waveform(ffmpeg_path: &str, input: &str, output: &str) -> Result
 fn build_filter_complex(intervals: &[(f64, f64)]) -> String {
     let mut parts = Vec::new();
     for (i, (start, end)) in intervals.iter().enumerate() {
-        parts.push(format!("[0:v]trim=start={:.6}:end={:.6},setpts=PTS-STARTPTS[v{}]", start, end, i));
-        parts.push(format!("[0:a]atrim=start={:.6}:end={:.6},asetpts=PTS-STARTPTS[a{}]", start, end, i));
+        parts.push(format!(
+            "[0:v]trim=start={:.6}:end={:.6},setpts=PTS-STARTPTS[v{}]",
+            start, end, i
+        ));
+        parts.push(format!(
+            "[0:a]atrim=start={:.6}:end={:.6},asetpts=PTS-STARTPTS[a{}]",
+            start, end, i
+        ));
     }
 
     let concat_inputs: String = (0..intervals.len())
@@ -182,76 +337,163 @@ fn build_filter_complex(intervals: &[(f64, f64)]) -> String {
     parts.join(";")
 }
 
-pub fn cut_video(ffmpeg_path: &str, input: &str, output: &str, intervals: &[(f64, f64)]) -> Result<(), String> {
+pub fn cut_video(
+    ffmpeg_path: &str,
+    input: &str,
+    output: &str,
+    intervals: &[(f64, f64)],
+) -> Result<(), String> {
     if intervals.is_empty() {
         return Err("Nenhum intervalo disponível para processar".into());
     }
 
     let filter_complex = build_filter_complex(intervals);
     let args = vec![
-        "-y", "-i", input,
-        "-filter_complex", &filter_complex,
-        "-map", "[outv]", "-map", "[outa]",
-        "-c:v", "libx264", "-preset", "medium", "-crf", "18",
-        "-c:a", "aac", "-b:a", "192k",
+        "-y",
+        "-i",
+        input,
+        "-filter_complex",
+        &filter_complex,
+        "-map",
+        "[outv]",
+        "-map",
+        "[outa]",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "medium",
+        "-crf",
+        "18",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
         output,
     ];
 
-    let output_cmd = Command::new(ffmpeg_path)
-        .args(&args)
-        .output()
-        .map_err(|e| format!("Falha ao executar ffmpeg: {}", e))?;
-
-    if !output_cmd.status.success() {
-        let stderr = String::from_utf8_lossy(&output_cmd.stderr);
-        return Err(format!("Falha ao cortar vídeo: {}", stderr.lines().last().unwrap_or("erro desconhecido")));
-    }
-
-    Ok(())
+    let args_refs: Vec<&str> = args.iter().map(|s| s.as_ref()).collect();
+    run_ffmpeg(ffmpeg_path, &args_refs)
 }
 
 pub fn crop_video(
     ffmpeg_path: &str,
     input: &str,
     output: &str,
-    x: i32, y: i32, width: i32, height: i32,
+    x: i32,
+    y: i32,
+    width: i32,
+    height: i32,
 ) -> Result<(), String> {
-    let output_cmd = Command::new(ffmpeg_path)
-        .args([
-            "-y", "-i", input,
-            "-vf", &format!("crop={}:{height}:{x}:{y}", width),
-            "-c:v", "libx264", "-preset", "medium", "-crf", "18",
-            "-c:a", "aac", "-b:a", "192k",
+    run_ffmpeg(
+        ffmpeg_path,
+        &[
+            "-y",
+            "-i",
+            input,
+            "-vf",
+            &format!("crop={}:{height}:{x}:{y}", width),
+            "-c:v",
+            "libx264",
+            "-preset",
+            "medium",
+            "-crf",
+            "18",
+            "-c:a",
+            "aac",
+            "-b:a",
+            "192k",
             output,
-        ])
-        .output()
-        .map_err(|e| format!("Falha ao executar ffmpeg: {}", e))?;
-
-    if !output_cmd.status.success() {
-        let stderr = String::from_utf8_lossy(&output_cmd.stderr);
-        return Err(format!("Falha ao recortar vídeo: {}", stderr.lines().last().unwrap_or("erro desconhecido")));
-    }
-
-    Ok(())
+        ],
+    )
 }
 
-pub fn burn_subtitles(ffmpeg_path: &str, input: &str, ass_path: &str, output: &str) -> Result<(), String> {
+pub fn burn_subtitles(
+    ffmpeg_path: &str,
+    input: &str,
+    ass_path: &str,
+    output: &str,
+) -> Result<(), String> {
     let escaped = ass_path.replace('\\', "/").replace(':', "\\:");
-    let output_cmd = Command::new(ffmpeg_path)
-        .args([
-            "-y", "-i", input,
-            "-vf", &format!("ass='{}'", escaped),
-            "-c:v", "libx264", "-preset", "medium", "-crf", "18",
-            "-c:a", "aac", "-b:a", "192k",
-            output,
-        ])
-        .output()
-        .map_err(|e| format!("Falha ao executar ffmpeg: {}", e))?;
+    let vf = format!("ass='{}'", escaped);
+    run_ffmpeg(
+        ffmpeg_path,
+        &[
+            "-y", "-i", input, "-vf", &vf, "-c:v", "libx264", "-preset", "medium", "-crf", "18",
+            "-c:a", "aac", "-b:a", "192k", output,
+        ],
+    )
+}
 
-    if !output_cmd.status.success() {
-        let stderr = String::from_utf8_lossy(&output_cmd.stderr);
-        return Err(format!("Falha ao aplicar as legendas: {}", stderr.lines().last().unwrap_or("erro desconhecido")));
+pub fn burn_subtitles_with_progress(
+    ffmpeg_path: &str,
+    input: &str,
+    ass_path: &str,
+    output: &str,
+    on_progress: impl FnMut(i32),
+) -> Result<(), String> {
+    let escaped = ass_path.replace('\\', "/").replace(':', "\\:");
+    let vf = format!("ass='{}'", escaped);
+    let args = vec![
+        "-y", "-i", input, "-vf", &vf, "-c:v", "libx264", "-preset", "medium", "-crf", "18",
+        "-c:a", "aac", "-b:a", "192k", output,
+    ];
+    let args_refs: Vec<&str> = args.iter().map(|s| s.as_ref()).collect();
+    run_ffmpeg_with_progress(ffmpeg_path, &args_refs, on_progress)
+}
+
+pub fn cut_video_with_progress(
+    ffmpeg_path: &str,
+    input: &str,
+    output: &str,
+    intervals: &[(f64, f64)],
+    on_progress: impl FnMut(i32),
+) -> Result<(), String> {
+    if intervals.is_empty() {
+        return Err("Nenhum intervalo disponível para processar".into());
     }
 
-    Ok(())
+    let filter_complex = build_filter_complex(intervals);
+    let args = vec![
+        "-y",
+        "-i",
+        input,
+        "-filter_complex",
+        &filter_complex,
+        "-map",
+        "[outv]",
+        "-map",
+        "[outa]",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "medium",
+        "-crf",
+        "18",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
+        output,
+    ];
+    let args_refs: Vec<&str> = args.iter().map(|s| s.as_ref()).collect();
+    run_ffmpeg_with_progress(ffmpeg_path, &args_refs, on_progress)
+}
+
+pub fn crop_video_with_progress(
+    ffmpeg_path: &str,
+    input: &str,
+    output: &str,
+    x: i32,
+    y: i32,
+    width: i32,
+    height: i32,
+    on_progress: impl FnMut(i32),
+) -> Result<(), String> {
+    let vf = format!("crop={}:{height}:{x}:{y}", width);
+    let args = vec![
+        "-y", "-i", input, "-vf", &vf, "-c:v", "libx264", "-preset", "medium", "-crf", "18",
+        "-c:a", "aac", "-b:a", "192k", output,
+    ];
+    let args_refs: Vec<&str> = args.iter().map(|s| s.as_ref()).collect();
+    run_ffmpeg_with_progress(ffmpeg_path, &args_refs, on_progress)
 }

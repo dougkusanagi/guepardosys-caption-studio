@@ -14,7 +14,11 @@ pub fn write_srt(segments: &[SubtitleSegment], path: &Path) -> Result<(), String
     let mut lines = Vec::new();
     for (i, seg) in segments.iter().enumerate() {
         lines.push((i + 1).to_string());
-        lines.push(format!("{} --> {}", format_srt_time(seg.start), format_srt_time(seg.end)));
+        lines.push(format!(
+            "{} --> {}",
+            format_srt_time(seg.start),
+            format_srt_time(seg.end)
+        ));
         lines.push(seg.text.clone());
         lines.push(String::new());
     }
@@ -30,24 +34,48 @@ pub fn write_ass(
     let s = style.cloned().unwrap_or_default();
     let (play_res_x, play_res_y) = play_res.unwrap_or((1920, 1080));
 
-    let font_name = s.get("fontName").and_then(|v| v.as_str()).unwrap_or("Arial");
-    let font_size = s.get("fontSize").and_then(|v| v.as_i64()).unwrap_or(24);
-    let primary_color = hex_to_ass(s.get("primaryColor").and_then(|v| v.as_str()).unwrap_or("#ffffff"));
-    let outline_color = hex_to_ass(s.get("outlineColor").and_then(|v| v.as_str()).unwrap_or("#000000"));
+    let font_name = s
+        .get("fontName")
+        .and_then(|v| v.as_str())
+        .unwrap_or("Arial");
+    let font_size = s.get("fontSize").and_then(|v| v.as_f64()).unwrap_or(24.0);
+    let primary_color = hex_to_ass(
+        s.get("primaryColor")
+            .and_then(|v| v.as_str())
+            .unwrap_or("#ffffff"),
+    );
+    let outline_color = hex_to_ass(
+        s.get("outlineColor")
+            .and_then(|v| v.as_str())
+            .unwrap_or("#000000"),
+    );
     let back_color = "&H80000000";
-    let bold = if s.get("bold").and_then(|v| v.as_bool()).unwrap_or(false) { -1 } else { 0 };
-    let outline = s.get("outline").and_then(|v| v.as_i64()).unwrap_or(2);
-    let shadow = s.get("shadow").and_then(|v| v.as_i64()).unwrap_or(1);
+    let bold = if s.get("bold").and_then(|v| v.as_bool()).unwrap_or(false) {
+        -1
+    } else {
+        0
+    };
+    let outline = s.get("outline").and_then(|v| v.as_f64()).unwrap_or(2.0);
+    let shadow = s.get("shadow").and_then(|v| v.as_f64()).unwrap_or(1.0);
     let alignment = s.get("alignment").and_then(|v| v.as_i64()).unwrap_or(2) as i32;
     let margin_v = s.get("marginV").and_then(|v| v.as_i64()).unwrap_or(30);
-    let position_y = s.get("positionY").and_then(|v| v.as_f64()).unwrap_or(88.0).clamp(0.0, 100.0);
-    let area_height = s.get("areaHeight").and_then(|v| v.as_f64()).unwrap_or(18.0).clamp(4.0, 100.0);
-    let decoration_padding = (outline as f64 * 3.0 + shadow as f64 * 4.0).max(12.0);
+    let position_y = s
+        .get("positionY")
+        .and_then(|v| v.as_f64())
+        .unwrap_or(88.0)
+        .clamp(0.0, 100.0);
+    let area_height = s
+        .get("areaHeight")
+        .and_then(|v| v.as_f64())
+        .unwrap_or(18.0)
+        .clamp(4.0, 100.0);
+    let decoration_padding = (outline * 3.0 + shadow * 4.0).max(12.0);
 
     let header = format!(
         "[Script Info]
 Title: Generated Subtitles
 ScriptType: v4.00+
+WrapStyle: 0
 PlayResX: {play_res_x}
 PlayResY: {play_res_y}
 
@@ -74,9 +102,18 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     let clip_height = (area_height / 100.0) * play_res_y as f64;
 
     let (clip_top, clip_bottom) = match alignment {
-        1 | 2 | 3 => (y_pos - clip_height - decoration_padding, y_pos + decoration_padding),
-        5 => (y_pos - clip_height / 2.0 - decoration_padding, y_pos + clip_height / 2.0 + decoration_padding),
-        _ => (y_pos - decoration_padding, y_pos + clip_height + decoration_padding),
+        1 | 2 | 3 => (
+            y_pos - clip_height - decoration_padding,
+            y_pos + decoration_padding,
+        ),
+        5 => (
+            y_pos - clip_height / 2.0 - decoration_padding,
+            y_pos + clip_height / 2.0 + decoration_padding,
+        ),
+        _ => (
+            y_pos - decoration_padding,
+            y_pos + clip_height + decoration_padding,
+        ),
     };
 
     let clip_top = clip_top.clamp(0.0, (play_res_y as f64 - 1.0).max(0.0));
@@ -100,6 +137,49 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
     let content = format!("{}\n{}\n", header, dialogues.join("\n"));
     std::fs::write(path, content).map_err(|e| e.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn write_ass_accepts_scaled_float_style_values() {
+        let temp_path = std::env::temp_dir().join(format!(
+            "subtitle_float_style_{}_{}.ass",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("system time before unix epoch")
+                .as_nanos()
+        ));
+
+        let segments = vec![SubtitleSegment {
+            start: 0.0,
+            end: 1.5,
+            text: "Teste".to_string(),
+        }];
+
+        let style = HashMap::from([
+            ("fontName".to_string(), json!("Arial")),
+            ("fontSize".to_string(), json!(58.4)),
+            ("outline".to_string(), json!(4.75)),
+            ("shadow".to_string(), json!(2.5)),
+            ("alignment".to_string(), json!(2)),
+            ("positionY".to_string(), json!(88)),
+            ("areaHeight".to_string(), json!(18)),
+        ]);
+
+        write_ass(&segments, &temp_path, Some(&style), Some((1080, 1920)))
+            .expect("failed to write ass file");
+
+        let content = std::fs::read_to_string(&temp_path).expect("failed to read ass file");
+        assert!(content.contains("Style: Default,Arial,58.4"));
+        assert!(content.contains(",1,4.75,2.5,2,10,10,30,1"));
+
+        let _ = std::fs::remove_file(temp_path);
+    }
 }
 
 pub fn parse_srt(path: &Path) -> Result<Vec<SubtitleSegment>, String> {

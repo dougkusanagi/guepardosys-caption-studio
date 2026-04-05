@@ -43,7 +43,7 @@ export function PresetSelector({ currentStyle, onStyleChange, onToast }) {
     async function load() {
       try {
         const list = await listPresets();
-        setPresets(list);
+        setPresets(list.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')));
         setLoaded(true);
       } catch {
         setPresets([]);
@@ -81,7 +81,7 @@ export function PresetSelector({ currentStyle, onStyleChange, onToast }) {
     setLoading(true);
     try {
       const created = await createPreset(newName.trim(), currentStyle);
-      setPresets((prev) => [...prev, created]);
+      setPresets((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')));
       setSelectedId(created.id);
       setShowDialog(false);
       setNewName('');
@@ -98,7 +98,7 @@ export function PresetSelector({ currentStyle, onStyleChange, onToast }) {
     setLoading(true);
     try {
       const updated = await updatePreset(selectedId, { name: undefined, style: currentStyle });
-      setPresets((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+      setPresets((prev) => prev.map((p) => (p.id === updated.id ? updated : p)).sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')));
       onToast?.('Preset atualizado com sucesso!', 'success');
     } catch (err) {
       onToast?.(`Erro ao salvar: ${err.message}`, 'error');
@@ -112,7 +112,7 @@ export function PresetSelector({ currentStyle, onStyleChange, onToast }) {
     setLoading(true);
     try {
       const updated = await updatePreset(editingPreset.id, { name: newName.trim(), style: undefined });
-      setPresets((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+      setPresets((prev) => prev.map((p) => (p.id === updated.id ? updated : p)).sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')));
       setShowDialog(false);
       setNewName('');
       setEditingPreset(null);
