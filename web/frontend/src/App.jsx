@@ -241,13 +241,6 @@ function App() {
     return filename ? `/uploads/${filename}` : '';
   }
 
-  function getSubtitleBurnSourceFile() {
-    if (currentOutputPath && outputHasBurnedSubtitles(currentOutputPath)) {
-      return processedVideoPath || getOriginalSourceFile();
-    }
-    return currentOutputPath || getOriginalSourceFile();
-  }
-
   function getPreviewProcessedSource(
     outputPath = currentOutputPath,
     processedPath = processedVideoPath,
@@ -373,41 +366,6 @@ function App() {
     }
   }
 
-  async function runBurnSubtitles() {
-    if (!filename || !projectId || subtitles.length === 0) return;
-
-    const sourceFile = getSubtitleBurnSourceFile();
-    const subtitlePayload = getSubtitlesForSource(sourceFile);
-    const burnScale = playback.getDisplayScaleForSource(sourceFile);
-
-    setShowProcessingModal(true);
-    setProcessingState({
-      title: 'Aplicando Legendas',
-      message: 'Queimando legendas no vídeo...',
-      progress: 0,
-    });
-
-    try {
-      const result = await burnSubtitles({
-        filename,
-        projectId,
-        clientId,
-        sourceFile,
-        subtitles: subtitlePayload,
-        style: buildBurnStyle(subtitleStyle, burnScale),
-      });
-
-      setShowProcessingModal(false);
-      setCurrentOutputPath(result.outputPath);
-      playback.loadProcessed(result.outputPath);
-      playback.setSubtitles(subtitles);
-      pushToast('Legendas aplicadas ao vídeo!', 'success');
-    } catch (err) {
-      setShowProcessingModal(false);
-      pushToast(`Erro: ${err.message || err}`, 'error');
-    }
-  }
-
   async function runExport(exportMode = 'embedded') {
     if (!projectId || !filename) return;
 
@@ -437,9 +395,6 @@ function App() {
 
         setShowProcessingModal(false);
         sourceFile = burnResult.outputPath;
-        setCurrentOutputPath(sourceFile);
-        playback.loadProcessed(sourceFile);
-        playback.setSubtitles(subtitles);
       }
 
       const shouldExportSubtitleFile = exportMode === 'separate' || exportMode === 'both';
@@ -801,7 +756,6 @@ function App() {
         subtitles={subtitles}
         onClose={() => setShowSubtitleSidebar(false)}
         onGenerate={runSubtitleGeneration}
-        onBurn={runBurnSubtitles}
         onToast={pushToast}
       />
 

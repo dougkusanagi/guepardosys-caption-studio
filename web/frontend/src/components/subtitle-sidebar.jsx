@@ -1,4 +1,4 @@
-import { Palette, Sparkles, Stamp, Subtitles } from 'lucide-react';
+import { Palette, Sparkles, Subtitles } from 'lucide-react';
 
 import { Button } from './ui/button.jsx';
 import {
@@ -79,7 +79,7 @@ function SubtitlePreview({ subtitle }) {
   );
 }
 
-export function SubtitleSidebar({ open, settings, setSettings, style, setStyle, subtitles, onClose, onGenerate, onBurn, onToast }) {
+export function SubtitleSidebar({ open, settings, setSettings, style, setStyle, subtitles, onClose, onGenerate, onToast }) {
   return (
     <Sheet open={open} onOpenChange={(next) => { if (!next) onClose(); }}>
       <SheetContent side="right" className="top-14 bottom-0 h-auto w-[480px] rounded-none border-l border-surface-200 p-0">
@@ -200,12 +200,6 @@ export function SubtitleSidebar({ open, settings, setSettings, style, setStyle, 
                   <Sparkles className="w-4 h-4" />
                   Gerar Legendas com IA
                 </Button>
-                {subtitles.length ? (
-                  <Button type="button" variant="secondary" className="w-full gap-2" onClick={onBurn}>
-                    <Stamp className="w-4 h-4" />
-                    Aplicar no V&iacute;deo
-                  </Button>
-                ) : null}
               </div>
 
               {subtitles.length ? (
