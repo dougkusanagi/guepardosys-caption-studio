@@ -172,6 +172,11 @@ video {
   white-space: pre-wrap;
 }
 
+.video-frame > .JASSUB {
+  z-index: 12;
+  pointer-events: none;
+}
+
 /* --- Animations --- */
 @keyframes fadeInUp {
   from {
