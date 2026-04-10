@@ -1,4 +1,5 @@
 import {
+  CheckCircle2,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -6,19 +7,26 @@ import {
   Film,
   Loader2,
   Mic,
+  Pause,
   PencilLine,
   Play,
   Plus,
+  RotateCcw,
   Save,
+  SkipBack,
+  SkipForward,
   Subtitles,
   Trash2,
   Upload,
+  Video,
   Volume2,
+  VolumeX,
+  XCircle,
 } from 'lucide-react';
-import { startTransition, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
+import { startTransition, useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
 
 import { Button } from './components/ui/button.jsx';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './components/ui/card.jsx';
+import { Card, CardContent } from './components/ui/card.jsx';
 import {
   Dialog,
   DialogContent,
@@ -29,7 +37,6 @@ import {
 } from './components/ui/dialog.jsx';
 import { Input } from './components/ui/input.jsx';
 import { Label } from './components/ui/label.jsx';
-import { ScrollArea } from './components/ui/scroll-area.jsx';
 import {
   Select,
   SelectContent,
@@ -68,58 +75,63 @@ const DEFAULT_SUBTITLE_STYLE = {
   backgroundBorderRadius: 16,
 };
 
-const DEFAULT_FORM = {
-  model: 'medium',
-  language: 'pt',
-};
-
-const DEFAULT_STATUS = {
-  type: 'idle',
-  title: '',
-  message: '',
-};
+const DEFAULT_FORM = { model: 'medium', language: 'pt' };
 
 export default function App() {
-  const fileInputRef = useRef(null);
-  const previewRef = useRef(null);
-  const videoRef = useRef(null);
-  const presetRailRef = useRef(null);
-  const noticeTimeoutRef = useRef(null);
+  const fileInputRef   = useRef(null);
+  const previewRef     = useRef(null);
+  const videoRef       = useRef(null);
+  const presetRailRef  = useRef(null);
+  const noticeTimerRef = useRef(null);
+  const activeSubRef   = useRef(null);
 
-  const [videoFile, setVideoFile] = useState(null);
-  const [videoInfo, setVideoInfo] = useState(null);
-  const [projectId, setProjectId] = useState('');
-  const [subtitles, setSubtitles] = useState([]);
-  const [subtitleForm, setSubtitleForm] = useState(DEFAULT_FORM);
-  const [subtitleStyle, setSubtitleStyle] = useState(DEFAULT_SUBTITLE_STYLE);
-  const [presets, setPresets] = useState([]);
-  const [selectedPresetId, setSelectedPresetId] = useState('');
-  const [status, setStatus] = useState(DEFAULT_STATUS);
-  const [notice, setNotice] = useState('');
-  const [uploading, setUploading] = useState(false);
-  const [regenerating, setRegenerating] = useState(false);
-  const [exportingMode, setExportingMode] = useState('');
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [volume, setVolume] = useState(1);
-  const [muted, setMuted] = useState(false);
-  const [accordionOpen, setAccordionOpen] = useState(false);
-  const [presetDialog, setPresetDialog] = useState({ type: '', open: false });
-  const [presetName, setPresetName] = useState('');
-  const [offsetValue, setOffsetValue] = useState('0.5');
+  const [videoFile,       setVideoFile]       = useState(null);
+  const [videoInfo,       setVideoInfo]       = useState(null);
+  const [projectId,       setProjectId]       = useState('');
+  const [subtitles,       setSubtitles]       = useState([]);
+  const [subtitleForm,    setSubtitleForm]    = useState(DEFAULT_FORM);
+  const [subtitleStyle,   setSubtitleStyle]   = useState(DEFAULT_SUBTITLE_STYLE);
+  const [presets,         setPresets]         = useState([]);
+  const [selectedPresetId,setSelectedPresetId]= useState('');
+  const [notice,          setNotice]          = useState(null);   // { type, msg }
+  const [uploading,       setUploading]       = useState(false);
+  const [regenerating,    setRegenerating]    = useState(false);
+  const [exportingMode,   setExportingMode]   = useState('');
+  const [currentTime,     setCurrentTime]     = useState(0);
+  const [duration,        setDuration]        = useState(0);
+  const [isPlaying,       setIsPlaying]       = useState(false);
+  const [volume,          setVolume]          = useState(1);
+  const [muted,           setMuted]           = useState(false);
+  const [accordionOpen,   setAccordionOpen]   = useState(false);
+  const [presetDialog,    setPresetDialog]    = useState({ type: '', open: false });
+  const [presetName,      setPresetName]      = useState('');
+  const [offsetValue,     setOffsetValue]     = useState('0.5');
+  const [isDragging,      setIsDragging]      = useState(false);
+  const [exportOpen,      setExportOpen]      = useState(false);
 
+  useEffect(() => { loadPresets(); }, []);
+
+  // Close export dropdown on outside click
   useEffect(() => {
-    loadPresets();
-  }, []);
+    if (!exportOpen) return;
+    const close = (e) => {
+      if (!e.target.closest('.export-dropdown')) setExportOpen(false);
+    };
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, [exportOpen]);
 
   const activeSubtitleIndex = useMemo(
-    () => subtitles.findIndex((item) => currentTime >= item.start && currentTime <= item.end),
+    () => subtitles.findIndex((s) => currentTime >= s.start && currentTime <= s.end),
     [currentTime, subtitles],
   );
-
   const activeSubtitle = activeSubtitleIndex >= 0 ? subtitles[activeSubtitleIndex] : null;
   const videoReady = Boolean(videoFile?.path);
+
+  // Auto-scroll active subtitle into view
+  useEffect(() => {
+    activeSubRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }, [activeSubtitleIndex]);
 
   async function loadPresets() {
     try {
@@ -129,41 +141,35 @@ export default function App() {
         setSelectedPresetId(loaded[0].id);
         setSubtitleStyle({ ...DEFAULT_SUBTITLE_STYLE, ...loaded[0].style });
       }
-    } catch {
-      setPresets([]);
-    }
+    } catch { setPresets([]); }
   }
 
-  function setMessage(message) {
-    setNotice(message);
-    window.clearTimeout(noticeTimeoutRef.current);
-    noticeTimeoutRef.current = window.setTimeout(() => setNotice(''), 3200);
+  function toast(msg, type = 'info') {
+    setNotice({ msg, type });
+    window.clearTimeout(noticeTimerRef.current);
+    noticeTimerRef.current = window.setTimeout(() => setNotice(null), 3400);
   }
 
-  useEffect(() => () => window.clearTimeout(noticeTimeoutRef.current), []);
+  useEffect(() => () => window.clearTimeout(noticeTimerRef.current), []);
+
+  // Drag-and-drop
+  const handleDragOver  = useCallback((e) => { e.preventDefault(); setIsDragging(true); }, []);
+  const handleDragLeave = useCallback((e) => { if (!e.currentTarget.contains(e.relatedTarget)) setIsDragging(false); }, []);
+  const handleDrop      = useCallback((e) => {
+    e.preventDefault(); setIsDragging(false);
+    const f = e.dataTransfer.files?.[0];
+    if (f?.type.startsWith('video/')) handleUpload(f);
+  }, []);
 
   async function handleUpload(file) {
     if (!file) return;
     setUploading(true);
-    setStatus({
-      type: 'loading',
-      title: 'Importando vídeo',
-      message: `Transcrevendo automaticamente com Whisper ${subtitleForm.model}.`,
-    });
-
     try {
       const result = await uploadVideo(file, {
         model: subtitleForm.model,
         language: subtitleForm.language,
-        onProcessingState: () => {
-          setStatus({
-            type: 'loading',
-            title: 'Gerando legendas',
-            message: `Whisper ${subtitleForm.model} está analisando o áudio.`,
-          });
-        },
+        onProcessingState: () => {},
       });
-
       startTransition(() => {
         setProjectId(result.projectId);
         setVideoFile(result.file);
@@ -172,173 +178,98 @@ export default function App() {
         setDuration(result.info?.duration || 0);
         setCurrentTime(0);
       });
-
-      if (videoRef.current) {
-        videoRef.current.load();
-      }
-
-      setStatus({
-        type: 'success',
-        title: 'Vídeo pronto',
-        message: `${(result.subtitles || []).length} legendas geradas na importação.`,
-      });
-      setMessage('Legendas geradas automaticamente na importação.');
-    } catch (error) {
-      setStatus({
-        type: 'error',
-        title: 'Falha ao importar',
-        message: error.message,
-      });
-    } finally {
-      setUploading(false);
-    }
+      if (videoRef.current) videoRef.current.load();
+      toast(`${(result.subtitles || []).length} subtitles generated.`, 'success');
+    } catch (err) {
+      toast(err.message, 'error');
+    } finally { setUploading(false); }
   }
 
   async function handleRegenerate() {
     if (!videoFile?.filename || !projectId) return;
     setRegenerating(true);
-    setStatus({
-      type: 'loading',
-      title: 'Regenerando legendas',
-      message: `Executando Whisper ${subtitleForm.model}.`,
-    });
-
     try {
       const result = await generateSubtitles({
-        filename: videoFile.filename,
-        projectId,
-        model: subtitleForm.model,
-        language: subtitleForm.language,
-        style: subtitleStyle,
+        filename: videoFile.filename, projectId,
+        model: subtitleForm.model, language: subtitleForm.language, style: subtitleStyle,
       });
       setSubtitles(result.subtitles || []);
-      setStatus({
-        type: 'success',
-        title: 'Legendas atualizadas',
-        message: `${(result.subtitles || []).length} blocos gerados com Whisper ${subtitleForm.model}.`,
-      });
-      setMessage(`Whisper ${subtitleForm.model} executado novamente.`);
-    } catch (error) {
-      setStatus({
-        type: 'error',
-        title: 'Falha ao regenerar',
-        message: error.message,
-      });
-    } finally {
-      setRegenerating(false);
-    }
+      toast(`${(result.subtitles || []).length} subtitles with Whisper ${subtitleForm.model}.`, 'success');
+    } catch (err) {
+      toast(err.message, 'error');
+    } finally { setRegenerating(false); }
   }
 
   async function handleExport(mode) {
     if (!videoFile?.path || !projectId || subtitles.length === 0) return;
+    setExportOpen(false);
     setExportingMode(mode);
-    setStatus({
-      type: 'loading',
-      title: 'Preparando exportação',
-      message: exportLabel(mode),
-    });
-
     try {
-      const result = await exportVideo({
-        projectId,
-        sourceFile: videoFile.path,
-        mode,
-        subtitles,
-        style: subtitleStyle,
-      });
+      const result = await exportVideo({ projectId, sourceFile: videoFile.path, mode, subtitles, style: subtitleStyle });
       downloadBlob(result.blob, result.filename);
-      setStatus({
-        type: 'success',
-        title: 'Exportação concluída',
-        message: result.filename,
-      });
-    } catch (error) {
-      setStatus({
-        type: 'error',
-        title: 'Falha ao exportar',
-        message: error.message,
-      });
-    } finally {
-      setExportingMode('');
-    }
+      toast(`Exported: ${result.filename}`, 'success');
+    } catch (err) {
+      toast(err.message, 'error');
+    } finally { setExportingMode(''); }
   }
 
   function handlePresetSelect(preset) {
     setSelectedPresetId(preset.id);
     setSubtitleStyle({ ...DEFAULT_SUBTITLE_STYLE, ...preset.style });
-    setMessage(`Preset "${preset.name}" aplicado.`);
+    toast(`Preset "${preset.name}" applied.`);
   }
 
   async function handleCreatePreset() {
     if (!presetName.trim()) return;
     try {
       const created = await createPreset(presetName.trim(), subtitleStyle);
-      setPresets((prev) => [...prev, created]);
+      setPresets((p) => [...p, created]);
       setSelectedPresetId(created.id);
       setPresetDialog({ type: '', open: false });
       setPresetName('');
-      setMessage(`Preset "${created.name}" criado.`);
-    } catch (error) {
-      setMessage(error.message);
-    }
+      toast(`Preset "${created.name}" created.`, 'success');
+    } catch (err) { toast(err.message, 'error'); }
   }
 
   async function handleRenamePreset() {
-    const selectedPreset = presets.find((item) => item.id === selectedPresetId);
-    if (!selectedPreset || !presetName.trim()) return;
+    const sel = presets.find((p) => p.id === selectedPresetId);
+    if (!sel || !presetName.trim()) return;
     try {
-      const updated = await updatePreset(selectedPreset.id, { name: presetName.trim() });
-      setPresets((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+      const updated = await updatePreset(sel.id, { name: presetName.trim() });
+      setPresets((p) => p.map((x) => (x.id === updated.id ? updated : x)));
       setPresetDialog({ type: '', open: false });
       setPresetName('');
-      setMessage(`Preset renomeado para "${updated.name}".`);
-    } catch (error) {
-      setMessage(error.message);
-    }
+      toast(`Preset renamed to "${updated.name}".`);
+    } catch (err) { toast(err.message, 'error'); }
   }
 
   async function handleSavePresetStyle() {
-    const selectedPreset = presets.find((item) => item.id === selectedPresetId);
-    if (!selectedPreset) return;
+    const sel = presets.find((p) => p.id === selectedPresetId);
+    if (!sel) return;
     try {
-      const updated = await updatePreset(selectedPreset.id, { style: subtitleStyle });
-      setPresets((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
-      setMessage(`Preset "${updated.name}" atualizado com o estilo atual.`);
-    } catch (error) {
-      setMessage(error.message);
-    }
+      const updated = await updatePreset(sel.id, { style: subtitleStyle });
+      setPresets((p) => p.map((x) => (x.id === updated.id ? updated : x)));
+      toast(`Preset "${updated.name}" saved.`, 'success');
+    } catch (err) { toast(err.message, 'error'); }
   }
 
   async function handleDeletePreset() {
-    const selectedPreset = presets.find((item) => item.id === selectedPresetId);
-    if (!selectedPreset) return;
+    const sel = presets.find((p) => p.id === selectedPresetId);
+    if (!sel) return;
     try {
-      await deletePreset(selectedPreset.id);
-      const remaining = presets.filter((item) => item.id !== selectedPreset.id);
-      setPresets(remaining);
-      if (remaining[0]) {
-        setSelectedPresetId(remaining[0].id);
-        setSubtitleStyle({ ...DEFAULT_SUBTITLE_STYLE, ...remaining[0].style });
-      } else {
-        setSelectedPresetId('');
-      }
-      setMessage(`Preset "${selectedPreset.name}" removido.`);
-    } catch (error) {
-      setMessage(error.message);
-    }
+      await deletePreset(sel.id);
+      const rest = presets.filter((p) => p.id !== sel.id);
+      setPresets(rest);
+      if (rest[0]) { setSelectedPresetId(rest[0].id); setSubtitleStyle({ ...DEFAULT_SUBTITLE_STYLE, ...rest[0].style }); }
+      else setSelectedPresetId('');
+      toast(`Preset "${sel.name}" deleted.`);
+    } catch (err) { toast(err.message, 'error'); }
   }
 
   function updateSubtitle(index, patch) {
-    setSubtitles((prev) => prev.map((item, itemIndex) => {
-      if (itemIndex !== index) return item;
-      const next = { ...item, ...patch };
-      const safeStart = Math.max(0, Number(next.start));
-      const safeEnd = Math.max(safeStart + 0.05, Number(next.end));
-      return {
-        ...next,
-        start: safeStart,
-        end: safeEnd,
-      };
+    setSubtitles((prev) => prev.map((item, i) => {
+      if (i !== index) return item;
+      return { ...item, ...patch };
     }));
   }
 
@@ -348,56 +279,22 @@ export default function App() {
       start: Math.max(0, round(item.start + seconds)),
       end: Math.max(0.05, round(item.end + seconds)),
     })));
-    setMessage(`Offset aplicado: ${seconds > 0 ? '+' : ''}${seconds.toFixed(2)}s.`);
+    toast(`Offset ${seconds > 0 ? '+' : ''}${seconds.toFixed(2)}s applied.`);
   }
 
-  const handleKeyboardShortcuts = useEffectEvent((event) => {
-    const target = event.target;
-    if (target instanceof HTMLElement && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))) {
-      return;
-    }
-
+  const handleKeyboardShortcuts = useEffectEvent((e) => {
+    const t = e.target;
+    if (t instanceof HTMLElement && (t.isContentEditable || ['INPUT','TEXTAREA','SELECT'].includes(t.tagName))) return;
     if (!videoRef.current || !videoReady) return;
-
-    if (event.code === 'Space' || event.key.toLowerCase() === 'k') {
-      event.preventDefault();
-      togglePlayback();
-      return;
-    }
-
-    if (event.key.toLowerCase() === 'j') {
-      seekBy(-10);
-      return;
-    }
-    if (event.key.toLowerCase() === 'l') {
-      seekBy(10);
-      return;
-    }
-    if (event.key === 'ArrowLeft') {
-      seekBy(-5);
-      return;
-    }
-    if (event.key === 'ArrowRight') {
-      seekBy(5);
-      return;
-    }
-    if (event.key === 'ArrowUp') {
-      event.preventDefault();
-      updateVolume(clamp(volume + 0.05, 0, 1));
-      return;
-    }
-    if (event.key === 'ArrowDown') {
-      event.preventDefault();
-      updateVolume(clamp(volume - 0.05, 0, 1));
-      return;
-    }
-    if (event.key.toLowerCase() === 'm') {
-      toggleMute();
-      return;
-    }
-    if (event.key.toLowerCase() === 'f') {
-      previewRef.current?.requestFullscreen?.();
-    }
+    if (e.code === 'Space' || e.key.toLowerCase() === 'k') { e.preventDefault(); togglePlayback(); return; }
+    if (e.key.toLowerCase() === 'j') { seekBy(-10); return; }
+    if (e.key.toLowerCase() === 'l') { seekBy(10); return; }
+    if (e.key === 'ArrowLeft') { seekBy(-5); return; }
+    if (e.key === 'ArrowRight') { seekBy(5); return; }
+    if (e.key === 'ArrowUp') { e.preventDefault(); updateVolume(clamp(volume + 0.05, 0, 1)); return; }
+    if (e.key === 'ArrowDown') { e.preventDefault(); updateVolume(clamp(volume - 0.05, 0, 1)); return; }
+    if (e.key.toLowerCase() === 'm') { toggleMute(); return; }
+    if (e.key.toLowerCase() === 'f') previewRef.current?.requestFullscreen?.();
   });
 
   useEffect(() => {
@@ -406,13 +303,9 @@ export default function App() {
   }, [handleKeyboardShortcuts]);
 
   function togglePlayback() {
-    const video = videoRef.current;
-    if (!video) return;
-    if (video.paused) {
-      video.play();
-    } else {
-      video.pause();
-    }
+    const v = videoRef.current;
+    if (!v) return;
+    v.paused ? v.play() : v.pause();
   }
 
   function seekBy(delta) {
@@ -420,475 +313,445 @@ export default function App() {
     videoRef.current.currentTime = clamp(videoRef.current.currentTime + delta, 0, duration || 0);
   }
 
-  function updateVolume(nextVolume) {
-    setVolume(nextVolume);
-    setMuted(nextVolume === 0);
-    if (videoRef.current) {
-      videoRef.current.volume = nextVolume;
-      videoRef.current.muted = nextVolume === 0;
-    }
+  function seekTo(time) {
+    if (!videoRef.current) return;
+    videoRef.current.currentTime = clamp(time, 0, duration || 0);
+  }
+
+  function updateVolume(v) {
+    setVolume(v); setMuted(v === 0);
+    if (videoRef.current) { videoRef.current.volume = v; videoRef.current.muted = v === 0; }
   }
 
   function toggleMute() {
-    const nextMuted = !muted;
-    setMuted(nextMuted);
-    if (videoRef.current) {
-      videoRef.current.muted = nextMuted;
-    }
+    const next = !muted; setMuted(next);
+    if (videoRef.current) videoRef.current.muted = next;
   }
 
   const subtitlePreviewStyle = buildPreviewStyle(subtitleStyle);
+  const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
+  const canExport = videoReady && subtitles.length > 0;
+  const isExporting = Boolean(exportingMode);
 
   return (
     <div className="studio-shell">
+
+      {/* ═══════════════════════════════════════════
+          SIDEBAR
+      ═══════════════════════════════════════════ */}
       <aside className="studio-sidebar">
+
+        {/* ── BRAND BAR ── */}
         <div className="studio-brand">
           <div className="studio-brand__mark">
-            <Subtitles className="h-5 w-5" />
+            <Subtitles size={18} />
           </div>
-          <div>
+          <div className="studio-brand__text">
             <p className="studio-brand__eyebrow">Caption Studio</p>
             <h1 className="studio-brand__title">StudioCut</h1>
           </div>
-        </div>
 
-        <ScrollArea className="studio-sidebar__scroll">
-          <div className="studio-stack">
-            <Card className="studio-card">
-              <CardHeader className="pb-4">
-                <CardTitle>Import</CardTitle>
-                <CardDescription>Ao importar, o app já gera as legendas com o modelo padrão selecionado.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid gap-3 md:grid-cols-2">
-                  <Field label="Whisper padrão">
-                    <Select value={subtitleForm.model} onValueChange={(value) => setSubtitleForm((prev) => ({ ...prev, model: value }))}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {WHISPER_MODELS.map((model) => (
-                          <SelectItem key={model} value={model}>{model}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </Field>
-                  <Field label="Idioma">
-                    <Input
-                      value={subtitleForm.language}
-                      onChange={(event) => setSubtitleForm((prev) => ({ ...prev, language: event.target.value }))}
-                    />
-                  </Field>
-                </div>
+          {/* Export dropdown right after logo */}
+          <div className="export-dropdown" style={{ marginLeft: 'auto', position: 'relative' }}>
+            <button
+              type="button"
+              className={cn('export-trigger', isExporting && 'export-trigger--busy')}
+              onClick={() => setExportOpen((o) => !o)}
+              disabled={isExporting}
+              title="Export"
+            >
+              {isExporting
+                ? <Loader2 size={14} className="animate-spin" />
+                : <Download size={14} />
+              }
+              <span>Export</span>
+              <ChevronDown size={12} className={cn('export-trigger__chevron', exportOpen && 'export-trigger__chevron--open')} />
+            </button>
 
+            {exportOpen && (
+              <div className="export-menu">
                 <button
                   type="button"
-                  className="import-dropzone"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={uploading}
+                  className={cn('export-menu__item export-menu__item--primary', !canExport && 'export-menu__item--disabled')}
+                  disabled={!canExport}
+                  onClick={() => handleExport('burned-video')}
                 >
-                  <Upload className="h-5 w-5" />
+                  <div className="export-menu__icon"><Video size={14} /></div>
                   <div>
-                    <p className="font-semibold text-surface-800">{uploading ? 'Importando e transcrevendo...' : 'Selecionar vídeo'}</p>
-                    <p className="text-sm text-surface-500">Sem timeline, sem crop, só preview e legenda.</p>
+                    <div className="export-menu__label">Burned subtitles</div>
+                    <div className="export-menu__sub">Subtitles baked into video</div>
                   </div>
                 </button>
-
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="video/*"
-                  className="hidden"
-                  onChange={(event) => handleUpload(event.target.files?.[0])}
-                />
-
-                {videoFile ? (
-                  <div className="rounded-2xl border border-surface-200 bg-surface-50 px-4 py-3 text-sm text-surface-600">
-                    <div className="font-semibold text-surface-900">{videoFile.originalName}</div>
-                    <div className="mt-1 flex flex-wrap gap-3 text-xs text-surface-500">
-                      <span>{videoInfo?.video?.width}x{videoInfo?.video?.height}</span>
-                      <span>{formatDuration(videoInfo?.duration || 0)}</span>
-                      <span>{subtitles.length} legendas</span>
-                    </div>
+                <button
+                  type="button"
+                  className={cn('export-menu__item', !canExport && 'export-menu__item--disabled')}
+                  disabled={!canExport}
+                  onClick={() => handleExport('video-plus-srt')}
+                >
+                  <div className="export-menu__icon"><Film size={14} /></div>
+                  <div>
+                    <div className="export-menu__label">Video + .srt</div>
+                    <div className="export-menu__sub">Video and subtitle file</div>
                   </div>
-                ) : null}
-              </CardContent>
-            </Card>
-
-            <Card className="studio-card">
-              <CardHeader className="pb-4">
-                <CardTitle>Subtitle Style</CardTitle>
-                <CardDescription>Presets em cartões horizontais com edição escondida em accordion.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center gap-2">
-                  <Button type="button" variant="outline" size="icon" onClick={() => presetRailRef.current?.scrollBy({ left: -240, behavior: 'smooth' })}>
-                    <ChevronLeft className="h-4 w-4" />
-                  </Button>
-                  <div ref={presetRailRef} className="preset-rail">
-                    {presets.map((preset) => (
-                      <button
-                        key={preset.id}
-                        type="button"
-                        className={cn('choice-card', selectedPresetId === preset.id && 'choice-card--active')}
-                        onClick={() => handlePresetSelect(preset)}
-                      >
-                        <span className="choice-card__title">{preset.name}</span>
-                        <span className="choice-card__meta">
-                          {preset.style.fontName} · {preset.style.fontSize}px
-                        </span>
-                        <span
-                          className="choice-card__sample"
-                          style={sampleChipStyle(preset.style)}
-                        >
-                          Aa
-                        </span>
-                      </button>
-                    ))}
+                </button>
+                <div className="export-menu__divider" />
+                <button
+                  type="button"
+                  className={cn('export-menu__item', subtitles.length === 0 && 'export-menu__item--disabled')}
+                  disabled={subtitles.length === 0}
+                  onClick={() => handleExport('srt-only')}
+                >
+                  <div className="export-menu__icon"><Download size={14} /></div>
+                  <div>
+                    <div className="export-menu__label">Only .srt file</div>
+                    <div className="export-menu__sub">Subtitle file only</div>
                   </div>
-                  <Button type="button" variant="outline" size="icon" onClick={() => presetRailRef.current?.scrollBy({ left: 240, behavior: 'smooth' })}>
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
-                </div>
-
-                <div className="flex flex-wrap gap-2">
-                  <Button type="button" variant="outline" size="sm" onClick={() => { setPresetDialog({ type: 'create', open: true }); setPresetName(''); }}>
-                    <Plus className="h-4 w-4" />
-                    Criar
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={!selectedPresetId}
-                    onClick={() => {
-                      const preset = presets.find((item) => item.id === selectedPresetId);
-                      setPresetName(preset?.name || '');
-                      setPresetDialog({ type: 'rename', open: true });
-                    }}
-                  >
-                    <PencilLine className="h-4 w-4" />
-                    Renomear
-                  </Button>
-                  <Button type="button" variant="destructive" size="sm" disabled={!selectedPresetId || selectedPresetId === 'default'} onClick={handleDeletePreset}>
-                    <Trash2 className="h-4 w-4" />
-                    Excluir
-                  </Button>
-                </div>
-
-                <div className="rounded-2xl border border-surface-200">
-                  <button
-                    type="button"
-                    className="accordion-trigger"
-                    onClick={() => setAccordionOpen((prev) => !prev)}
-                  >
-                    <span>Edit Preset</span>
-                    <ChevronDown className={cn('h-4 w-4 transition-transform', accordionOpen && 'rotate-180')} />
-                  </button>
-
-                  {accordionOpen ? (
-                    <div className="accordion-body">
-                      <div className="grid gap-3 md:grid-cols-2">
-                        <Field label="Font">
-                          <Input value={subtitleStyle.fontName} onChange={(event) => setSubtitleStyle((prev) => ({ ...prev, fontName: event.target.value }))} />
-                        </Field>
-                        <Field label="Font Size">
-                          <Input type="number" value={subtitleStyle.fontSize} onChange={(event) => setSubtitleStyle((prev) => ({ ...prev, fontSize: Number(event.target.value) || 1 }))} />
-                        </Field>
-                        <Field label="Font Color">
-                          <Input type="color" value={subtitleStyle.primaryColor} onChange={(event) => setSubtitleStyle((prev) => ({ ...prev, primaryColor: event.target.value }))} />
-                        </Field>
-                        <Field label="Border Color">
-                          <Input type="color" value={subtitleStyle.outlineColor} onChange={(event) => setSubtitleStyle((prev) => ({ ...prev, outlineColor: event.target.value }))} />
-                        </Field>
-                        <Field label="Border Thickness">
-                          <Input type="number" value={subtitleStyle.outline} onChange={(event) => setSubtitleStyle((prev) => ({ ...prev, outline: Number(event.target.value) || 0 }))} />
-                        </Field>
-                        <Field label="Shadow">
-                          <Input type="number" value={subtitleStyle.shadow} onChange={(event) => setSubtitleStyle((prev) => ({ ...prev, shadow: Number(event.target.value) || 0 }))} />
-                        </Field>
-                        <Field label="Vertical Position">
-                          <Input type="number" value={subtitleStyle.positionY} onChange={(event) => setSubtitleStyle((prev) => ({ ...prev, positionY: Number(event.target.value) || 0 }))} />
-                        </Field>
-                        <Field label="Caption Area Height">
-                          <Input type="number" value={subtitleStyle.areaHeight} onChange={(event) => setSubtitleStyle((prev) => ({ ...prev, areaHeight: Number(event.target.value) || 1 }))} />
-                        </Field>
-                        <Field label="Alignment">
-                          <Select value={String(subtitleStyle.alignment)} onValueChange={(value) => setSubtitleStyle((prev) => ({ ...prev, alignment: Number(value) }))}>
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="1">Left</SelectItem>
-                              <SelectItem value="2">Center</SelectItem>
-                              <SelectItem value="3">Right</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </Field>
-                        <Field label="Background Color">
-                          <Input type="color" value={subtitleStyle.backgroundColor} onChange={(event) => setSubtitleStyle((prev) => ({ ...prev, backgroundColor: event.target.value }))} />
-                        </Field>
-                        <Field label="Background Opacity">
-                          <Input type="number" step="0.05" min="0" max="1" value={subtitleStyle.backgroundOpacity} onChange={(event) => setSubtitleStyle((prev) => ({ ...prev, backgroundOpacity: Number(event.target.value) || 0 }))} />
-                        </Field>
-                        <Field label="BG Border Color">
-                          <Input type="color" value={subtitleStyle.backgroundBorderColor} onChange={(event) => setSubtitleStyle((prev) => ({ ...prev, backgroundBorderColor: event.target.value }))} />
-                        </Field>
-                        <Field label="BG Border Thickness">
-                          <Input type="number" value={subtitleStyle.backgroundBorderThickness} onChange={(event) => setSubtitleStyle((prev) => ({ ...prev, backgroundBorderThickness: Number(event.target.value) || 0 }))} />
-                        </Field>
-                        <Field label="BG Border Radius">
-                          <Input type="number" value={subtitleStyle.backgroundBorderRadius} onChange={(event) => setSubtitleStyle((prev) => ({ ...prev, backgroundBorderRadius: Number(event.target.value) || 0 }))} />
-                        </Field>
-                      </div>
-
-                      <label className="flex items-center gap-2 text-sm font-medium text-surface-700">
-                        <input
-                          type="checkbox"
-                          checked={subtitleStyle.bold}
-                          onChange={(event) => setSubtitleStyle((prev) => ({ ...prev, bold: event.target.checked }))}
-                        />
-                        Bold
-                      </label>
-
-                      <Button type="button" className="w-full" disabled={!selectedPresetId} onClick={handleSavePresetStyle}>
-                        <Save className="h-4 w-4" />
-                        Save Preset
-                      </Button>
-                    </div>
-                  ) : null}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="studio-card">
-              <CardHeader className="pb-4">
-                <CardTitle>Transcription</CardTitle>
-                <CardDescription>Rode novamente com outro modelo de Whisper sem reimportar o vídeo.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid gap-3 md:grid-cols-2">
-                  <Field label="Whisper Model">
-                    <Select value={subtitleForm.model} onValueChange={(value) => setSubtitleForm((prev) => ({ ...prev, model: value }))}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {WHISPER_MODELS.map((model) => (
-                          <SelectItem key={model} value={model}>{model}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </Field>
-                  <Field label="Language">
-                    <Input value={subtitleForm.language} onChange={(event) => setSubtitleForm((prev) => ({ ...prev, language: event.target.value }))} />
-                  </Field>
-                </div>
-                <Button type="button" className="w-full" disabled={!videoReady || regenerating} onClick={handleRegenerate}>
-                  {regenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mic className="h-4 w-4" />}
-                  Regenerate Subtitles
-                </Button>
-              </CardContent>
-            </Card>
-
-            <Card className="studio-card">
-              <CardHeader className="pb-4">
-                <CardTitle>Export</CardTitle>
-                <CardDescription>Escolha o formato final de saída.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <ExportButton mode="burned-video" exportingMode={exportingMode} disabled={!videoReady || subtitles.length === 0} onClick={handleExport}>
-                  Video with subtitles burned in
-                </ExportButton>
-                <ExportButton mode="video-plus-srt" exportingMode={exportingMode} disabled={!videoReady || subtitles.length === 0} onClick={handleExport}>
-                  Video with subtitles as .srt file
-                </ExportButton>
-                <ExportButton mode="srt-only" exportingMode={exportingMode} disabled={subtitles.length === 0} onClick={handleExport}>
-                  Only .srt file
-                </ExportButton>
-              </CardContent>
-            </Card>
-
-            <Card className="studio-card">
-              <CardHeader className="pb-4">
-                <CardTitle>Subtitle Timing</CardTitle>
-                <CardDescription>Ajuste o offset global para sincronizar com o áudio.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex flex-wrap gap-2">
-                  {[-1, -0.5, 0.5, 1].map((value) => (
-                    <Button key={value} type="button" variant="outline" size="sm" disabled={subtitles.length === 0} onClick={() => shiftSubtitles(value)}>
-                      {value > 0 ? '+' : ''}{value}s
-                    </Button>
-                  ))}
-                </div>
-                <div className="flex gap-2">
-                  <Input value={offsetValue} onChange={(event) => setOffsetValue(event.target.value)} />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={subtitles.length === 0}
-                    onClick={() => {
-                      const parsed = Number(offsetValue);
-                      if (!Number.isFinite(parsed)) return;
-                      shiftSubtitles(parsed);
-                    }}
-                  >
-                    Apply offset
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="studio-card studio-card--subtitles">
-              <CardHeader className="pb-4">
-                <CardTitle>Subtitles</CardTitle>
-                <CardDescription>Cartões editáveis com timecodes e texto.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {subtitles.length === 0 ? (
-                  <div className="rounded-2xl border border-dashed border-surface-300 px-4 py-6 text-sm text-surface-500">
-                    Importe um vídeo para gerar as legendas automaticamente.
-                  </div>
-                ) : subtitles.map((subtitle, index) => (
-                  <article
-                    key={`${subtitle.start}-${subtitle.end}-${index}`}
-                    className={cn('subtitle-card', activeSubtitleIndex === index && 'subtitle-card--active')}
-                  >
-                    <div className="grid gap-3 md:grid-cols-[1fr_1fr]">
-                      <Field label="Start">
-                        <SubtitleTimeInput value={subtitle.start} onCommit={(value) => updateSubtitle(index, { start: value })} />
-                      </Field>
-                      <Field label="End">
-                        <SubtitleTimeInput value={subtitle.end} onCommit={(value) => updateSubtitle(index, { end: value })} />
-                      </Field>
-                    </div>
-                    <Field label={`Text ${index + 1}`}>
-                      <textarea
-                        className="subtitle-textarea"
-                        value={subtitle.text}
-                        onChange={(event) => updateSubtitle(index, { text: event.target.value })}
-                      />
-                    </Field>
-                    <div className="flex justify-end">
-                      <Button type="button" variant="ghost" size="sm" onClick={() => {
-                        if (videoRef.current) {
-                          videoRef.current.currentTime = subtitle.start;
-                          videoRef.current.play();
-                        }
-                      }}>
-                        <Play className="h-4 w-4" />
-                        Preview line
-                      </Button>
-                    </div>
-                  </article>
-                ))}
-              </CardContent>
-            </Card>
+                </button>
+              </div>
+            )}
           </div>
-        </ScrollArea>
-      </aside>
-
-      <main ref={previewRef} className="studio-preview">
-        <div className="studio-preview__header">
-          <div>
-            <p className="studio-preview__label">Preview</p>
-            <h2 className="studio-preview__title">{videoFile?.originalName || 'Nenhum vídeo carregado'}</h2>
-          </div>
-          {videoInfo ? (
-            <div className="studio-preview__meta">
-              <span>{videoInfo.video?.width}x{videoInfo.video?.height}</span>
-              <span>{formatDuration(videoInfo.duration || 0)}</span>
-            </div>
-          ) : null}
         </div>
 
-        <div className="studio-preview__surface">
+        {/* ── SCROLLABLE CONTENT ── */}
+        <div className="sidebar-scroll">
+          <div className="sidebar-stack">
+
+            {/* ── IMPORT ── */}
+            <SidebarSection icon={<Upload size={15} />} title="Import" desc="Subtitles generated automatically on import.">
+              <div className="two-col">
+                <Field label="Whisper Model">
+                  <Select value={subtitleForm.model} onValueChange={(v) => setSubtitleForm((p) => ({ ...p, model: v }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {WHISPER_MODELS.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </Field>
+                <Field label="Language">
+                  <Input
+                    value={subtitleForm.language}
+                    onChange={(e) => setSubtitleForm((p) => ({ ...p, language: e.target.value }))}
+                    placeholder="pt"
+                  />
+                </Field>
+              </div>
+
+              <button
+                type="button"
+                className={cn('dropzone', isDragging && 'dropzone--over')}
+                onClick={() => fileInputRef.current?.click()}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                disabled={uploading}
+              >
+                <div className="dropzone__icon">
+                  {uploading ? <Loader2 size={18} className="animate-spin" /> : <Upload size={18} />}
+                </div>
+                <p className="dropzone__title">{uploading ? 'Importing & transcribing…' : 'Click or drag video here'}</p>
+                <p className="dropzone__sub">{uploading ? `Whisper ${subtitleForm.model} running…` : 'MP4, MOV, MKV, WebM'}</p>
+              </button>
+
+              <input ref={fileInputRef} type="file" accept="video/*" className="hidden"
+                onChange={(e) => handleUpload(e.target.files?.[0])} />
+
+              {videoFile && (
+                <div className="file-chip">
+                  <div className="file-chip__icon"><Video size={13} /></div>
+                  <div className="file-chip__info">
+                    <p className="file-chip__name" title={videoFile.originalName}>{videoFile.originalName}</p>
+                    <div className="file-chip__meta">
+                      {videoInfo?.video?.width && <span>{videoInfo.video.width}×{videoInfo.video.height}</span>}
+                      <span>{formatDuration(videoInfo?.duration || 0)}</span>
+                      <span>{subtitles.length} subtitles</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </SidebarSection>
+
+            {/* ── SUBTITLE STYLE ── */}
+            <SidebarSection icon={<Subtitles size={15} />} title="Subtitle Style" desc="Pick and customise a style preset.">
+              <div className="preset-row">
+                <button type="button" className="scroll-btn" title="Scroll left"
+                  onClick={() => presetRailRef.current?.scrollBy({ left: -180, behavior: 'smooth' })}>
+                  <ChevronLeft size={14} />
+                </button>
+                <div ref={presetRailRef} className="preset-rail">
+                  {presets.map((preset) => (
+                    <button
+                      key={preset.id} type="button"
+                      className={cn('preset-card', selectedPresetId === preset.id && 'preset-card--active')}
+                      onClick={() => handlePresetSelect(preset)}
+                    >
+                      <span className="preset-card__name">{preset.name}</span>
+                      <span className="preset-card__meta">{preset.style.fontName} · {preset.style.fontSize}px</span>
+                      <span className="preset-card__sample" style={sampleChipStyle(preset.style)}>Aa</span>
+                    </button>
+                  ))}
+                </div>
+                <button type="button" className="scroll-btn" title="Scroll right"
+                  onClick={() => presetRailRef.current?.scrollBy({ left: 180, behavior: 'smooth' })}>
+                  <ChevronRight size={14} />
+                </button>
+              </div>
+
+              <div className="action-row">
+                <button type="button" className="action-btn" onClick={() => { setPresetDialog({ type: 'create', open: true }); setPresetName(''); }}>
+                  <Plus size={13} /> New
+                </button>
+                <button type="button" className="action-btn" disabled={!selectedPresetId}
+                  onClick={() => { const p = presets.find((x) => x.id === selectedPresetId); setPresetName(p?.name || ''); setPresetDialog({ type: 'rename', open: true }); }}>
+                  <PencilLine size={13} /> Rename
+                </button>
+                <button type="button" className="action-btn action-btn--danger"
+                  disabled={!selectedPresetId || selectedPresetId === 'default'}
+                  onClick={handleDeletePreset}>
+                  <Trash2 size={13} /> Delete
+                </button>
+              </div>
+
+              {/* Edit Style accordion */}
+              <div className="accordion">
+                <button type="button" className="accordion__trigger" onClick={() => setAccordionOpen((o) => !o)}>
+                  <span>Edit Style</span>
+                  <ChevronDown size={14} className={cn('accordion__chevron', accordionOpen && 'accordion__chevron--open')} />
+                </button>
+                {accordionOpen && (
+                  <div className="accordion__body">
+                    <div className="two-col">
+                      <Field label="Font"><Input value={subtitleStyle.fontName} onChange={(e) => setSubtitleStyle((p) => ({ ...p, fontName: e.target.value }))} /></Field>
+                      <Field label="Size"><Input type="number" value={subtitleStyle.fontSize} onChange={(e) => setSubtitleStyle((p) => ({ ...p, fontSize: Number(e.target.value) || 1 }))} /></Field>
+                      <Field label="Color"><ColorPicker value={subtitleStyle.primaryColor} onChange={(v) => setSubtitleStyle((p) => ({ ...p, primaryColor: v }))} /></Field>
+                      <Field label="Border Color"><ColorPicker value={subtitleStyle.outlineColor} onChange={(v) => setSubtitleStyle((p) => ({ ...p, outlineColor: v }))} /></Field>
+                      <Field label="Border"><Input type="number" value={subtitleStyle.outline} onChange={(e) => setSubtitleStyle((p) => ({ ...p, outline: Number(e.target.value) || 0 }))} /></Field>
+                      <Field label="Shadow"><Input type="number" value={subtitleStyle.shadow} onChange={(e) => setSubtitleStyle((p) => ({ ...p, shadow: Number(e.target.value) || 0 }))} /></Field>
+                      <Field label="Position Y"><Input type="number" value={subtitleStyle.positionY} onChange={(e) => setSubtitleStyle((p) => ({ ...p, positionY: Number(e.target.value) || 0 }))} /></Field>
+                      <Field label="Alignment">
+                        <Select value={String(subtitleStyle.alignment)} onValueChange={(v) => setSubtitleStyle((p) => ({ ...p, alignment: Number(v) }))}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="1">Left</SelectItem>
+                            <SelectItem value="2">Center</SelectItem>
+                            <SelectItem value="3">Right</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </Field>
+                      <Field label="BG Color"><ColorPicker value={subtitleStyle.backgroundColor} onChange={(v) => setSubtitleStyle((p) => ({ ...p, backgroundColor: v }))} /></Field>
+                      <Field label="BG Opacity"><Input type="number" step="0.05" min="0" max="1" value={subtitleStyle.backgroundOpacity} onChange={(e) => setSubtitleStyle((p) => ({ ...p, backgroundOpacity: Number(e.target.value) }))} /></Field>
+                      <Field label="BG Radius"><Input type="number" value={subtitleStyle.backgroundBorderRadius} onChange={(e) => setSubtitleStyle((p) => ({ ...p, backgroundBorderRadius: Number(e.target.value) }))} /></Field>
+                      <Field label="BG Border"><Input type="number" value={subtitleStyle.backgroundBorderThickness} onChange={(e) => setSubtitleStyle((p) => ({ ...p, backgroundBorderThickness: Number(e.target.value) }))} /></Field>
+                    </div>
+                    <label className="bold-toggle">
+                      <input type="checkbox" checked={subtitleStyle.bold} onChange={(e) => setSubtitleStyle((p) => ({ ...p, bold: e.target.checked }))} />
+                      <span>Bold text</span>
+                    </label>
+                    <button type="button" className="save-preset-btn" disabled={!selectedPresetId} onClick={handleSavePresetStyle}>
+                      <Save size={13} /> Save to preset
+                    </button>
+                  </div>
+                )}
+              </div>
+            </SidebarSection>
+
+            {/* ── TRANSCRIPTION ── */}
+            <SidebarSection icon={<Mic size={15} />} title="Transcription" desc="Re-run with a different Whisper model.">
+              <div className="two-col">
+                <Field label="Model">
+                  <Select value={subtitleForm.model} onValueChange={(v) => setSubtitleForm((p) => ({ ...p, model: v }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {WHISPER_MODELS.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </Field>
+                <Field label="Language">
+                  <Input value={subtitleForm.language} onChange={(e) => setSubtitleForm((p) => ({ ...p, language: e.target.value }))} placeholder="pt" />
+                </Field>
+              </div>
+              <button type="button" className="regen-btn" disabled={!videoReady || regenerating} onClick={handleRegenerate}>
+                {regenerating ? <Loader2 size={14} className="animate-spin" /> : <RotateCcw size={14} />}
+                Regenerate Subtitles
+              </button>
+            </SidebarSection>
+
+            {/* ── SUBTITLE TIMING ── */}
+            <SidebarSection icon={<SkipForward size={15} />} title="Timing" desc="Shift all subtitles to fix sync.">
+              <div className="offset-row">
+                {[-1, -0.5, 0.5, 1].map((v) => (
+                  <button key={v} type="button"
+                    className={cn('offset-chip', v < 0 && 'offset-chip--neg')}
+                    disabled={subtitles.length === 0}
+                    onClick={() => shiftSubtitles(v)}>
+                    {v > 0 ? '+' : ''}{v}s
+                  </button>
+                ))}
+              </div>
+              <div className="offset-custom">
+                <Input value={offsetValue} onChange={(e) => setOffsetValue(e.target.value)} placeholder="e.g. 0.5" style={{ fontFamily: 'ui-monospace,monospace', fontSize: '0.8rem' }} />
+                <button type="button" className="action-btn" disabled={subtitles.length === 0}
+                  onClick={() => { const n = Number(offsetValue); if (Number.isFinite(n)) shiftSubtitles(n); }}>
+                  Apply
+                </button>
+              </div>
+            </SidebarSection>
+
+            {/* ── SUBTITLES LIST ── */}
+            <SidebarSection
+              icon={<Film size={15} />}
+              title="Subtitles"
+              badge={subtitles.length > 0 ? subtitles.length : null}
+              desc={null}
+            >
+              {subtitles.length === 0 ? (
+                <div className="sub-empty">
+                  <Subtitles size={28} style={{ color: '#cbd5e1' }} />
+                  <p>Import a video to generate subtitles automatically.</p>
+                </div>
+              ) : (
+                <div className="sub-list">
+                  {subtitles.map((sub, i) => (
+                    <article
+                      key={`${sub.start}-${i}`}
+                      ref={activeSubtitleIndex === i ? activeSubRef : null}
+                      className={cn('sub-card', activeSubtitleIndex === i && 'sub-card--active')}
+                    >
+                      <div className="sub-card__header">
+                        <span className="sub-card__index">#{i + 1}</span>
+                        <span className="sub-card__time">{formatTime(sub.start)} → {formatTime(sub.end)}</span>
+                        <button
+                          type="button"
+                          className="sub-card__play"
+                          title="Preview this line"
+                          onClick={() => { if (videoRef.current) { videoRef.current.currentTime = sub.start; videoRef.current.play(); } }}
+                        >
+                          <Play size={11} style={{ fill: 'currentColor' }} />
+                        </button>
+                      </div>
+                      <textarea
+                        className="sub-textarea"
+                        value={sub.text}
+                        onChange={(e) => updateSubtitle(i, { text: e.target.value })}
+                        rows={2}
+                      />
+                    </article>
+                  ))}
+                </div>
+              )}
+            </SidebarSection>
+
+          </div>
+        </div>
+      </aside>
+
+      {/* ═══════════════════════════════════════════
+          MAIN PREVIEW
+      ═══════════════════════════════════════════ */}
+      <main ref={previewRef} className="studio-main">
+
+        {/* ── CONTROLS BAR (above video) ── */}
+        <div className="player-bar">
+          <button type="button" className="player-btn" onClick={() => seekBy(-5)} disabled={!videoReady} title="−5s (←)">
+            <SkipBack size={15} />
+          </button>
+          <button type="button" className={cn('player-btn player-btn--play', !videoReady && 'player-btn--disabled')} onClick={togglePlayback} disabled={!videoReady} title="Play/Pause (Space)">
+            {isPlaying ? <Pause size={16} style={{ fill: 'currentColor' }} /> : <Play size={16} style={{ fill: 'currentColor' }} />}
+          </button>
+          <button type="button" className="player-btn" onClick={() => seekBy(5)} disabled={!videoReady} title="+5s (→)">
+            <SkipForward size={15} />
+          </button>
+
+          {/* Scrubber */}
+          <div className="scrubber" onClick={videoReady ? (e) => {
+            const r = e.currentTarget.getBoundingClientRect();
+            seekTo(clamp((e.clientX - r.left) / r.width, 0, 1) * duration);
+          } : undefined}>
+            <div className="scrubber__track">
+              <div className="scrubber__fill" style={{ width: `${progress}%` }} />
+              <div className="scrubber__thumb" style={{ left: `${progress}%` }} />
+            </div>
+            <input type="range" className="scrubber__input" min={0} max={duration || 1} step={0.1}
+              value={currentTime} disabled={!videoReady}
+              onChange={(e) => seekTo(Number(e.target.value))} aria-label="Seek" />
+          </div>
+
+          <span className="player-time">
+            {formatTime(currentTime)}<span style={{ opacity: 0.4, margin: '0 0.15em' }}>/</span>{formatTime(duration)}
+          </span>
+
+          <div className="player-vol">
+            <button type="button" className="player-btn player-btn--sm" onClick={toggleMute} title="Mute (M)">
+              {muted ? <VolumeX size={14} /> : <Volume2 size={14} />}
+            </button>
+            <input type="range" className="vol-slider" min={0} max={1} step={0.05}
+              value={muted ? 0 : volume} onChange={(e) => updateVolume(Number(e.target.value))} aria-label="Volume" />
+          </div>
+
+          <div className="player-shortcuts">
+            <kbd>Space</kbd><kbd>J</kbd><kbd>L</kbd><kbd>M</kbd><kbd>F</kbd>
+          </div>
+        </div>
+
+        {/* ── VIDEO SURFACE ── */}
+        <div className="video-surface">
           {videoReady ? (
             <>
               <video
                 ref={videoRef}
                 src={videoFile.path}
-                className="studio-video"
-                playsInline
-                preload="metadata"
-                onLoadedMetadata={(event) => {
-                  setDuration(event.currentTarget.duration || videoInfo?.duration || 0);
-                  event.currentTarget.volume = volume;
-                  event.currentTarget.muted = muted;
+                className="video-el"
+                playsInline preload="metadata"
+                onLoadedMetadata={(e) => {
+                  setDuration(e.currentTarget.duration || videoInfo?.duration || 0);
+                  e.currentTarget.volume = volume;
+                  e.currentTarget.muted = muted;
                 }}
-                onTimeUpdate={(event) => setCurrentTime(event.currentTarget.currentTime)}
+                onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
                 onPlay={() => setIsPlaying(true)}
                 onPause={() => setIsPlaying(false)}
               />
-              {activeSubtitle ? (
-                <div className="studio-subtitle-layer" style={subtitlePreviewStyle.container}>
-                  <div className="studio-subtitle-chip" style={subtitlePreviewStyle.box}>
+              {activeSubtitle && (
+                <div className="sub-overlay" style={subtitlePreviewStyle.container}>
+                  <div style={subtitlePreviewStyle.box}>
                     <span style={subtitlePreviewStyle.text}>{activeSubtitle.text}</span>
                   </div>
                 </div>
-              ) : null}
+              )}
             </>
           ) : (
-            <div className="studio-preview__empty">
-              <Film className="h-10 w-10" />
-              <h3>Vertical-first preview</h3>
-              <p>O player ocupa toda a altura da tela para revisar melhor vídeos verticais.</p>
+            <div className="video-empty">
+              <div className="video-empty__icon"><Film size={28} /></div>
+              <p>Import a video to get started</p>
             </div>
           )}
         </div>
-
-        <div className="studio-controls">
-          <Button type="button" size="sm" onClick={togglePlayback} disabled={!videoReady}>
-            <Play className="h-4 w-4" />
-            {isPlaying ? 'Pause' : 'Play'}
-          </Button>
-          <Button type="button" variant="outline" size="sm" onClick={() => seekBy(-5)} disabled={!videoReady}>-5s</Button>
-          <Button type="button" variant="outline" size="sm" onClick={() => seekBy(5)} disabled={!videoReady}>+5s</Button>
-          <div className="studio-time">{formatTime(currentTime)} / {formatTime(duration)}</div>
-          <div className="studio-volume">
-            <Volume2 className="h-4 w-4 text-surface-500" />
-            <input
-              type="range"
-              min="0"
-              max="1"
-              step="0.05"
-              value={muted ? 0 : volume}
-              onChange={(event) => updateVolume(Number(event.target.value))}
-            />
-          </div>
-          <div className="studio-shortcuts">Space/K play, J/L 10s, arrows 5s, M mute, F full screen</div>
-        </div>
-
-        <div className={cn('studio-status', status.type && `studio-status--${status.type}`)}>
-          {status.type === 'loading' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-          <div>
-            <strong>{status.title || 'Idle'}</strong>
-            <p>{status.message || 'Importe um vídeo para começar.'}</p>
-          </div>
-        </div>
-
-        {notice ? <div className="studio-notice">{notice}</div> : null}
       </main>
 
-      <Dialog open={presetDialog.open} onOpenChange={(open) => setPresetDialog((prev) => ({ ...prev, open }))}>
+      {/* ── TOAST ── */}
+      {notice && (
+        <div className={cn('toast', notice.type === 'error' && 'toast--error', notice.type === 'success' && 'toast--success')}>
+          {notice.type === 'success' && <CheckCircle2 size={14} />}
+          {notice.type === 'error' && <XCircle size={14} />}
+          {notice.msg}
+        </div>
+      )}
+
+      {/* ── PRESET DIALOG ── */}
+      <Dialog open={presetDialog.open} onOpenChange={(o) => setPresetDialog((p) => ({ ...p, open: o }))}>
         <DialogContent showClose>
           <DialogHeader>
-            <DialogTitle>{presetDialog.type === 'create' ? 'Criar preset' : 'Renomear preset'}</DialogTitle>
+            <DialogTitle>{presetDialog.type === 'create' ? 'Create preset' : 'Rename preset'}</DialogTitle>
             <DialogDescription>
-              {presetDialog.type === 'create'
-                ? 'O estilo atual será salvo como um novo preset.'
-                : 'Atualize apenas o nome do preset selecionado.'}
+              {presetDialog.type === 'create' ? 'Current style saved as new preset.' : 'Update preset name.'}
             </DialogDescription>
           </DialogHeader>
           <Field label="Preset Name">
-            <Input value={presetName} onChange={(event) => setPresetName(event.target.value)} />
+            <Input value={presetName} onChange={(e) => setPresetName(e.target.value)} autoFocus placeholder="My style"
+              onKeyDown={(e) => { if (e.key === 'Enter') presetDialog.type === 'create' ? handleCreatePreset() : handleRenamePreset(); }} />
           </Field>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setPresetDialog({ type: '', open: false })}>Cancelar</Button>
-            <Button type="button" onClick={presetDialog.type === 'create' ? handleCreatePreset : handleRenamePreset}>
-              Salvar
-            </Button>
+            <Button variant="outline" onClick={() => setPresetDialog({ type: '', open: false })}>Cancel</Button>
+            <Button onClick={presetDialog.type === 'create' ? handleCreatePreset : handleRenamePreset}>Save</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -896,73 +759,67 @@ export default function App() {
   );
 }
 
+/* ─── Small helper components ─────────────────────────── */
+
+function SidebarSection({ icon, title, desc, badge, children }) {
+  return (
+    <section className="sidebar-section">
+      <div className="sidebar-section__header">
+        <div className="sidebar-section__icon">{icon}</div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+            <span className="sidebar-section__title">{title}</span>
+            {badge != null && <span className="sidebar-section__badge">{badge}</span>}
+          </div>
+          {desc && <p className="sidebar-section__desc">{desc}</p>}
+        </div>
+      </div>
+      <div className="sidebar-section__body">{children}</div>
+    </section>
+  );
+}
+
 function Field({ label, children }) {
   return (
-    <div className="space-y-1.5">
-      <Label>{label}</Label>
+    <div className="field">
+      <label className="field__label">{label}</label>
       {children}
     </div>
   );
 }
 
-function ExportButton({ children, mode, exportingMode, onClick, disabled }) {
-  const active = exportingMode === mode;
+function ColorPicker({ value, onChange }) {
   return (
-    <Button type="button" className="w-full justify-start" variant={mode === 'burned-video' ? 'default' : 'outline'} disabled={disabled || Boolean(exportingMode)} onClick={() => onClick(mode)}>
-      {active ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-      {children}
-    </Button>
+    <div className="color-picker">
+      <div className="color-picker__swatch" style={{ background: value }} />
+      <span className="color-picker__hex">{value}</span>
+      <input type="color" value={value} onChange={(e) => onChange(e.target.value)} className="color-picker__input" />
+    </div>
   );
 }
 
-function SubtitleTimeInput({ value, onCommit }) {
-  const [draft, setDraft] = useState(formatTime(value));
-
-  useEffect(() => {
-    setDraft(formatTime(value));
-  }, [value]);
-
-  return (
-    <Input
-      value={draft}
-      onChange={(event) => setDraft(event.target.value)}
-      onBlur={() => {
-        const parsed = parseTimestamp(draft, value);
-        onCommit(parsed);
-        setDraft(formatTime(parsed));
-      }}
-    />
-  );
-}
+/* ─── Pure helpers ────────────────────────────────────── */
 
 function buildPreviewStyle(style) {
-  const alignment = Number(style.alignment || 2);
-  const justifyContent = alignment === 1 ? 'flex-start' : alignment === 3 ? 'flex-end' : 'center';
+  const a = Number(style.alignment || 2);
+  const jc = a === 1 ? 'flex-start' : a === 3 ? 'flex-end' : 'center';
   return {
-    container: {
-      justifyContent,
-      alignItems: 'center',
-      top: `${clamp(100 - Number(style.positionY || 84), 0, 100)}%`,
-      transform: 'translateY(-100%)',
-    },
+    container: { justifyContent: jc, alignItems: 'center', top: `${clamp(100 - Number(style.positionY || 84), 0, 100)}%`, transform: 'translateY(-100%)' },
     box: {
       background: hexToRgba(style.backgroundColor, style.backgroundOpacity),
       borderColor: style.backgroundBorderColor,
       borderWidth: `${style.backgroundBorderThickness || 0}px`,
       borderStyle: 'solid',
       borderRadius: `${style.backgroundBorderRadius || 0}px`,
-      padding: '0.55em 0.8em',
-      maxWidth: '84%',
+      padding: '0.45em 0.75em',
+      maxWidth: '86%',
     },
     text: {
-      color: style.primaryColor,
-      fontFamily: style.fontName,
-      fontSize: `${style.fontSize}px`,
+      color: style.primaryColor, fontFamily: style.fontName, fontSize: `${style.fontSize}px`,
       fontWeight: style.bold ? 700 : 500,
-      textAlign: alignment === 1 ? 'left' : alignment === 3 ? 'right' : 'center',
-      textShadow: `${style.outline || 0}px ${style.outline || 0}px 0 ${style.outlineColor}, 0 0 ${Math.max(0, Number(style.shadow || 0) * 6)}px rgba(0,0,0,0.55)`,
-      lineHeight: 1.2,
-      whiteSpace: 'pre-wrap',
+      textAlign: a === 1 ? 'left' : a === 3 ? 'right' : 'center',
+      textShadow: `${style.outline || 0}px ${style.outline || 0}px 0 ${style.outlineColor}, 0 0 ${Math.max(0, Number(style.shadow || 0) * 6)}px rgba(0,0,0,.55)`,
+      lineHeight: 1.2, whiteSpace: 'pre-wrap',
     },
   };
 }
@@ -973,53 +830,22 @@ function sampleChipStyle(style) {
     background: hexToRgba(style.backgroundColor, style.backgroundOpacity),
     border: `${style.backgroundBorderThickness || 0}px solid ${style.backgroundBorderColor}`,
     borderRadius: `${style.backgroundBorderRadius || 0}px`,
-    fontFamily: style.fontName,
-    fontWeight: style.bold ? 700 : 500,
+    fontFamily: style.fontName, fontWeight: style.bold ? 700 : 500,
   };
 }
 
 function hexToRgba(hex, opacity = 1) {
-  const normalized = String(hex || '#000000').replace('#', '');
-  const safe = normalized.length === 6 ? normalized : '000000';
-  const r = Number.parseInt(safe.slice(0, 2), 16);
-  const g = Number.parseInt(safe.slice(2, 4), 16);
-  const b = Number.parseInt(safe.slice(4, 6), 16);
-  return `rgba(${r}, ${g}, ${b}, ${clamp(Number(opacity || 0), 0, 1)})`;
+  const s = String(hex || '#000000').replace('#', '');
+  const safe = s.length === 6 ? s : '000000';
+  return `rgba(${parseInt(safe.slice(0,2),16)},${parseInt(safe.slice(2,4),16)},${parseInt(safe.slice(4,6),16)},${clamp(Number(opacity||0),0,1)})`;
 }
 
-function parseTimestamp(value, fallback) {
-  const normalized = String(value).trim().replace(',', '.');
-  const parts = normalized.split(':');
-  if (!parts.length) return fallback;
-
-  let seconds = 0;
-  if (parts.length === 3) {
-    seconds = Number(parts[0]) * 3600 + Number(parts[1]) * 60 + Number(parts[2]);
-  } else if (parts.length === 2) {
-    seconds = Number(parts[0]) * 60 + Number(parts[1]);
-  } else {
-    seconds = Number(parts[0]);
-  }
-  return Number.isFinite(seconds) ? Math.max(0, round(seconds)) : fallback;
-}
-
-function round(value) {
-  return Math.round(value * 1000) / 1000;
-}
+function round(v) { return Math.round(v * 1000) / 1000; }
 
 function downloadBlob(blob, filename) {
   const url = URL.createObjectURL(blob);
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = filename;
-  document.body.appendChild(anchor);
-  anchor.click();
-  document.body.removeChild(anchor);
-  URL.revokeObjectURL(url);
-}
-
-function exportLabel(mode) {
-  if (mode === 'burned-video') return 'Gerando vídeo com legendas queimadas.';
-  if (mode === 'video-plus-srt') return 'Empacotando vídeo e SRT.';
-  return 'Gerando arquivo SRT.';
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
 }
