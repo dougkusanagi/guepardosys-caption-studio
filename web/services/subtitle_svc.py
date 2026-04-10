@@ -51,12 +51,15 @@ def write_ass(
     font_size = s.get("fontSize", 24)
     primary_color = s.get("primaryColor", "&H00FFFFFF")
     outline_color = s.get("outlineColor", "&H00000000")
-    back_color = s.get("backColor", "&H80000000")
+    background_color = s.get("backgroundColor", "#000000")
+    background_opacity = clamp(float(s.get("backgroundOpacity", 0.0)), 0, 1)
+    back_color = s.get("backColor") or _hex_to_ass_color(background_color, alpha=1 - background_opacity)
     bold = s.get("bold", -1)
     outline = s.get("outline", 2)
     shadow = s.get("shadow", 1)
     alignment = s.get("alignment", 2)
     margin_v = s.get("marginV", 30)
+    border_style = 3 if background_opacity > 0 else 1
     position_y = clamp(float(s.get("positionY", 88)), 0, 100)
     area_height = clamp(float(s.get("areaHeight", 18)), 4, 100)
     decoration_padding = max(12.0, (float(outline) * 3.0) + (float(shadow) * 4.0))
@@ -69,7 +72,7 @@ PlayResY: {play_res_y}
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,{font_name},{font_size},{primary_color},&H000000FF,{outline_color},{back_color},{bold},0,0,0,100,100,0,0,1,{outline},{shadow},{alignment},10,10,{margin_v},1
+Style: Default,{font_name},{font_size},{primary_color},&H000000FF,{outline_color},{back_color},{bold},0,0,0,100,100,0,0,{border_style},{outline},{shadow},{alignment},10,10,{margin_v},1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -108,3 +111,14 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
     content = header + "\n".join(dialogues) + "\n"
     Path(path).write_text(content, encoding="utf-8")
+
+
+def _hex_to_ass_color(hex_color: str, alpha: float = 0.0) -> str:
+    normalized = str(hex_color or "#000000").lstrip("#")
+    if len(normalized) != 6:
+        normalized = "000000"
+    r = normalized[0:2]
+    g = normalized[2:4]
+    b = normalized[4:6]
+    alpha_value = round(clamp(alpha, 0, 1) * 255)
+    return f"&H{alpha_value:02X}{b.upper()}{g.upper()}{r.upper()}"

@@ -15,6 +15,7 @@ import json
 import logging
 import shutil
 import uuid
+import zipfile
 from pathlib import Path
 from typing import Any
 
@@ -109,7 +110,7 @@ class SubtitleRequest(BaseModel):
     filename: str
     projectId: str
     clientId: str = ""
-    model: str = "small"
+    model: str = "medium"
     language: str = "pt"
     style: dict = {}
 
@@ -136,6 +137,9 @@ class CropRequest(BaseModel):
 class ExportRequest(BaseModel):
     projectId: str
     sourceFile: str
+    mode: str = "burned-video"
+    subtitles: list[dict[str, Any]] = Field(default_factory=list)
+    style: dict = {}
 
 
 # --- Helper to send progress ---
@@ -197,7 +201,11 @@ async def websocket_endpoint(ws: WebSocket):
 
 
 @app.post("/api/upload")
-async def upload_video(video: UploadFile = File(...)):
+async def upload_video(
+    video: UploadFile = File(...),
+    model: str = "medium",
+    language: str = "pt",
+):
     """Upload a video file and extract metadata + waveform."""
     ext = Path(video.filename or "video.mp4").suffix
     allowed = {".mp4", ".mov", ".avi", ".mkv", ".webm", ".m4v", ".flv", ".wmv"}
@@ -224,6 +232,17 @@ async def upload_video(video: UploadFile = File(...)):
         # Generate waveform
         waveform_path = project_dir / "waveform.json"
         waveform = ffmpeg_svc.generate_waveform(str(file_path), str(waveform_path))
+
+        audio_path = project_dir / "audio_sub.wav"
+        ffmpeg_svc.extract_audio(str(file_path), str(audio_path), sample_rate=16000)
+        loop = asyncio.get_event_loop()
+        transcription = await loop.run_in_executor(
+            None,
+            lambda: whisper_svc.transcribe(str(audio_path), model, language),
+        )
+        subtitles = whisper_svc.get_subtitle_segments(transcription)
+        srt_path = project_dir / "subtitles.srt"
+        subtitle_svc.write_srt(subtitles, str(srt_path))
     except Exception:
         file_path.unlink(missing_ok=True)
         shutil.rmtree(project_dir, ignore_errors=True)
@@ -239,6 +258,10 @@ async def upload_video(video: UploadFile = File(...)):
         },
         "info": info,
         "waveform": waveform,
+        "subtitles": subtitles,
+        "subtitleModel": model,
+        "subtitleLanguage": language,
+        "srtPath": f"/processed/{project_id}/subtitles.srt",
     }
 
 @app.post("/api/process/remove-silence")
@@ -435,11 +458,47 @@ async def crop_video(req: CropRequest):
 
 @app.post("/api/export")
 async def export_video(req: ExportRequest):
-    """Download the processed video."""
+    """Download the processed video and/or subtitle assets."""
     source = _resolve_source_path(req.sourceFile)
     if source is None or not source.exists():
         return JSONResponse({"error": "Arquivo não encontrado"}, status_code=404)
-    return FileResponse(str(source), filename=f"studiocut_export.mp4", media_type="video/mp4")
+
+    project_dir = PROCESSED_DIR / req.projectId
+    project_dir.mkdir(parents=True, exist_ok=True)
+    subtitles = req.subtitles or _parse_srt(project_dir / "subtitles.srt")
+    if not subtitles:
+        return JSONResponse({"error": "Nenhuma legenda disponível para exportar"}, status_code=400)
+
+    srt_path = project_dir / "subtitles_export.srt"
+    subtitle_svc.write_srt(subtitles, str(srt_path))
+
+    if req.mode == "srt-only":
+        return FileResponse(str(srt_path), filename="studiocut_subtitles.srt", media_type="application/x-subrip")
+
+    if req.mode == "video-plus-srt":
+        archive_path = project_dir / "studiocut_export_bundle.zip"
+        with zipfile.ZipFile(archive_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+            archive.write(source, arcname="video.mp4")
+            archive.write(srt_path, arcname="subtitles.srt")
+        return FileResponse(str(archive_path), filename="studiocut_export_bundle.zip", media_type="application/zip")
+
+    if req.mode == "burned-video":
+        ass_path = project_dir / "subtitles_export.ass"
+        subtitle_svc.write_ass(
+            subtitles,
+            str(ass_path),
+            req.style or None,
+            play_res=_get_video_play_res(source),
+        )
+        output_path = project_dir / "studiocut_export_burned.mp4"
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(
+            None,
+            lambda: ffmpeg_svc.burn_subtitles(str(source), str(ass_path), str(output_path)),
+        )
+        return FileResponse(str(output_path), filename="studiocut_export_burned.mp4", media_type="video/mp4")
+
+    return JSONResponse({"error": "Modo de exportação inválido"}, status_code=400)
 
 
 # --- Project Management ---
@@ -562,6 +621,8 @@ async def spa_fallback(full_path: str):
 # --- Helpers ---
 def _parse_srt(path: Path) -> list[dict]:
     """Parse SRT file back to subtitle list."""
+    if not path.exists():
+        return []
     text = path.read_text("utf-8")
     subtitles = []
     blocks = text.strip().split("\n\n")

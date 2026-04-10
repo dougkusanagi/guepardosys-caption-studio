@@ -1,8 +1,15 @@
 const BASE_URL = '';
 
-export async function uploadVideo(file, { onUploadProgress, onProcessingState } = {}) {
+export async function uploadVideo(file, {
+  onUploadProgress,
+  onProcessingState,
+  model = 'medium',
+  language = 'pt',
+} = {}) {
   const formData = new FormData();
   formData.append('video', file);
+  formData.append('model', model);
+  formData.append('language', language);
 
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
@@ -79,8 +86,17 @@ export async function exportVideo(params) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(params),
   });
-  if (!res.ok) throw new Error('Export failed');
-  return res.blob();
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Export failed');
+  }
+  const blob = await res.blob();
+  const disposition = res.headers.get('content-disposition') || '';
+  const match = disposition.match(/filename="?([^"]+)"?/i);
+  return {
+    blob,
+    filename: match?.[1] || 'download.bin',
+  };
 }
 
 export function saveProject(data) {

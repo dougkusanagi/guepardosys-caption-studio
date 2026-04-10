@@ -4,14 +4,19 @@
     "name": "Padrão",
     "style": {
       "fontName": "Arial",
-      "fontSize": 24,
+      "fontSize": 26,
       "primaryColor": "#ffffff",
       "outlineColor": "#000000",
       "outline": 2,
       "shadow": 1,
       "alignment": 2,
-      "positionY": 88,
+      "positionY": 84,
       "areaHeight": 18,
+      "backgroundColor": "#000000",
+      "backgroundOpacity": 0.45,
+      "backgroundBorderColor": "#000000",
+      "backgroundBorderThickness": 0,
+      "backgroundBorderRadius": 16,
       "bold": false
     }
   },
@@ -28,6 +33,11 @@
       "alignment": 2,
       "positionY": 90,
       "areaHeight": 16,
+      "backgroundColor": "#000000",
+      "backgroundOpacity": 0.2,
+      "backgroundBorderColor": "#000000",
+      "backgroundBorderThickness": 0,
+      "backgroundBorderRadius": 12,
       "bold": true
     }
   },
@@ -44,6 +54,11 @@
       "alignment": 2,
       "positionY": 88,
       "areaHeight": 18,
+      "backgroundColor": "#111827",
+      "backgroundOpacity": 0,
+      "backgroundBorderColor": "#111827",
+      "backgroundBorderThickness": 0,
+      "backgroundBorderRadius": 18,
       "bold": false
     }
   },
@@ -60,6 +75,11 @@
       "alignment": 2,
       "positionY": 55,
       "areaHeight": 22,
+      "backgroundColor": "#553cd3",
+      "backgroundOpacity": 0.35,
+      "backgroundBorderColor": "#553cd3",
+      "backgroundBorderThickness": 1,
+      "backgroundBorderRadius": 16,
       "bold": true
     }
   }
