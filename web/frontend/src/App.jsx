@@ -201,7 +201,7 @@ export default function App() {
         setCurrentTime(0);
       });
       if (videoRef.current) videoRef.current.load();
-      toast(`${(result.subtitles || []).length} subtitles generated.`, 'success');
+      toast(`${(result.subtitles || []).length} legendas geradas.`, 'success');
     } catch (err) {
       toast(err.message, 'error');
     } finally { setUploading(false); }
@@ -216,7 +216,7 @@ export default function App() {
         model: subtitleForm.model, language: subtitleForm.language, style: subtitleStyle,
       });
       setSubtitles(result.subtitles || []);
-      toast(`${(result.subtitles || []).length} subtitles with Whisper ${subtitleForm.model}.`, 'success');
+      toast(`${(result.subtitles || []).length} legendas com Whisper ${subtitleForm.model}.`, 'success');
     } catch (err) {
       toast(err.message, 'error');
     } finally { setRegenerating(false); }
@@ -229,7 +229,7 @@ export default function App() {
     try {
       const result = await exportVideo({ projectId, sourceFile: videoFile.path, mode, subtitles, style: subtitleStyle });
       downloadBlob(result.blob, result.filename);
-      toast(`Exported: ${result.filename}`, 'success');
+      toast(`Exportado: ${result.filename}`, 'success');
     } catch (err) {
       toast(err.message, 'error');
     } finally { setExportingMode(''); }
@@ -238,7 +238,7 @@ export default function App() {
   function handlePresetSelect(preset) {
     setSelectedPresetId(preset.id);
     setSubtitleStyle({ ...DEFAULT_SUBTITLE_STYLE, ...preset.style });
-    toast(`Preset "${preset.name}" applied.`);
+    toast(`Preset "${preset.name}" aplicado.`);
   }
 
   async function handleCreatePreset() {
@@ -249,7 +249,7 @@ export default function App() {
       setSelectedPresetId(created.id);
       setPresetDialog({ type: '', open: false });
       setPresetName('');
-      toast(`Preset "${created.name}" created.`, 'success');
+      toast(`Preset "${created.name}" criado.`, 'success');
     } catch (err) { toast(err.message, 'error'); }
   }
 
@@ -261,7 +261,7 @@ export default function App() {
       setPresets((p) => p.map((x) => (x.id === updated.id ? updated : x)));
       setPresetDialog({ type: '', open: false });
       setPresetName('');
-      toast(`Preset renamed to "${updated.name}".`);
+      toast(`Preset renomeado para "${updated.name}".`);
     } catch (err) { toast(err.message, 'error'); }
   }
 
@@ -271,7 +271,7 @@ export default function App() {
     try {
       const updated = await updatePreset(sel.id, { style: subtitleStyle });
       setPresets((p) => p.map((x) => (x.id === updated.id ? updated : x)));
-      toast(`Preset "${updated.name}" saved.`, 'success');
+      toast(`Preset "${updated.name}" salvo.`, 'success');
     } catch (err) { toast(err.message, 'error'); }
   }
 
@@ -284,7 +284,7 @@ export default function App() {
       setPresets(rest);
       if (rest[0]) { setSelectedPresetId(rest[0].id); setSubtitleStyle({ ...DEFAULT_SUBTITLE_STYLE, ...rest[0].style }); }
       else setSelectedPresetId('');
-      toast(`Preset "${sel.name}" deleted.`);
+      toast(`Preset "${sel.name}" excluído.`);
     } catch (err) { toast(err.message, 'error'); }
   }
 
@@ -301,7 +301,7 @@ export default function App() {
       start: Math.max(0, round(item.start + seconds)),
       end: Math.max(0.05, round(item.end + seconds)),
     })));
-    toast(`Offset ${seconds > 0 ? '+' : ''}${seconds.toFixed(2)}s applied.`);
+    toast(`Deslocamento de ${seconds > 0 ? '+' : ''}${seconds.toFixed(2)}s aplicado.`);
   }
 
   const handleKeyboardShortcuts = useEffectEvent((e) => {
@@ -393,7 +393,7 @@ export default function App() {
             <Subtitles size={18} />
           </div>
           <div className="studio-brand__text">
-            <p className="studio-brand__eyebrow">Caption Studio</p>
+            <p className="studio-brand__eyebrow">Estúdio de Legendas</p>
             <h1 className="studio-brand__title">StudioCut</h1>
           </div>
 
@@ -404,13 +404,13 @@ export default function App() {
               className={cn('export-trigger', isExporting && 'export-trigger--busy')}
               onClick={() => setExportOpen((o) => !o)}
               disabled={isExporting}
-              title="Export"
+              title="Exportar"
             >
               {isExporting
                 ? <Loader2 size={14} className="animate-spin" />
                 : <Download size={14} />
               }
-              <span>Export</span>
+              <span>Exportar</span>
               <ChevronDown size={12} className={cn('export-trigger__chevron', exportOpen && 'export-trigger__chevron--open')} />
             </button>
 
@@ -424,8 +424,8 @@ export default function App() {
                 >
                   <div className="export-menu__icon"><Video size={14} /></div>
                   <div>
-                    <div className="export-menu__label">Burned subtitles</div>
-                    <div className="export-menu__sub">Subtitles baked into video</div>
+                    <div className="export-menu__label">Legendas embutidas</div>
+                    <div className="export-menu__sub">Legendas gravadas no vídeo</div>
                   </div>
                 </button>
                 <button
@@ -436,8 +436,8 @@ export default function App() {
                 >
                   <div className="export-menu__icon"><Film size={14} /></div>
                   <div>
-                    <div className="export-menu__label">Video + .srt</div>
-                    <div className="export-menu__sub">Video and subtitle file</div>
+                    <div className="export-menu__label">Vídeo + .srt</div>
+                    <div className="export-menu__sub">Vídeo e arquivo de legenda</div>
                   </div>
                 </button>
                 <div className="export-menu__divider" />
@@ -449,8 +449,8 @@ export default function App() {
                 >
                   <div className="export-menu__icon"><Download size={14} /></div>
                   <div>
-                    <div className="export-menu__label">Only .srt file</div>
-                    <div className="export-menu__sub">Subtitle file only</div>
+                    <div className="export-menu__label">Apenas arquivo .srt</div>
+                    <div className="export-menu__sub">Somente o arquivo de legenda</div>
                   </div>
                 </button>
               </div>
@@ -462,10 +462,49 @@ export default function App() {
         <div className="sidebar-scroll">
           <div className="sidebar-stack">
 
+            {/* ── TRANSCRIPTION ── */}
+            <SidebarSection icon={<Mic size={15} />} title="Transcrição" desc="Importe e regenere legendas em um só lugar.">
+              <div className="two-col">
+                <Field label="Modelo">
+                  <Select value={subtitleForm.model} onValueChange={(v) => setSubtitleForm((p) => ({ ...p, model: v }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {WHISPER_MODELS.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </Field>
+                <Field label="Idioma">
+                  <Input value={subtitleForm.language} onChange={(e) => setSubtitleForm((p) => ({ ...p, language: e.target.value }))} placeholder="pt" />
+                </Field>
+              </div>
+              {videoFile ? (
+                <div className="file-chip">
+                  <div className="file-chip__icon"><Video size={13} /></div>
+                  <div className="file-chip__info">
+                    <p className="file-chip__name" title={videoFile.originalName}>{videoFile.originalName}</p>
+                    <div className="file-chip__meta">
+                      {videoInfo?.video?.width && <span>{videoInfo.video.width}×{videoInfo.video.height}</span>}
+                      <span>{formatDuration(videoInfo?.duration || 0)}</span>
+                      <span>{subtitles.length} legendas</span>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="transcription-hint">
+                  <Upload size={15} />
+                  <span>O botão de importação fica na área vazia do player.</span>
+                </div>
+              )}
+              <button type="button" className="regen-btn" disabled={!videoReady || regenerating} onClick={handleRegenerate}>
+                {regenerating ? <Loader2 size={14} className="animate-spin" /> : <RotateCcw size={14} />}
+                Regenerar legendas
+              </button>
+            </SidebarSection>
+
             {/* ── SUBTITLE STYLE ── */}
-            <SidebarSection icon={<Subtitles size={15} />} title="Subtitle Style" desc="Pick and customise a style preset.">
+            <SidebarSection icon={<Subtitles size={15} />} title="Estilo da legenda" desc="Escolha e personalize um preset de estilo.">
               <div className="preset-row">
-                <button type="button" className="scroll-btn" title="Scroll left"
+                <button type="button" className="scroll-btn" title="Rolar para a esquerda"
                   onClick={() => presetRailRef.current?.scrollBy({ left: -180, behavior: 'smooth' })}>
                   <ChevronLeft size={14} />
                 </button>
@@ -482,7 +521,7 @@ export default function App() {
                     </button>
                   ))}
                 </div>
-                <button type="button" className="scroll-btn" title="Scroll right"
+                <button type="button" className="scroll-btn" title="Rolar para a direita"
                   onClick={() => presetRailRef.current?.scrollBy({ left: 180, behavior: 'smooth' })}>
                   <ChevronRight size={14} />
                 </button>
@@ -490,112 +529,74 @@ export default function App() {
 
               <div className="action-row">
                 <button type="button" className="action-btn" onClick={() => { setPresetDialog({ type: 'create', open: true }); setPresetName(''); }}>
-                  <Plus size={13} /> New
+                  <Plus size={13} /> Novo
                 </button>
                 <button type="button" className="action-btn" disabled={!selectedPresetId}
                   onClick={() => { const p = presets.find((x) => x.id === selectedPresetId); setPresetName(p?.name || ''); setPresetDialog({ type: 'rename', open: true }); }}>
-                  <PencilLine size={13} /> Rename
+                  <PencilLine size={13} /> Renomear
                 </button>
                 <button type="button" className="action-btn action-btn--danger"
                   disabled={!selectedPresetId || selectedPresetId === 'default'}
                   onClick={handleDeletePreset}>
-                  <Trash2 size={13} /> Delete
+                  <Trash2 size={13} /> Excluir
                 </button>
               </div>
 
               {/* Edit Style accordion */}
               <div className="accordion">
                 <button type="button" className="accordion__trigger" onClick={() => setAccordionOpen((o) => !o)}>
-                  <span>Edit Style</span>
+                  <span>Editar estilo</span>
                   <ChevronDown size={14} className={cn('accordion__chevron', accordionOpen && 'accordion__chevron--open')} />
                 </button>
                 {accordionOpen && (
                   <div className="accordion__body">
                     <div className="two-col">
-                      <Field label="Font"><Input value={subtitleStyle.fontName} onChange={(e) => setSubtitleStyle((p) => ({ ...p, fontName: e.target.value }))} /></Field>
-                      <Field label="Size"><Input type="number" value={subtitleStyle.fontSize} onChange={(e) => setSubtitleStyle((p) => ({ ...p, fontSize: Number(e.target.value) || 1 }))} /></Field>
-                      <Field label="Color"><ColorPicker value={subtitleStyle.primaryColor} onChange={(v) => setSubtitleStyle((p) => ({ ...p, primaryColor: v }))} /></Field>
-                      <Field label="Border Color"><ColorPicker value={subtitleStyle.outlineColor} onChange={(v) => setSubtitleStyle((p) => ({ ...p, outlineColor: v }))} /></Field>
-                      <Field label="Border"><Input type="number" value={subtitleStyle.outline} onChange={(e) => setSubtitleStyle((p) => ({ ...p, outline: Number(e.target.value) || 0 }))} /></Field>
-                      <Field label="Shadow"><Input type="number" value={subtitleStyle.shadow} onChange={(e) => setSubtitleStyle((p) => ({ ...p, shadow: Number(e.target.value) || 0 }))} /></Field>
-                      <Field label="Position Y"><Input type="number" value={subtitleStyle.positionY} onChange={(e) => setSubtitleStyle((p) => ({ ...p, positionY: Number(e.target.value) || 0 }))} /></Field>
-                      <Field label="Alignment">
+                      <Field label="Fonte"><Input value={subtitleStyle.fontName} onChange={(e) => setSubtitleStyle((p) => ({ ...p, fontName: e.target.value }))} /></Field>
+                      <Field label="Tamanho"><Input type="number" value={subtitleStyle.fontSize} onChange={(e) => setSubtitleStyle((p) => ({ ...p, fontSize: Number(e.target.value) || 1 }))} /></Field>
+                      <Field label="Cor"><ColorPicker value={subtitleStyle.primaryColor} onChange={(v) => setSubtitleStyle((p) => ({ ...p, primaryColor: v }))} /></Field>
+                      <Field label="Cor da borda"><ColorPicker value={subtitleStyle.outlineColor} onChange={(v) => setSubtitleStyle((p) => ({ ...p, outlineColor: v }))} /></Field>
+                      <Field label="Borda"><Input type="number" value={subtitleStyle.outline} onChange={(e) => setSubtitleStyle((p) => ({ ...p, outline: Number(e.target.value) || 0 }))} /></Field>
+                      <Field label="Sombra"><Input type="number" value={subtitleStyle.shadow} onChange={(e) => setSubtitleStyle((p) => ({ ...p, shadow: Number(e.target.value) || 0 }))} /></Field>
+                      <Field label="Posição Y"><Input type="number" value={subtitleStyle.positionY} onChange={(e) => setSubtitleStyle((p) => ({ ...p, positionY: Number(e.target.value) || 0 }))} /></Field>
+                      <Field label="Alinhamento">
                         <Select value={String(subtitleStyle.alignment)} onValueChange={(v) => setSubtitleStyle((p) => ({ ...p, alignment: Number(v) }))}>
                           <SelectTrigger><SelectValue /></SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="1">Left</SelectItem>
-                            <SelectItem value="2">Center</SelectItem>
-                            <SelectItem value="3">Right</SelectItem>
+                            <SelectItem value="1">Esquerda</SelectItem>
+                            <SelectItem value="2">Centro</SelectItem>
+                            <SelectItem value="3">Direita</SelectItem>
                           </SelectContent>
                         </Select>
                       </Field>
-                      <Field label="BG Color"><ColorPicker value={subtitleStyle.backgroundColor} onChange={(v) => setSubtitleStyle((p) => ({ ...p, backgroundColor: v }))} /></Field>
-                      <Field label="BG Opacity"><Input type="number" step="0.05" min="0" max="1" value={subtitleStyle.backgroundOpacity} onChange={(e) => setSubtitleStyle((p) => ({ ...p, backgroundOpacity: Number(e.target.value) }))} /></Field>
-                      <Field label="BG Radius"><Input type="number" value={subtitleStyle.backgroundBorderRadius} onChange={(e) => setSubtitleStyle((p) => ({ ...p, backgroundBorderRadius: Number(e.target.value) }))} /></Field>
-                      <Field label="BG Border"><Input type="number" value={subtitleStyle.backgroundBorderThickness} onChange={(e) => setSubtitleStyle((p) => ({ ...p, backgroundBorderThickness: Number(e.target.value) }))} /></Field>
+                      <Field label="Cor do fundo"><ColorPicker value={subtitleStyle.backgroundColor} onChange={(v) => setSubtitleStyle((p) => ({ ...p, backgroundColor: v }))} /></Field>
+                      <Field label="Opacidade do fundo"><Input type="number" step="0.05" min="0" max="1" value={subtitleStyle.backgroundOpacity} onChange={(e) => setSubtitleStyle((p) => ({ ...p, backgroundOpacity: Number(e.target.value) }))} /></Field>
+                      <Field label="Raio do fundo"><Input type="number" value={subtitleStyle.backgroundBorderRadius} onChange={(e) => setSubtitleStyle((p) => ({ ...p, backgroundBorderRadius: Number(e.target.value) }))} /></Field>
+                      <Field label="Borda do fundo"><Input type="number" value={subtitleStyle.backgroundBorderThickness} onChange={(e) => setSubtitleStyle((p) => ({ ...p, backgroundBorderThickness: Number(e.target.value) }))} /></Field>
                     </div>
                     <label className="bold-toggle">
                       <input type="checkbox" checked={subtitleStyle.bold} onChange={(e) => setSubtitleStyle((p) => ({ ...p, bold: e.target.checked }))} />
-                      <span>Bold text</span>
+                      <span>Texto em negrito</span>
                     </label>
                     <button type="button" className="save-preset-btn" disabled={!selectedPresetId} onClick={handleSavePresetStyle}>
-                      <Save size={13} /> Save to preset
+                      <Save size={13} /> Salvar no preset
                     </button>
                   </div>
                 )}
               </div>
             </SidebarSection>
 
-            {/* ── TRANSCRIPTION ── */}
-            <SidebarSection icon={<Mic size={15} />} title="Transcription" desc="Import and regenerate subtitles from one place.">
-              <div className="two-col">
-                <Field label="Model">
-                  <Select value={subtitleForm.model} onValueChange={(v) => setSubtitleForm((p) => ({ ...p, model: v }))}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {WHISPER_MODELS.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </Field>
-                <Field label="Language">
-                  <Input value={subtitleForm.language} onChange={(e) => setSubtitleForm((p) => ({ ...p, language: e.target.value }))} placeholder="pt" />
-                </Field>
-              </div>
-              {videoFile ? (
-                <div className="file-chip">
-                  <div className="file-chip__icon"><Video size={13} /></div>
-                  <div className="file-chip__info">
-                    <p className="file-chip__name" title={videoFile.originalName}>{videoFile.originalName}</p>
-                    <div className="file-chip__meta">
-                      {videoInfo?.video?.width && <span>{videoInfo.video.width}×{videoInfo.video.height}</span>}
-                      <span>{formatDuration(videoInfo?.duration || 0)}</span>
-                      <span>{subtitles.length} subtitles</span>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="transcription-hint">
-                  <Upload size={15} />
-                  <span>The import button now lives in the empty player area.</span>
-                </div>
-              )}
-              <button type="button" className="regen-btn" disabled={!videoReady || regenerating} onClick={handleRegenerate}>
-                {regenerating ? <Loader2 size={14} className="animate-spin" /> : <RotateCcw size={14} />}
-                Regenerate Subtitles
-              </button>
-            </SidebarSection>
 
             {/* ── SUBTITLES LIST ── */}
             <SidebarSection
               icon={<Film size={15} />}
-              title="Subtitles"
+              title="Legendas"
               badge={subtitles.length > 0 ? subtitles.length : null}
               desc={null}
             >
               {subtitles.length === 0 ? (
                 <div className="sub-empty">
                   <Subtitles size={28} style={{ color: '#cbd5e1' }} />
-                  <p>Import a video to generate subtitles automatically.</p>
+                  <p>Importe um vídeo para gerar legendas automaticamente.</p>
                 </div>
               ) : (
                 <div className="sub-list">
@@ -611,7 +612,7 @@ export default function App() {
                         <button
                           type="button"
                           className="sub-card__play"
-                          title="Preview this line"
+                          title="Pré-visualizar esta linha"
                           onClick={() => { if (videoRef.current) { videoRef.current.currentTime = sub.start; videoRef.current.play(); } }}
                         >
                           <Play size={11} style={{ fill: 'currentColor' }} />
@@ -701,7 +702,7 @@ export default function App() {
                     <button type="button" className="player-btn player-btn--transport" onClick={() => seekBy(-5)} disabled={!videoReady} title="Voltar 5 segundos">
                       <SkipBack size={22} />
                     </button>
-                    <button type="button" className={cn('player-btn player-btn--play player-btn--transport-main', !videoReady && 'player-btn--disabled')} onClick={togglePlayback} disabled={!videoReady} title="Play/Pause">
+                    <button type="button" className={cn('player-btn player-btn--play player-btn--transport-main', !videoReady && 'player-btn--disabled')} onClick={togglePlayback} disabled={!videoReady} title="Reproduzir/Pausar">
                       {isPlaying ? <Pause size={28} style={{ fill: 'currentColor' }} /> : <Play size={28} style={{ fill: 'currentColor' }} />}
                     </button>
                     <button type="button" className="player-btn player-btn--transport" onClick={() => seekBy(5)} disabled={!videoReady} title="Avançar 5 segundos">
@@ -716,7 +717,7 @@ export default function App() {
                       </span>
 
                       <div className="player-vol">
-                        <button type="button" className="player-btn player-btn--sm" onClick={toggleMute} title="Mute">
+                        <button type="button" className="player-btn player-btn--sm" onClick={toggleMute} title="Silenciar">
                           {muted ? <VolumeX size={14} /> : <Volume2 size={14} />}
                         </button>
                         <input type="range" className="vol-slider" min={0} max={1} step={0.05}
@@ -734,7 +735,7 @@ export default function App() {
                       </div>
                       <input type="range" className="scrubber__input" min={0} max={duration || 1} step={0.1}
                         value={currentTime} disabled={!videoReady}
-                        onChange={(e) => seekTo(Number(e.target.value))} aria-label="Seek" />
+                        onChange={(e) => seekTo(Number(e.target.value))} aria-label="Buscar" />
                     </div>
                   </div>
                 </div>
@@ -751,8 +752,8 @@ export default function App() {
                 <div className="dropzone__icon">
                   {uploading ? <Loader2 size={22} className="animate-spin" /> : <Upload size={22} />}
                 </div>
-                <p className="dropzone__title">{uploading ? 'Importing & transcribing…' : 'Click or drag video here'}</p>
-                <p className="dropzone__sub">{uploading ? `Whisper ${subtitleForm.model} running…` : 'MP4, MOV, MKV, WebM'}</p>
+                <p className="dropzone__title">{uploading ? 'Importando e transcrevendo…' : 'Clique ou arraste o vídeo aqui'}</p>
+                <p className="dropzone__sub">{uploading ? `Whisper ${subtitleForm.model} em execução…` : 'MP4, MOV, MKV, WebM'}</p>
               </label>
             )}
           </div>
@@ -761,8 +762,8 @@ export default function App() {
             <div className="timing-panel__header">
               <div className="timing-panel__icon"><SkipForward size={15} /></div>
               <div>
-                <div className="timing-panel__title">Timing</div>
-                <p className="timing-panel__desc">Shift all subtitles to fix sync.</p>
+                <div className="timing-panel__title">Sincronia</div>
+                <p className="timing-panel__desc">Desloque todas as legendas para corrigir a sincronização.</p>
               </div>
             </div>
 
@@ -777,10 +778,10 @@ export default function App() {
               ))}
             </div>
             <div className="offset-custom">
-              <Input value={offsetValue} onChange={(e) => setOffsetValue(e.target.value)} placeholder="e.g. 0.5" style={{ fontFamily: 'ui-monospace,monospace', fontSize: '0.8rem' }} />
+              <Input value={offsetValue} onChange={(e) => setOffsetValue(e.target.value)} placeholder="ex.: 0.5" style={{ fontFamily: 'ui-monospace,monospace', fontSize: '0.8rem' }} />
               <button type="button" className="action-btn" disabled={subtitles.length === 0}
                 onClick={() => { const n = Number(offsetValue); if (Number.isFinite(n)) shiftSubtitles(n); }}>
-                Apply
+                Aplicar
               </button>
             </div>
           </section>
@@ -800,18 +801,18 @@ export default function App() {
       <Dialog open={presetDialog.open} onOpenChange={(o) => setPresetDialog((p) => ({ ...p, open: o }))}>
         <DialogContent showClose>
           <DialogHeader>
-            <DialogTitle>{presetDialog.type === 'create' ? 'Create preset' : 'Rename preset'}</DialogTitle>
+            <DialogTitle>{presetDialog.type === 'create' ? 'Criar preset' : 'Renomear preset'}</DialogTitle>
             <DialogDescription>
-              {presetDialog.type === 'create' ? 'Current style saved as new preset.' : 'Update preset name.'}
+              {presetDialog.type === 'create' ? 'O estilo atual será salvo como um novo preset.' : 'Atualize o nome do preset.'}
             </DialogDescription>
           </DialogHeader>
-          <Field label="Preset Name">
-            <Input value={presetName} onChange={(e) => setPresetName(e.target.value)} autoFocus placeholder="My style"
+          <Field label="Nome do preset">
+            <Input value={presetName} onChange={(e) => setPresetName(e.target.value)} autoFocus placeholder="Meu estilo"
               onKeyDown={(e) => { if (e.key === 'Enter') presetDialog.type === 'create' ? handleCreatePreset() : handleRenamePreset(); }} />
           </Field>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setPresetDialog({ type: '', open: false })}>Cancel</Button>
-            <Button onClick={presetDialog.type === 'create' ? handleCreatePreset : handleRenamePreset}>Save</Button>
+            <Button variant="outline" onClick={() => setPresetDialog({ type: '', open: false })}>Cancelar</Button>
+            <Button onClick={presetDialog.type === 'create' ? handleCreatePreset : handleRenamePreset}>Salvar</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
