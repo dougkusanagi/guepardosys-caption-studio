@@ -155,11 +155,25 @@ video {
   position: absolute;
   left: 0;
   right: 0;
+  bottom: 24px;
   display: flex;
   padding: 0 24px;
   pointer-events: none;
   z-index: 12;
   overflow: hidden;
+}
+
+.video-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: black;
+}
+
+.video-wrapper video {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
 }
 
 .video-subtitle-overlay.hidden {

@@ -11,6 +11,7 @@ export class CropTool {
     this.canvas = document.getElementById('crop-canvas');
     this.ctx = this.canvas.getContext('2d');
     this.video = document.getElementById('video-original');
+    this.videoWrapper = document.getElementById('video-wrapper-original');
 
     this.isActive = false;
     this.isDragging = false;

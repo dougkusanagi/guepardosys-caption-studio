@@ -81,8 +81,10 @@ export default function App() {
   const fileInputRef   = useRef(null);
   const previewRef     = useRef(null);
   const videoRef       = useRef(null);
+  const videoSurfaceRef = useRef(null);
   const presetRailRef  = useRef(null);
   const noticeTimerRef = useRef(null);
+  const controlsTimerRef = useRef(null);
   const activeSubRef   = useRef(null);
 
   const [videoFile,       setVideoFile]       = useState(null);
@@ -100,6 +102,9 @@ export default function App() {
   const [currentTime,     setCurrentTime]     = useState(0);
   const [duration,        setDuration]        = useState(0);
   const [isPlaying,       setIsPlaying]       = useState(false);
+  const [controlsVisible, setControlsVisible] = useState(true);
+  const [videoDimensions, setVideoDimensions] = useState({ width: 0, height: 0 });
+  const [surfaceBounds,   setSurfaceBounds]   = useState({ width: 0, height: 0 });
   const [volume,          setVolume]          = useState(1);
   const [muted,           setMuted]           = useState(false);
   const [accordionOpen,   setAccordionOpen]   = useState(false);
@@ -110,6 +115,18 @@ export default function App() {
   const [exportOpen,      setExportOpen]      = useState(false);
 
   useEffect(() => { loadPresets(); }, []);
+
+  useEffect(() => {
+    const surface = videoSurfaceRef.current;
+    if (!surface || typeof ResizeObserver === 'undefined') return undefined;
+    const observer = new ResizeObserver((entries) => {
+      const rect = entries[0]?.contentRect;
+      if (!rect) return;
+      setSurfaceBounds({ width: rect.width, height: rect.height });
+    });
+    observer.observe(surface);
+    return () => observer.disconnect();
+  }, []);
 
   // Close export dropdown on outside click
   useEffect(() => {
@@ -151,6 +168,7 @@ export default function App() {
   }
 
   useEffect(() => () => window.clearTimeout(noticeTimerRef.current), []);
+  useEffect(() => () => window.clearTimeout(controlsTimerRef.current), []);
 
   // Drag-and-drop
   const handleDragOver  = useCallback((e) => { e.preventDefault(); setIsDragging(true); }, []);
@@ -174,6 +192,10 @@ export default function App() {
         setProjectId(result.projectId);
         setVideoFile(result.file);
         setVideoInfo(result.info);
+        setVideoDimensions({
+          width: Number(result.info?.video?.width) || 0,
+          height: Number(result.info?.video?.height) || 0,
+        });
         setSubtitles(result.subtitles || []);
         setDuration(result.info?.duration || 0);
         setCurrentTime(0);
@@ -328,10 +350,34 @@ export default function App() {
     if (videoRef.current) videoRef.current.muted = next;
   }
 
+  function scheduleControlsHide(delay = 1100) {
+    window.clearTimeout(controlsTimerRef.current);
+    controlsTimerRef.current = window.setTimeout(() => setControlsVisible(false), delay);
+  }
+
+  function revealControls(delay = 1100) {
+    setControlsVisible(true);
+    scheduleControlsHide(delay);
+  }
+
   const subtitlePreviewStyle = buildPreviewStyle(subtitleStyle);
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
   const canExport = videoReady && subtitles.length > 0;
   const isExporting = Boolean(exportingMode);
+  const isVerticalVideo = videoDimensions.height > videoDimensions.width && videoDimensions.width > 0;
+  const videoAspectRatio = (videoDimensions.width > 0 && videoDimensions.height > 0)
+    ? videoDimensions.width / videoDimensions.height
+    : 16 / 9;
+  const videoStageSize = useMemo(
+    () => fitAspectRatio(surfaceBounds.width, surfaceBounds.height, videoAspectRatio),
+    [surfaceBounds.height, surfaceBounds.width, videoAspectRatio],
+  );
+  const videoStageStyle = videoReady
+    ? {
+        width: `${Math.max(videoStageSize.width, 0)}px`,
+        height: `${Math.max(videoStageSize.height, 0)}px`,
+      }
+    : undefined;
 
   return (
     <div className="studio-shell">
@@ -415,60 +461,6 @@ export default function App() {
         {/* ── SCROLLABLE CONTENT ── */}
         <div className="sidebar-scroll">
           <div className="sidebar-stack">
-
-            {/* ── IMPORT ── */}
-            <SidebarSection icon={<Upload size={15} />} title="Import" desc="Subtitles generated automatically on import.">
-              <div className="two-col">
-                <Field label="Whisper Model">
-                  <Select value={subtitleForm.model} onValueChange={(v) => setSubtitleForm((p) => ({ ...p, model: v }))}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {WHISPER_MODELS.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </Field>
-                <Field label="Language">
-                  <Input
-                    value={subtitleForm.language}
-                    onChange={(e) => setSubtitleForm((p) => ({ ...p, language: e.target.value }))}
-                    placeholder="pt"
-                  />
-                </Field>
-              </div>
-
-              <button
-                type="button"
-                className={cn('dropzone', isDragging && 'dropzone--over')}
-                onClick={() => fileInputRef.current?.click()}
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
-                disabled={uploading}
-              >
-                <div className="dropzone__icon">
-                  {uploading ? <Loader2 size={18} className="animate-spin" /> : <Upload size={18} />}
-                </div>
-                <p className="dropzone__title">{uploading ? 'Importing & transcribing…' : 'Click or drag video here'}</p>
-                <p className="dropzone__sub">{uploading ? `Whisper ${subtitleForm.model} running…` : 'MP4, MOV, MKV, WebM'}</p>
-              </button>
-
-              <input ref={fileInputRef} type="file" accept="video/*" className="hidden"
-                onChange={(e) => handleUpload(e.target.files?.[0])} />
-
-              {videoFile && (
-                <div className="file-chip">
-                  <div className="file-chip__icon"><Video size={13} /></div>
-                  <div className="file-chip__info">
-                    <p className="file-chip__name" title={videoFile.originalName}>{videoFile.originalName}</p>
-                    <div className="file-chip__meta">
-                      {videoInfo?.video?.width && <span>{videoInfo.video.width}×{videoInfo.video.height}</span>}
-                      <span>{formatDuration(videoInfo?.duration || 0)}</span>
-                      <span>{subtitles.length} subtitles</span>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </SidebarSection>
 
             {/* ── SUBTITLE STYLE ── */}
             <SidebarSection icon={<Subtitles size={15} />} title="Subtitle Style" desc="Pick and customise a style preset.">
@@ -555,7 +547,7 @@ export default function App() {
             </SidebarSection>
 
             {/* ── TRANSCRIPTION ── */}
-            <SidebarSection icon={<Mic size={15} />} title="Transcription" desc="Re-run with a different Whisper model.">
+            <SidebarSection icon={<Mic size={15} />} title="Transcription" desc="Import and regenerate subtitles from one place.">
               <div className="two-col">
                 <Field label="Model">
                   <Select value={subtitleForm.model} onValueChange={(v) => setSubtitleForm((p) => ({ ...p, model: v }))}>
@@ -569,31 +561,28 @@ export default function App() {
                   <Input value={subtitleForm.language} onChange={(e) => setSubtitleForm((p) => ({ ...p, language: e.target.value }))} placeholder="pt" />
                 </Field>
               </div>
+              {videoFile ? (
+                <div className="file-chip">
+                  <div className="file-chip__icon"><Video size={13} /></div>
+                  <div className="file-chip__info">
+                    <p className="file-chip__name" title={videoFile.originalName}>{videoFile.originalName}</p>
+                    <div className="file-chip__meta">
+                      {videoInfo?.video?.width && <span>{videoInfo.video.width}×{videoInfo.video.height}</span>}
+                      <span>{formatDuration(videoInfo?.duration || 0)}</span>
+                      <span>{subtitles.length} subtitles</span>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="transcription-hint">
+                  <Upload size={15} />
+                  <span>The import button now lives in the empty player area.</span>
+                </div>
+              )}
               <button type="button" className="regen-btn" disabled={!videoReady || regenerating} onClick={handleRegenerate}>
                 {regenerating ? <Loader2 size={14} className="animate-spin" /> : <RotateCcw size={14} />}
                 Regenerate Subtitles
               </button>
-            </SidebarSection>
-
-            {/* ── SUBTITLE TIMING ── */}
-            <SidebarSection icon={<SkipForward size={15} />} title="Timing" desc="Shift all subtitles to fix sync.">
-              <div className="offset-row">
-                {[-1, -0.5, 0.5, 1].map((v) => (
-                  <button key={v} type="button"
-                    className={cn('offset-chip', v < 0 && 'offset-chip--neg')}
-                    disabled={subtitles.length === 0}
-                    onClick={() => shiftSubtitles(v)}>
-                    {v > 0 ? '+' : ''}{v}s
-                  </button>
-                ))}
-              </div>
-              <div className="offset-custom">
-                <Input value={offsetValue} onChange={(e) => setOffsetValue(e.target.value)} placeholder="e.g. 0.5" style={{ fontFamily: 'ui-monospace,monospace', fontSize: '0.8rem' }} />
-                <button type="button" className="action-btn" disabled={subtitles.length === 0}
-                  onClick={() => { const n = Number(offsetValue); if (Number.isFinite(n)) shiftSubtitles(n); }}>
-                  Apply
-                </button>
-              </div>
             </SidebarSection>
 
             {/* ── SUBTITLES LIST ── */}
@@ -648,82 +637,153 @@ export default function App() {
           MAIN PREVIEW
       ═══════════════════════════════════════════ */}
       <main ref={previewRef} className="studio-main">
+        <input
+          id="video-file-input"
+          ref={fileInputRef}
+          type="file"
+          accept="video/*"
+          className="hidden"
+          disabled={uploading}
+          onChange={(e) => {
+            handleUpload(e.target.files?.[0]);
+            e.target.value = '';
+          }}
+        />
 
-        {/* ── CONTROLS BAR (above video) ── */}
-        <div className="player-bar">
-          <button type="button" className="player-btn" onClick={() => seekBy(-5)} disabled={!videoReady} title="−5s (←)">
-            <SkipBack size={15} />
-          </button>
-          <button type="button" className={cn('player-btn player-btn--play', !videoReady && 'player-btn--disabled')} onClick={togglePlayback} disabled={!videoReady} title="Play/Pause (Space)">
-            {isPlaying ? <Pause size={16} style={{ fill: 'currentColor' }} /> : <Play size={16} style={{ fill: 'currentColor' }} />}
-          </button>
-          <button type="button" className="player-btn" onClick={() => seekBy(5)} disabled={!videoReady} title="+5s (→)">
-            <SkipForward size={15} />
-          </button>
+        <div className={cn('preview-workspace', isVerticalVideo && 'preview-workspace--vertical')}>
+          <div ref={videoSurfaceRef} className="video-surface">
+            {videoReady ? (
+              <div
+                className="video-stage"
+                style={videoStageStyle}
+                onMouseMove={() => revealControls()}
+                onMouseLeave={() => setControlsVisible(false)}
+                onTouchStart={() => revealControls(1800)}
+              >
+                <video
+                  ref={videoRef}
+                  src={videoFile.path}
+                  className="video-el"
+                  playsInline preload="metadata"
+                  onLoadedMetadata={(e) => {
+                    setDuration(e.currentTarget.duration || videoInfo?.duration || 0);
+                    setVideoDimensions({
+                      width: e.currentTarget.videoWidth || Number(videoInfo?.video?.width) || 0,
+                      height: e.currentTarget.videoHeight || Number(videoInfo?.video?.height) || 0,
+                    });
+                    e.currentTarget.volume = volume;
+                    e.currentTarget.muted = muted;
+                    revealControls(1400);
+                  }}
+                  onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
+                  onPlay={() => {
+                    setIsPlaying(true);
+                    scheduleControlsHide(900);
+                  }}
+                  onPause={() => {
+                    setIsPlaying(false);
+                    revealControls(1400);
+                  }}
+                />
+                {activeSubtitle && (
+                  <div className="sub-overlay" style={subtitlePreviewStyle.container}>
+                    <div style={subtitlePreviewStyle.box}>
+                      <span style={subtitlePreviewStyle.text}>{activeSubtitle.text}</span>
+                    </div>
+                  </div>
+                )}
+                <div
+                  className="player-overlay"
+                  data-visible={controlsVisible}
+                >
+                  <div className="player-overlay__shade" />
+                  <div className="player-overlay__center">
+                    <button type="button" className="player-btn player-btn--transport" onClick={() => seekBy(-5)} disabled={!videoReady} title="Voltar 5 segundos">
+                      <SkipBack size={22} />
+                    </button>
+                    <button type="button" className={cn('player-btn player-btn--play player-btn--transport-main', !videoReady && 'player-btn--disabled')} onClick={togglePlayback} disabled={!videoReady} title="Play/Pause">
+                      {isPlaying ? <Pause size={28} style={{ fill: 'currentColor' }} /> : <Play size={28} style={{ fill: 'currentColor' }} />}
+                    </button>
+                    <button type="button" className="player-btn player-btn--transport" onClick={() => seekBy(5)} disabled={!videoReady} title="Avançar 5 segundos">
+                      <SkipForward size={22} />
+                    </button>
+                  </div>
 
-          {/* Scrubber */}
-          <div className="scrubber" onClick={videoReady ? (e) => {
-            const r = e.currentTarget.getBoundingClientRect();
-            seekTo(clamp((e.clientX - r.left) / r.width, 0, 1) * duration);
-          } : undefined}>
-            <div className="scrubber__track">
-              <div className="scrubber__fill" style={{ width: `${progress}%` }} />
-              <div className="scrubber__thumb" style={{ left: `${progress}%` }} />
-            </div>
-            <input type="range" className="scrubber__input" min={0} max={duration || 1} step={0.1}
-              value={currentTime} disabled={!videoReady}
-              onChange={(e) => seekTo(Number(e.target.value))} aria-label="Seek" />
-          </div>
+                  <div className="player-bottom">
+                    <div className="player-bottom__meta">
+                      <span className="player-time">
+                        {formatTime(currentTime)}<span style={{ opacity: 0.4, margin: '0 0.15em' }}>/</span>{formatTime(duration)}
+                      </span>
 
-          <span className="player-time">
-            {formatTime(currentTime)}<span style={{ opacity: 0.4, margin: '0 0.15em' }}>/</span>{formatTime(duration)}
-          </span>
+                      <div className="player-vol">
+                        <button type="button" className="player-btn player-btn--sm" onClick={toggleMute} title="Mute">
+                          {muted ? <VolumeX size={14} /> : <Volume2 size={14} />}
+                        </button>
+                        <input type="range" className="vol-slider" min={0} max={1} step={0.05}
+                          value={muted ? 0 : volume} onChange={(e) => updateVolume(Number(e.target.value))} aria-label="Volume" />
+                      </div>
+                    </div>
 
-          <div className="player-vol">
-            <button type="button" className="player-btn player-btn--sm" onClick={toggleMute} title="Mute (M)">
-              {muted ? <VolumeX size={14} /> : <Volume2 size={14} />}
-            </button>
-            <input type="range" className="vol-slider" min={0} max={1} step={0.05}
-              value={muted ? 0 : volume} onChange={(e) => updateVolume(Number(e.target.value))} aria-label="Volume" />
-          </div>
-
-          <div className="player-shortcuts">
-            <kbd>Space</kbd><kbd>J</kbd><kbd>L</kbd><kbd>M</kbd><kbd>F</kbd>
-          </div>
-        </div>
-
-        {/* ── VIDEO SURFACE ── */}
-        <div className="video-surface">
-          {videoReady ? (
-            <>
-              <video
-                ref={videoRef}
-                src={videoFile.path}
-                className="video-el"
-                playsInline preload="metadata"
-                onLoadedMetadata={(e) => {
-                  setDuration(e.currentTarget.duration || videoInfo?.duration || 0);
-                  e.currentTarget.volume = volume;
-                  e.currentTarget.muted = muted;
-                }}
-                onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
-                onPlay={() => setIsPlaying(true)}
-                onPause={() => setIsPlaying(false)}
-              />
-              {activeSubtitle && (
-                <div className="sub-overlay" style={subtitlePreviewStyle.container}>
-                  <div style={subtitlePreviewStyle.box}>
-                    <span style={subtitlePreviewStyle.text}>{activeSubtitle.text}</span>
+                    <div className="scrubber" onClick={videoReady ? (e) => {
+                      const r = e.currentTarget.getBoundingClientRect();
+                      seekTo(clamp((e.clientX - r.left) / r.width, 0, 1) * duration);
+                    } : undefined}>
+                      <div className="scrubber__track">
+                        <div className="scrubber__fill" style={{ width: `${progress}%` }} />
+                        <div className="scrubber__thumb" style={{ left: `${progress}%` }} />
+                      </div>
+                      <input type="range" className="scrubber__input" min={0} max={duration || 1} step={0.1}
+                        value={currentTime} disabled={!videoReady}
+                        onChange={(e) => seekTo(Number(e.target.value))} aria-label="Seek" />
+                    </div>
                   </div>
                 </div>
-              )}
-            </>
-          ) : (
-            <div className="video-empty">
-              <div className="video-empty__icon"><Film size={28} /></div>
-              <p>Import a video to get started</p>
+              </div>
+            ) : (
+              <label
+                htmlFor="video-file-input"
+                className={cn('dropzone dropzone--player', isDragging && 'dropzone--over')}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                aria-disabled={uploading}
+              >
+                <div className="dropzone__icon">
+                  {uploading ? <Loader2 size={22} className="animate-spin" /> : <Upload size={22} />}
+                </div>
+                <p className="dropzone__title">{uploading ? 'Importing & transcribing…' : 'Click or drag video here'}</p>
+                <p className="dropzone__sub">{uploading ? `Whisper ${subtitleForm.model} running…` : 'MP4, MOV, MKV, WebM'}</p>
+              </label>
+            )}
+          </div>
+
+          <section className="timing-panel">
+            <div className="timing-panel__header">
+              <div className="timing-panel__icon"><SkipForward size={15} /></div>
+              <div>
+                <div className="timing-panel__title">Timing</div>
+                <p className="timing-panel__desc">Shift all subtitles to fix sync.</p>
+              </div>
             </div>
-          )}
+
+            <div className="offset-row">
+              {[-1, -0.5, 0.5, 1].map((v) => (
+                <button key={v} type="button"
+                  className={cn('offset-chip', v < 0 && 'offset-chip--neg')}
+                  disabled={subtitles.length === 0}
+                  onClick={() => shiftSubtitles(v)}>
+                  {v > 0 ? '+' : ''}{v}s
+                </button>
+              ))}
+            </div>
+            <div className="offset-custom">
+              <Input value={offsetValue} onChange={(e) => setOffsetValue(e.target.value)} placeholder="e.g. 0.5" style={{ fontFamily: 'ui-monospace,monospace', fontSize: '0.8rem' }} />
+              <button type="button" className="action-btn" disabled={subtitles.length === 0}
+                onClick={() => { const n = Number(offsetValue); if (Number.isFinite(n)) shiftSubtitles(n); }}>
+                Apply
+              </button>
+            </div>
+          </section>
         </div>
       </main>
 
@@ -803,8 +863,13 @@ function ColorPicker({ value, onChange }) {
 function buildPreviewStyle(style) {
   const a = Number(style.alignment || 2);
   const jc = a === 1 ? 'flex-start' : a === 3 ? 'flex-end' : 'center';
+  const bottomOffset = clamp(100 - Number(style.positionY || 84), 2, 28);
   return {
-    container: { justifyContent: jc, alignItems: 'center', top: `${clamp(100 - Number(style.positionY || 84), 0, 100)}%`, transform: 'translateY(-100%)' },
+    container: {
+      justifyContent: jc,
+      alignItems: 'flex-end',
+      paddingBottom: `calc(${bottomOffset}% + var(--subtitle-safe-bottom, 0px))`,
+    },
     box: {
       background: hexToRgba(style.backgroundColor, style.backgroundOpacity),
       borderColor: style.backgroundBorderColor,
@@ -819,8 +884,22 @@ function buildPreviewStyle(style) {
       fontWeight: style.bold ? 700 : 500,
       textAlign: a === 1 ? 'left' : a === 3 ? 'right' : 'center',
       textShadow: `${style.outline || 0}px ${style.outline || 0}px 0 ${style.outlineColor}, 0 0 ${Math.max(0, Number(style.shadow || 0) * 6)}px rgba(0,0,0,.55)`,
-      lineHeight: 1.2, whiteSpace: 'pre-wrap',
+      lineHeight: 1.2, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere',
     },
+  };
+}
+
+function fitAspectRatio(maxWidth, maxHeight, ratio) {
+  if (!maxWidth || !maxHeight || !ratio) return { width: 0, height: 0 };
+  let width = maxWidth;
+  let height = width / ratio;
+  if (height > maxHeight) {
+    height = maxHeight;
+    width = height * ratio;
+  }
+  return {
+    width: Math.floor(width),
+    height: Math.floor(height),
   };
 }
 

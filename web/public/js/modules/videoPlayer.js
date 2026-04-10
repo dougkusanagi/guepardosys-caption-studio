@@ -12,6 +12,8 @@ export class VideoPlayer {
   constructor() {
     this.originalVideo = document.getElementById('video-original');
     this.processedVideo = document.getElementById('video-processed');
+    this.originalVideoWrapper = document.getElementById('video-wrapper-original');
+    this.processedVideoWrapper = document.getElementById('video-wrapper-processed');
     this.originalPanel = document.getElementById('original-panel');
     this.processedPanel = document.getElementById('processed-panel');
     this.processedSubtitleOverlay = document.getElementById('processed-subtitle-overlay');
@@ -77,6 +79,7 @@ export class VideoPlayer {
 
     this.originalVideo.addEventListener('loadedmetadata', () => {
       this.originalDuration = this.originalVideo.duration || 0;
+      this._updateVideoWrapperAspectRatio(this.originalVideo, this.originalVideoWrapper);
       if (!this.hasEditedTimeline()) {
         this._setDisplayDuration(this.originalDuration);
       }
@@ -85,6 +88,7 @@ export class VideoPlayer {
     });
 
     this.processedVideo.addEventListener('loadedmetadata', () => {
+      this._updateVideoWrapperAspectRatio(this.processedVideo, this.processedVideoWrapper);
       if (this.hasRealProcessedOutput && !this.hasEditedTimeline()) {
         this._setDisplayDuration(this.processedVideo.duration || this.originalDuration);
       }
@@ -252,6 +256,15 @@ export class VideoPlayer {
     }
 
     this._updateVolumeIcon();
+  }
+
+  _updateVideoWrapperAspectRatio(video, wrapper) {
+    if (!video || !wrapper) return;
+    const vw = video.videoWidth;
+    const vh = video.videoHeight;
+    if (!vw || !vh) return;
+    const aspectRatio = vw / vh;
+    wrapper.style.aspectRatio = `${aspectRatio}`;
   }
 
   _setDisplayDuration(nextDuration) {

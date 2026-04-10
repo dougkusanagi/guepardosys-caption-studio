@@ -180,7 +180,9 @@
             <span id="original-time" class="text-xs font-mono text-surface-400 ml-auto">00:00.000</span>
           </div>
           <div class="relative bg-black rounded-xl overflow-hidden flex-1 flex items-center justify-center shadow-lg group">
-            <video id="video-original" class="max-w-full max-h-full object-contain" preload="metadata"></video>
+            <div id="video-wrapper-original" class="video-wrapper w-full h-full">
+              <video id="video-original" preload="metadata"></video>
+            </div>
             <!-- Crop Overlay -->
             <div id="crop-overlay" class="absolute inset-0 hidden pointer-events-none">
               <canvas id="crop-canvas" class="w-full h-full pointer-events-auto"></canvas>
@@ -196,8 +198,10 @@
             <span id="processed-time" class="text-xs font-mono text-surface-400 ml-auto">00:00.000</span>
           </div>
           <div class="relative bg-black rounded-xl overflow-hidden flex-1 flex items-center justify-center shadow-lg">
-            <video id="video-processed" class="max-w-full max-h-full object-contain" preload="metadata"></video>
-            <div id="processed-subtitle-overlay" class="video-subtitle-overlay hidden"></div>
+            <div id="video-wrapper-processed" class="video-wrapper w-full h-full">
+              <video id="video-processed" preload="metadata"></video>
+              <div id="processed-subtitle-overlay" class="video-subtitle-overlay hidden"></div>
+            </div>
           </div>
         </div>
       </div>
