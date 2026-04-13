@@ -1,8 +1,6 @@
 import {
   CheckCircle2,
   ChevronDown,
-  ChevronLeft,
-  ChevronRight,
   Download,
   Film,
   Loader2,
@@ -82,7 +80,6 @@ export default function App() {
   const previewRef     = useRef(null);
   const videoRef       = useRef(null);
   const videoSurfaceRef = useRef(null);
-  const presetRailRef  = useRef(null);
   const noticeTimerRef = useRef(null);
   const controlsTimerRef = useRef(null);
   const activeSubRef   = useRef(null);
@@ -424,23 +421,10 @@ export default function App() {
                 >
                   <div className="export-menu__icon"><Video size={14} /></div>
                   <div>
-                    <div className="export-menu__label">Legendas embutidas</div>
+                    <div className="export-menu__label">Legenda embutida</div>
                     <div className="export-menu__sub">Legendas gravadas no vídeo</div>
                   </div>
                 </button>
-                <button
-                  type="button"
-                  className={cn('export-menu__item', !canExport && 'export-menu__item--disabled')}
-                  disabled={!canExport}
-                  onClick={() => handleExport('video-plus-srt')}
-                >
-                  <div className="export-menu__icon"><Film size={14} /></div>
-                  <div>
-                    <div className="export-menu__label">Vídeo + .srt</div>
-                    <div className="export-menu__sub">Vídeo e arquivo de legenda</div>
-                  </div>
-                </button>
-                <div className="export-menu__divider" />
                 <button
                   type="button"
                   className={cn('export-menu__item', subtitles.length === 0 && 'export-menu__item--disabled')}
@@ -477,7 +461,7 @@ export default function App() {
                   <Input value={subtitleForm.language} onChange={(e) => setSubtitleForm((p) => ({ ...p, language: e.target.value }))} placeholder="pt" />
                 </Field>
               </div>
-              {videoFile ? (
+              {videoFile && (
                 <div className="file-chip">
                   <div className="file-chip__icon"><Video size={13} /></div>
                   <div className="file-chip__info">
@@ -489,11 +473,6 @@ export default function App() {
                     </div>
                   </div>
                 </div>
-              ) : (
-                <div className="transcription-hint">
-                  <Upload size={15} />
-                  <span>O botão de importação fica na área vazia do player.</span>
-                </div>
               )}
               <button type="button" className="regen-btn" disabled={!videoReady || regenerating} onClick={handleRegenerate}>
                 {regenerating ? <Loader2 size={14} className="animate-spin" /> : <RotateCcw size={14} />}
@@ -503,28 +482,33 @@ export default function App() {
 
             {/* ── SUBTITLE STYLE ── */}
             <SidebarSection icon={<Subtitles size={15} />} title="Estilo da legenda" desc="Escolha e personalize um preset de estilo.">
-              <div className="preset-row">
-                <button type="button" className="scroll-btn" title="Rolar para a esquerda"
-                  onClick={() => presetRailRef.current?.scrollBy({ left: -180, behavior: 'smooth' })}>
-                  <ChevronLeft size={14} />
-                </button>
-                <div ref={presetRailRef} className="preset-rail">
-                  {presets.map((preset) => (
-                    <button
-                      key={preset.id} type="button"
-                      className={cn('preset-card', selectedPresetId === preset.id && 'preset-card--active')}
-                      onClick={() => handlePresetSelect(preset)}
-                    >
-                      <span className="preset-card__name">{preset.name}</span>
-                      <span className="preset-card__meta">{preset.style.fontName} · {preset.style.fontSize}px</span>
-                      <span className="preset-card__sample" style={sampleChipStyle(preset.style)}>Aa</span>
-                    </button>
-                  ))}
-                </div>
-                <button type="button" className="scroll-btn" title="Rolar para a direita"
-                  onClick={() => presetRailRef.current?.scrollBy({ left: 180, behavior: 'smooth' })}>
-                  <ChevronRight size={14} />
-                </button>
+              <div className="preset-grid">
+                {presets.length > 0 ? (
+                  presets.map((preset) => {
+                    const preview = buildPresetCardPreviewStyle(preset.style);
+                    return (
+                      <button
+                        key={preset.id} type="button"
+                        className={cn('preset-card', selectedPresetId === preset.id && 'preset-card--active')}
+                        onClick={() => handlePresetSelect(preset)}
+                      >
+                        <div className="preset-card__frame">
+                          <div className="preset-card__frame-glow" />
+                          <div style={preview.anchor}>
+                            <div style={preview.box}>
+                              <span style={preview.text}>{preset.name}</span>
+                            </div>
+                          </div>
+                        </div>
+                        <span className="preset-card__name">{preset.name}</span>
+                        <span className="preset-card__meta">{preset.style.fontName} · {preset.style.fontSize}px</span>
+                        <span className="preset-card__desc">{presetStyleDesc(preset.style)}</span>
+                      </button>
+                    );
+                  })
+                ) : (
+                  <div className="preset-empty">Nenhum preset disponível.</div>
+                )}
               </div>
 
               <div className="action-row">
@@ -687,9 +671,11 @@ export default function App() {
                   }}
                 />
                 {activeSubtitle && (
-                  <div className="sub-overlay" style={subtitlePreviewStyle.container}>
-                    <div style={subtitlePreviewStyle.box}>
-                      <span style={subtitlePreviewStyle.text}>{activeSubtitle.text}</span>
+                  <div className="sub-overlay">
+                    <div style={subtitlePreviewStyle.anchor}>
+                      <div style={subtitlePreviewStyle.box}>
+                        <span style={subtitlePreviewStyle.text}>{activeSubtitle.text}</span>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -864,12 +850,17 @@ function ColorPicker({ value, onChange }) {
 function buildPreviewStyle(style) {
   const a = Number(style.alignment || 2);
   const jc = a === 1 ? 'flex-start' : a === 3 ? 'flex-end' : 'center';
-  const bottomOffset = clamp(100 - Number(style.positionY || 84), 2, 28);
+  const bottomPct = 100 - clamp(Number(style.positionY || 84), 0, 100);
   return {
-    container: {
+    anchor: {
+      position: 'absolute',
+      left: 0, right: 0,
+      bottom: `${bottomPct}%`,
+      display: 'flex',
       justifyContent: jc,
-      alignItems: 'flex-end',
-      paddingBottom: `calc(${bottomOffset}% + var(--subtitle-safe-bottom, 0px))`,
+      paddingLeft: 'var(--subtitle-pad-x, 1rem)',
+      paddingRight: 'var(--subtitle-pad-x, 1rem)',
+      boxSizing: 'border-box',
     },
     box: {
       background: hexToRgba(style.backgroundColor, style.backgroundOpacity),
@@ -890,6 +881,31 @@ function buildPreviewStyle(style) {
   };
 }
 
+function buildPresetCardPreviewStyle(style) {
+  const previewStyle = buildPreviewStyle(style);
+  const fontSize = clamp(Math.round(Number(style.fontSize || 28) * 0.38), 11, 18);
+  return {
+    anchor: {
+      ...previewStyle.anchor,
+      left: '8%',
+      right: '8%',
+      paddingLeft: 0,
+      paddingRight: 0,
+      bottom: `${100 - clamp(Number(style.positionY || 84), 0, 100)}%`,
+    },
+    box: {
+      ...previewStyle.box,
+      padding: '0.2em 0.45em',
+      maxWidth: '100%',
+    },
+    text: {
+      ...previewStyle.text,
+      fontSize: `${fontSize}px`,
+      lineHeight: 1.1,
+    },
+  };
+}
+
 function fitAspectRatio(maxWidth, maxHeight, ratio) {
   if (!maxWidth || !maxHeight || !ratio) return { width: 0, height: 0 };
   let width = maxWidth;
@@ -904,14 +920,22 @@ function fitAspectRatio(maxWidth, maxHeight, ratio) {
   };
 }
 
-function sampleChipStyle(style) {
-  return {
-    color: style.primaryColor,
-    background: hexToRgba(style.backgroundColor, style.backgroundOpacity),
-    border: `${style.backgroundBorderThickness || 0}px solid ${style.backgroundBorderColor}`,
-    borderRadius: `${style.backgroundBorderRadius || 0}px`,
-    fontFamily: style.fontName, fontWeight: style.bold ? 700 : 500,
-  };
+function presetStyleDesc(style) {
+  const parts = [];
+  parts.push(alignmentLabel(style.alignment));
+  parts.push(`Y ${Math.round(Number(style.positionY || 84))}`);
+  if (Number(style.outline) > 0) parts.push(`borda ${style.outline}`);
+  if (Number(style.shadow) > 0) parts.push(`sombra ${style.shadow}`);
+  if (style.bold) parts.push('negrito');
+  if (Number(style.backgroundOpacity) > 0) parts.push('fundo');
+  return parts.join(' · ');
+}
+
+function alignmentLabel(value) {
+  const a = Number(value || 2);
+  if (a === 1) return 'Esquerda';
+  if (a === 3) return 'Direita';
+  return 'Centro';
 }
 
 function hexToRgba(hex, opacity = 1) {
