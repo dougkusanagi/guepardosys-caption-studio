@@ -501,8 +501,6 @@ export default function App() {
                           </div>
                         </div>
                         <span className="preset-card__name">{preset.name}</span>
-                        <span className="preset-card__meta">{preset.style.fontName} · {preset.style.fontSize}px</span>
-                        <span className="preset-card__desc">{presetStyleDesc(preset.style)}</span>
                       </button>
                     );
                   })
