@@ -595,7 +595,7 @@ function App() {
     playback.loadProcessed(previewSource);
   }, [subtitleStyle, subtitles, currentOutputPath, processedVideoPath, filename]);
 
-  const dockedLayoutActive = dockProcessedPreview && playback.showProcessed;
+  const dockedLayoutActive = dockProcessedPreview && (playback.showOriginal || playback.showProcessed);
 
   return (
     <div className="app-shell">
@@ -637,7 +637,13 @@ function App() {
             onZoomFit={() => setTimelineUi((prev) => ({ ...prev, zoom: 1 }))}
           />
 
-          <div className={`editor-workspace ${dockedLayoutActive ? 'editor-workspace--docked' : ''}`}>
+          <div className={`editor-workspace ${
+            dockedLayoutActive
+              ? ((playback.showOriginal ? 1 : 0) + (playback.showProcessed ? 1 : 0) === 2)
+                ? 'editor-workspace--docked-double'
+                : 'editor-workspace--docked-single'
+              : ''
+          }`}>
             <div className="editor-main-column">
               <PreviewArea
                 playback={playback}
@@ -1044,6 +1050,11 @@ function OriginalVideoPanel({
   onCropChange,
   className = '',
 }) {
+  const originalVideo = playback.originalVideoRef.current;
+  const aspectRatio = originalVideo && originalVideo.videoWidth && originalVideo.videoHeight
+    ? `${originalVideo.videoWidth} / ${originalVideo.videoHeight}`
+    : 'auto';
+
   return (
     <div id="original-panel" className={`${className} flex-col min-w-0 min-h-0`}>
       <div className="flex items-center gap-2 mb-2">
@@ -1052,24 +1063,27 @@ function OriginalVideoPanel({
         <span className="text-xs font-mono text-surface-400 ml-auto">{formatTime(playback.originalTime)}</span>
       </div>
       <div className="relative bg-black rounded-none overflow-hidden flex-1 min-h-0 flex items-center justify-center shadow-lg group">
-        <div className="video-frame relative max-w-full max-h-full">
+        <div 
+          className="video-frame relative max-w-full max-h-full"
+          style={{ aspectRatio, width: 'auto', height: 'auto' }}
+        >
           <video
             ref={playback.originalVideoRef}
-            className="max-w-full max-h-full object-contain"
+            className="w-full h-full object-contain"
             preload="metadata"
             playsInline
             onLoadedMetadata={playback.handleOriginalLoadedMetadata}
             onTimeUpdate={playback.handleOriginalTimeUpdate}
             onEnded={playback.handleEnded}
           />
+          <CropOverlay
+            active={cropActive}
+            videoRef={playback.originalVideoRef}
+            rect={cropRect}
+            onRectChange={onCropRectChange}
+            onCropChange={onCropChange}
+          />
         </div>
-        <CropOverlay
-          active={cropActive}
-          videoRef={playback.originalVideoRef}
-          rect={cropRect}
-          onRectChange={onCropRectChange}
-          onCropChange={onCropChange}
-        />
         {!playback.originalReady ? (
           <VideoPanelLoadingState
             title="Carregando vídeo original"
@@ -1146,6 +1160,10 @@ function ProcessedVideoPanel({
   showSubtitleOverlay,
   className = '',
 }) {
+  const processedVideo = playback.processedVideoRef.current;
+  const aspectRatio = processedVideo && processedVideo.videoWidth && processedVideo.videoHeight
+    ? `${processedVideo.videoWidth} / ${processedVideo.videoHeight}`
+    : 'auto';
   const subtitlePreviewStyle = buildSubtitlePreviewStyle(subtitleStyle);
 
   return (
@@ -1156,10 +1174,13 @@ function ProcessedVideoPanel({
         <span className="text-xs font-mono text-surface-400 ml-auto">{formatTime(playback.processedTime)}</span>
       </div>
       <div className="relative bg-black rounded-none overflow-hidden flex-1 min-h-0 flex items-center justify-center shadow-lg">
-        <div className="video-frame relative max-w-full max-h-full">
+        <div 
+          className="video-frame relative max-w-full max-h-full"
+          style={{ aspectRatio, width: 'auto', height: 'auto' }}
+        >
           <video
             ref={playback.processedVideoRef}
-            className="block max-w-full max-h-full object-contain"
+            className="block w-full h-full object-contain"
             preload="metadata"
             playsInline
             onLoadedMetadata={playback.handleProcessedLoadedMetadata}
@@ -1197,12 +1218,19 @@ function PreviewArea({
   onCropRectChange,
   onCropChange,
 }) {
-  const previewAreaClass = `preview-area ${dockProcessedPreview && !playback.showOriginal ? 'preview-area--collapsed' : ''}`;
-  const originalPanelClass = playback.showOriginal ? 'flex flex-1' : 'hidden';
-  const processedPanelClass = [
-    playback.showProcessed ? 'flex' : 'hidden',
-    dockProcessedPreview ? 'editor-preview-dock' : 'flex-1',
-  ].filter(Boolean).join(' ');
+  const showOriginal = playback.showOriginal;
+  const showProcessed = playback.showProcessed;
+
+  // Count active panels when docked
+  const dockedPanelsCount = (showOriginal ? 1 : 0) + (showProcessed ? 1 : 0);
+  const isDocked = dockProcessedPreview && dockedPanelsCount > 0;
+
+  const previewAreaClass = isDocked
+    ? `editor-preview-dock ${dockedPanelsCount === 2 ? 'editor-preview-dock--double' : 'editor-preview-dock--single'} flex gap-4`
+    : `preview-area ${dockedPanelsCount === 0 ? 'preview-area--collapsed' : ''}`;
+
+  const originalPanelClass = showOriginal ? 'flex flex-1' : 'hidden';
+  const processedPanelClass = showProcessed ? 'flex flex-1' : 'hidden';
 
   return (
     <div id="preview-area" className={previewAreaClass}>
