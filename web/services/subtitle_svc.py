@@ -49,7 +49,6 @@ def write_ass(
     play_res_x, play_res_y = play_res or (1920, 1080)
     font_name = s.get("fontName", "Arial")
     font_size = s.get("fontSize", 24)
-    primary_color = s.get("primaryColor", "&H00FFFFFF")
     outline_color = s.get("outlineColor", "&H00000000")
     back_color = s.get("backColor", "&H80000000")
     bold = s.get("bold", -1)
@@ -61,6 +60,17 @@ def write_ass(
     area_height = clamp(float(s.get("areaHeight", 18)), 4, 100)
     decoration_padding = max(12.0, (float(outline) * 3.0) + (float(shadow) * 4.0))
 
+    highlight_words = s.get("highlightWords", False)
+    normal_color = s.get("primaryColor", "&H00FFFFFF")
+    highlight_color = s.get("highlightColor", "&H0008B3EA")
+
+    if highlight_words:
+        style_primary = normal_color
+        style_secondary = normal_color
+    else:
+        style_primary = normal_color
+        style_secondary = "&H000000FF"  # Default secondary color (red)
+
     header = f"""[Script Info]
 Title: Generated Subtitles
 ScriptType: v4.00+
@@ -69,7 +79,7 @@ PlayResY: {play_res_y}
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,{font_name},{font_size},{primary_color},&H000000FF,{outline_color},{back_color},{bold},0,0,0,100,100,0,0,1,{outline},{shadow},{alignment},10,10,{margin_v},1
+Style: Default,{font_name},{font_size},{style_primary},{style_secondary},{outline_color},{back_color},{bold},0,0,0,100,100,0,0,1,{outline},{shadow},{alignment},10,10,{margin_v},1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -102,9 +112,49 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     for sub in subtitles:
         start = format_ass_time(sub["start"])
         end = format_ass_time(sub["end"])
-        text = str(sub["text"]).replace("\n", r"\N")
         override = rf"{{\an{alignment}\pos({x_pos:.2f},{y_pos:.2f})\clip(0,{clip_top:.2f},{play_res_x:.2f},{clip_bottom:.2f})}}"
-        dialogues.append(f"Dialogue: 0,{start},{end},Default,,0,0,0,,{override}{text}")
+        
+        words = sub.get("words", [])
+        if highlight_words and words:
+            sorted_words = sorted(words, key=lambda x: float(x.get("start", 0)))
+            sub_start = float(sub["start"])
+            sub_end = float(sub["end"])
+            
+            transitions = [sub_start]
+            for w in sorted_words:
+                transitions.append(float(w.get("start", 0)))
+            transitions.append(sub_end)
+            
+            # Ensure boundaries are sorted, unique, and clamped
+            transitions = sorted(list(set(clamp(t, sub_start, sub_end) for t in transitions)))
+            
+            for i in range(len(transitions) - 1):
+                t_left = transitions[i]
+                t_right = transitions[i+1]
+                if t_right - t_left < 0.01:
+                    continue
+                
+                # Active word index is the last word that has started at or before t_left
+                active_idx = -1
+                for idx, w in enumerate(sorted_words):
+                    if float(w.get("start", 0)) <= t_left:
+                        active_idx = idx
+                    else:
+                        break
+                
+                word_parts = []
+                for idx, w in enumerate(sorted_words):
+                    w_word = str(w.get("word", ""))
+                    if idx == active_idx:
+                        word_parts.append(f"{{\\c{highlight_color}}}{w_word}{{\\c{normal_color}}}")
+                    else:
+                        word_parts.append(w_word)
+                
+                line_text = "".join(word_parts).replace("\n", r"\N")
+                dialogues.append(f"Dialogue: 0,{format_ass_time(t_left)},{format_ass_time(t_right)},Default,,0,0,0,,{override}{line_text}")
+        else:
+            text = str(sub["text"]).replace("\n", r"\N")
+            dialogues.append(f"Dialogue: 0,{start},{end},Default,,0,0,0,,{override}{text}")
 
     content = header + "\n".join(dialogues) + "\n"
     Path(path).write_text(content, encoding="utf-8")

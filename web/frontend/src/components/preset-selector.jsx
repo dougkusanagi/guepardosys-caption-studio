@@ -1,5 +1,5 @@
 import { Bookmark, BookmarkPlus, Pencil, Trash2 } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { createPreset, deletePreset, listPresets, updatePreset } from '../lib/api.js';
 import { Button } from './ui/button.jsx';
@@ -30,6 +30,10 @@ export function PresetSelector({ currentStyle, onStyleChange }) {
   const [editingPreset, setEditingPreset] = useState(null);
   const [loading, setLoading] = useState(false);
   const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    loadPresets();
+  }, []);
 
   async function loadPresets() {
     try {
@@ -105,7 +109,7 @@ export function PresetSelector({ currentStyle, onStyleChange }) {
     <>
       <div className="flex items-center gap-2">
         <Select value={selectedId} onValueChange={handleSelect}>
-          <SelectTrigger className="h-8 text-xs" onFocus={loadPresets}>
+          <SelectTrigger className="h-8 text-xs">
             <SelectValue placeholder="Selecionar preset" />
           </SelectTrigger>
           <SelectContent>

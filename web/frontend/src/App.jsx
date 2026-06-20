@@ -118,6 +118,8 @@ const DEFAULT_SUBTITLE_STYLE = {
   positionY: 88,
   areaHeight: 18,
   bold: false,
+  highlightWords: true,
+  highlightColor: '#facc15',
 };
 
 const DEFAULT_TIMELINE_UI = {
@@ -710,6 +712,19 @@ function App() {
 }
 
 function Header({ editorVisible, originalName, videoInfo, onGoHome, onSave, onOpenProjects, onExport }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   return (
     <header id="app-header" className="bg-white/80 backdrop-blur-xl border-b border-surface-200 sticky top-0 z-50">
       <div className="max-w-[1920px] mx-auto px-6 h-14 flex items-center justify-between">
@@ -730,48 +745,81 @@ function Header({ editorVisible, originalName, videoInfo, onGoHome, onSave, onOp
         </div>
 
         <div className="flex items-center gap-2">
-          <Button
-            type="button"
-            onClick={onGoHome}
-            variant="ghost"
-            size="sm"
-            className={`${editorVisible ? 'inline-flex' : 'hidden'} gap-1.5`}
-            title="Voltar ao início"
-          >
-            <UploadCloud className="w-4 h-4" />
-            Novo projeto
-          </Button>
-          <Button
-            type="button"
-            onClick={onSave}
-            variant="ghost"
-            size="sm"
-            className={`${editorVisible ? 'inline-flex' : 'hidden'} gap-1.5`}
-            title="Salvar Projeto"
-          >
-            <Save className="w-4 h-4" />
-            Salvar
-          </Button>
-          <Button
-            type="button"
-            onClick={onOpenProjects}
-            variant="ghost"
-            size="sm"
-            className="gap-1.5"
-            title="Carregar Projeto"
-          >
-            <FolderOpen className="w-4 h-4" />
-            Abrir
-          </Button>
-          <Button
-            type="button"
-            onClick={onExport}
-            size="sm"
-            className={`${editorVisible ? 'inline-flex' : 'hidden'} gap-2`}
-          >
-            <Download className="w-4 h-4" />
-            Exportar
-          </Button>
+          <div className="relative" ref={dropdownRef}>
+            <Button
+              type="button"
+              onClick={() => setIsOpen(!isOpen)}
+              variant="outline"
+              size="sm"
+              className="gap-1.5 px-3 h-8 text-xs font-medium"
+            >
+              <span>Arquivo</span>
+              <svg className={`w-3 h-3 text-surface-500 transition-transform ${isOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </Button>
+
+            {isOpen && (
+              <div className="absolute right-0 mt-1.5 w-48 rounded-lg border border-surface-200 bg-white/95 backdrop-blur-md shadow-xl py-1 z-50 animate-in fade-in slide-in-from-top-1 duration-100">
+                {editorVisible && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onGoHome();
+                      setIsOpen(false);
+                    }}
+                    className="w-full text-left px-3.5 py-2.5 text-xs text-surface-700 hover:bg-surface-100 flex items-center gap-2.5 transition-colors font-medium"
+                  >
+                    <UploadCloud className="w-3.5 h-3.5 text-surface-400" />
+                    Novo Projeto
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    onOpenProjects();
+                    setIsOpen(false);
+                  }}
+                  className="w-full text-left px-3.5 py-2.5 text-xs text-surface-700 hover:bg-surface-100 flex items-center gap-2.5 transition-colors font-medium"
+                >
+                  <FolderOpen className="w-3.5 h-3.5 text-surface-400" />
+                  Abrir Projeto
+                </button>
+
+                {editorVisible && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onSave();
+                      setIsOpen(false);
+                    }}
+                    className="w-full text-left px-3.5 py-2.5 text-xs text-surface-700 hover:bg-surface-100 flex items-center gap-2.5 transition-colors font-medium"
+                  >
+                    <Save className="w-3.5 h-3.5 text-surface-400" />
+                    Salvar Projeto
+                  </button>
+                )}
+
+                {editorVisible && (
+                  <>
+                    <div className="border-t border-surface-200 my-1" />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onExport();
+                        setIsOpen(false);
+                      }}
+                      className="w-full text-left px-3.5 py-2.5 text-xs text-surface-700 hover:bg-surface-100 flex items-center gap-2.5 transition-colors font-medium"
+                    >
+                      <Download className="w-3.5 h-3.5 text-surface-400" />
+                      Exportar Video
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </header>
@@ -1003,7 +1051,7 @@ function OriginalVideoPanel({
         <span className="text-xs font-semibold text-surface-500 uppercase tracking-wider">Original</span>
         <span className="text-xs font-mono text-surface-400 ml-auto">{formatTime(playback.originalTime)}</span>
       </div>
-      <div className="relative bg-black rounded-xl overflow-hidden flex-1 min-h-0 flex items-center justify-center shadow-lg group">
+      <div className="relative bg-black rounded-none overflow-hidden flex-1 min-h-0 flex items-center justify-center shadow-lg group">
         <div className="video-frame relative max-w-full max-h-full">
           <video
             ref={playback.originalVideoRef}
@@ -1033,6 +1081,65 @@ function OriginalVideoPanel({
   );
 }
 
+function SubtitleOverlayText({ playback, subtitleStyle }) {
+  const activeSubtitle = playback.activeSubtitle;
+  if (!activeSubtitle) return null;
+
+  const highlightWords = subtitleStyle?.highlightWords;
+  const highlightColor = subtitleStyle?.highlightColor || '#facc15';
+
+  if (!highlightWords || !activeSubtitle.words || activeSubtitle.words.length === 0) {
+    return activeSubtitle.text;
+  }
+
+  const sourceTime = playback.hasEditedTimeline()
+    ? playback.timelineTimeToSourceTime(playback.currentTime)
+    : playback.currentTime;
+
+  // Find the currently active word index
+  let activeIndex = -1;
+  for (let i = 0; i < activeSubtitle.words.length; i++) {
+    const w = activeSubtitle.words[i];
+    if (sourceTime >= w.start && sourceTime <= w.end) {
+      activeIndex = i;
+      break;
+    }
+  }
+
+  // If no word is currently active (e.g. during small gaps),
+  // keep highlighting the last spoken word to avoid flickering.
+  if (activeIndex === -1) {
+    for (let i = activeSubtitle.words.length - 1; i >= 0; i--) {
+      if (sourceTime >= activeSubtitle.words[i].end) {
+        activeIndex = i;
+        break;
+      }
+    }
+  }
+
+  return (
+    <>
+      {activeSubtitle.words.map((w, i) => {
+        const isHighlighted = i === activeIndex;
+        return (
+          <span
+            key={i}
+            style={{
+              display: 'inline-block',
+              verticalAlign: 'baseline',
+              color: isHighlighted ? highlightColor : (subtitleStyle?.primaryColor || '#ffffff'),
+              transform: isHighlighted ? 'scale(1.16)' : 'scale(1)',
+              transition: 'color 0.1s ease-in-out, transform 0.1s ease-in-out',
+            }}
+          >
+            {w.word}
+          </span>
+        );
+      })}
+    </>
+  );
+}
+
 function ProcessedVideoPanel({
   playback,
   subtitleStyle,
@@ -1048,7 +1155,7 @@ function ProcessedVideoPanel({
         <span className="text-xs font-semibold text-emerald-600 uppercase tracking-wider">Processado</span>
         <span className="text-xs font-mono text-surface-400 ml-auto">{formatTime(playback.processedTime)}</span>
       </div>
-      <div className="relative bg-black rounded-xl overflow-hidden flex-1 min-h-0 flex items-center justify-center shadow-lg">
+      <div className="relative bg-black rounded-none overflow-hidden flex-1 min-h-0 flex items-center justify-center shadow-lg">
         <div className="video-frame relative max-w-full max-h-full">
           <video
             ref={playback.processedVideoRef}
@@ -1065,7 +1172,7 @@ function ProcessedVideoPanel({
             style={subtitlePreviewStyle.container}
           >
             <div className="video-subtitle-overlay__text" style={subtitlePreviewStyle.text}>
-              {playback.subtitleText}
+              <SubtitleOverlayText playback={playback} subtitleStyle={subtitleStyle} />
             </div>
           </div>
         </div>
@@ -1730,6 +1837,36 @@ function SubtitleSidebar({ open, settings, setSettings, style, setStyle, subtitl
                       </Button>
                     </div>
                   </div>
+
+                  <div>
+                    <Label className="mb-2 block">Destacar palavras faladas</Label>
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        variant={style.highlightWords ? 'default' : 'outline'}
+                        className="flex-1"
+                        onClick={() => setStyle((prev) => ({ ...prev, highlightWords: true }))}
+                      >
+                        Sim
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={!style.highlightWords ? 'default' : 'outline'}
+                        className="flex-1"
+                        onClick={() => setStyle((prev) => ({ ...prev, highlightWords: false }))}
+                      >
+                        Não
+                      </Button>
+                    </div>
+                  </div>
+
+                  {style.highlightWords && (
+                    <ColorField
+                      label="Cor do Destaque"
+                      value={style.highlightColor || '#facc15'}
+                      onChange={(value) => setStyle((prev) => ({ ...prev, highlightColor: value }))}
+                    />
+                  )}
                 </CardContent>
               </Card>
 
@@ -2065,6 +2202,7 @@ function usePlaybackController() {
   const [playbackRate, setPlaybackRate] = useState(1);
   const [timeInput, setTimeInput] = useState('00:00.000');
   const [subtitleText, setSubtitleText] = useState('');
+  const [activeSubtitle, setActiveSubtitle] = useState(null);
   const [sourceVersion, setSourceVersion] = useState(0);
 
   function hasEditedTimeline() {
@@ -2113,6 +2251,7 @@ function usePlaybackController() {
     const sourceTime = hasEditedTimeline() ? timelineTimeToSourceTime(displayTime) : displayTime;
     const subtitle = subtitlesRef.current.find((item) => sourceTime >= item.start && sourceTime <= item.end);
     setSubtitleText(subtitle?.text || '');
+    setActiveSubtitle(subtitle || null);
   }
 
   function normalizeSourcePath(source) {
@@ -2226,6 +2365,7 @@ function usePlaybackController() {
     setProcessedTime(0);
     setTimeInput('00:00.000');
     setSubtitleText('');
+    setActiveSubtitle(null);
     setDuration(0);
     originalDurationRef.current = 0;
     editIntervalsRef.current = [];
@@ -2296,6 +2436,7 @@ function usePlaybackController() {
     setHasRealProcessedOutput(false);
     setTimeInput('00:00.000');
     setSubtitleText('');
+    setActiveSubtitle(null);
     setSourceVersion((prev) => prev + 1);
   }
 
@@ -2513,6 +2654,8 @@ function usePlaybackController() {
     playbackRate,
     timeInput,
     subtitleText,
+    activeSubtitle,
+    timelineTimeToSourceTime,
     setVolume,
     setPlaybackRate,
     setTimeInput,
@@ -2575,6 +2718,8 @@ function buildBurnStyle(style, displayScale = 1) {
     positionY: clamp(Number(style.positionY) || 0, 0, 100),
     areaHeight: clamp(Number(style.areaHeight) || 18, 4, 100),
     marginV: 0,
+    highlightWords: style.highlightWords ?? false,
+    highlightColor: style.highlightColor ? hexToASSColor(style.highlightColor) : '&H0008B3EA',
   };
 }
 

@@ -107,10 +107,22 @@ def get_subtitle_segments(transcription: dict) -> list[dict]:
     for segment in transcription.get("segments", []):
         text = (segment.get("text") or "").strip()
         if text:
+            words = []
+            for w in segment.get("words") or []:
+                w_start = w.get("start")
+                w_end = w.get("end")
+                w_word = w.get("word")
+                if w_start is not None and w_end is not None and w_word is not None:
+                    words.append({
+                        "word": str(w_word),
+                        "start": float(w_start),
+                        "end": float(w_end),
+                    })
             subtitles.append({
                 "start": float(segment["start"]),
                 "end": float(segment["end"]),
                 "text": text,
+                "words": words,
             })
     return subtitles
 
