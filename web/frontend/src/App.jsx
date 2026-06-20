@@ -643,7 +643,7 @@ function App() {
                 ? 'editor-workspace--docked-double'
                 : 'editor-workspace--docked-single'
               : ''
-          }`}>
+          } ${showSubtitleSidebar ? 'editor-workspace--sidebar-left' : ''}`}>
             <div className="editor-main-column">
               <PreviewArea
                 playback={playback}
@@ -1752,8 +1752,14 @@ function CropOverlay({ active, videoRef, rect, onRectChange, onCropChange }) {
 
 function SubtitleSidebar({ open, settings, setSettings, style, setStyle, subtitles, onClose, onGenerate, onBurn }) {
   return (
-    <Sheet open={open} onOpenChange={(next) => { if (!next) onClose(); }}>
-      <SheetContent side="right" className="top-14 bottom-0 h-auto w-80 rounded-none border-l border-surface-200 p-0">
+    <Sheet open={open} onOpenChange={(next) => { if (!next) onClose(); }} modal={false}>
+      <SheetContent
+        side="left"
+        hasOverlay={false}
+        onPointerDownOutside={(e) => e.preventDefault()}
+        onInteractOutside={(e) => e.preventDefault()}
+        className="top-14 bottom-0 h-auto w-80 rounded-none border-r border-surface-200 p-0"
+      >
         <div className="flex h-full flex-col">
           <SheetHeader className="border-b border-surface-100 px-5 py-4 pr-12">
             <SheetTitle className="flex items-center gap-2">

@@ -27,12 +27,12 @@ const sideClasses = {
 };
 
 const SheetContent = React.forwardRef(function SheetContent(
-  { side = 'right', className, children, showClose = true, ...props },
+  { side = 'right', className, children, showClose = true, hasOverlay = true, ...props },
   ref,
 ) {
   return (
     <SheetPortal>
-      <SheetOverlay />
+      {hasOverlay && <SheetOverlay />}
       <DialogPrimitive.Content
         ref={ref}
         className={cn(

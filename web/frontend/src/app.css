@@ -149,3 +149,13 @@
     min-height: 320px;
   }
 }
+
+.editor-workspace--sidebar-left .editor-main-column {
+  padding-left: 320px;
+}
+
+@media (max-width: 1100px) {
+  .editor-workspace--sidebar-left .editor-main-column {
+    padding-left: 0;
+  }
+}
