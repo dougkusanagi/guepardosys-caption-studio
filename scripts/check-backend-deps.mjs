@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
 const platform = process.platform;
@@ -25,6 +25,27 @@ if (!hasBinary('ffmpeg') || !hasBinary('ffprobe')) {
     process.exit(1);
   }
 }
+
+// Garante que o arquivo do sidecar existe no dev para evitar erro de compilação do Tauri
+const binariesDir = join(process.cwd(), 'src-tauri', 'binaries');
+if (!existsSync(binariesDir)) {
+  mkdirSync(binariesDir, { recursive: true });
+}
+let triple = '';
+if (platform === 'win32') {
+  triple = 'x86_64-pc-windows-msvc';
+} else if (platform === 'darwin') {
+  triple = process.arch === 'arm64' ? 'aarch64-apple-darwin' : 'x86_64-apple-darwin';
+} else {
+  triple = process.arch === 'arm64' ? 'aarch64-unknown-linux-gnu' : 'x86_64-unknown-linux-gnu';
+}
+const exe = platform === 'win32' ? '.exe' : '';
+const sidecarPath = join(binariesDir, `backend-${triple}${exe}`);
+if (!existsSync(sidecarPath)) {
+  console.log('Criando arquivo dummy para o sidecar (necessário para compilação)...');
+  writeFileSync(sidecarPath, '');
+}
+
 
 const missing = [];
 

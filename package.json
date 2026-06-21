@@ -11,7 +11,7 @@
     "build": "vite build --config web/frontend/vite.config.js",
     "preview": "vite preview --config web/frontend/vite.config.js",
     "tauri": "tauri",
-    "tauri:dev": "bun run check:backend && concurrently -k -n backend,frontend,tauri -c green,blue,purple \"bun run backend:serve\" \"bun run frontend\" \"tauri dev\"",
+    "tauri:dev": "tauri dev",
     "build:backend": "node scripts/build-backend.mjs"
   },
   "dependencies": {
