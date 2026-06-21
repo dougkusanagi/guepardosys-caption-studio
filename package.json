@@ -9,7 +9,10 @@
     "backend": "bun run check:backend && bun run backend:serve",
     "backend:serve": "uv run uvicorn web.server:app --reload --port 3000",
     "build": "vite build --config web/frontend/vite.config.js",
-    "preview": "vite preview --config web/frontend/vite.config.js"
+    "preview": "vite preview --config web/frontend/vite.config.js",
+    "tauri": "tauri",
+    "tauri:dev": "bun run check:backend && concurrently -k -n backend,frontend,tauri -c green,blue,purple \"bun run backend:serve\" \"bun run frontend\" \"tauri dev\"",
+    "build:backend": "node scripts/build-backend.mjs"
   },
   "dependencies": {
     "@radix-ui/react-alert-dialog": "^1.1.15",
@@ -17,6 +20,7 @@
     "@radix-ui/react-scroll-area": "^1.2.10",
     "@radix-ui/react-select": "^2.2.6",
     "@radix-ui/react-slot": "^1.2.4",
+    "@tauri-apps/api": "^2.1.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^1.7.0",
@@ -25,8 +29,10 @@
     "tailwind-merge": "^3.5.0"
   },
   "devDependencies": {
+    "@tauri-apps/cli": "^2.1.0",
     "@vitejs/plugin-react": "^6.0.1",
     "concurrently": "^9.2.1",
     "vite": "^8.0.3"
   }
+
 }

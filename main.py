@@ -50,9 +50,26 @@ except ImportError:
 Interval = tuple[float, float]
 
 
+import sys
+
+def _resolve_binary(binary: str) -> str:
+    local_binary = Path(__file__).parent / "bin" / (f"{binary}.exe" if sys.platform == "win32" else binary)
+    if local_binary.is_file():
+        return str(local_binary)
+    
+    path_binary = shutil.which(binary)
+    if path_binary:
+        return path_binary
+    
+    print(f"Erro: '{binary}' não está no PATH nem na pasta local bin/.", file=sys.stderr)
+    sys.exit(1)
+
+
 def run_cmd(cmd: list[str], check: bool = True) -> subprocess.CompletedProcess:
+    resolved_cmd = list(cmd)
+    resolved_cmd[0] = _resolve_binary(cmd[0])
     return subprocess.run(
-        cmd,
+        resolved_cmd,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
@@ -61,9 +78,8 @@ def run_cmd(cmd: list[str], check: bool = True) -> subprocess.CompletedProcess:
 
 
 def ensure_binary(name: str) -> None:
-    if shutil.which(name) is None:
-        print(f"Erro: '{name}' não está no PATH.", file=sys.stderr)
-        sys.exit(1)
+    _resolve_binary(name)
+
 
 
 def get_video_duration(input_file: Path) -> float:

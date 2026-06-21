@@ -1,4 +1,9 @@
-const BASE_URL = '';
+const BASE_URL = (typeof window !== 'undefined' && (
+  window.location.hostname === 'tauri.localhost' || 
+  window.location.protocol === 'tauri:' || 
+  window.__TAURI_INTERNALS__
+)) ? 'http://127.0.0.1:3000' : '';
+
 
 export async function uploadVideo(file, { onUploadProgress, onProcessingState } = {}) {
   const formData = new FormData();

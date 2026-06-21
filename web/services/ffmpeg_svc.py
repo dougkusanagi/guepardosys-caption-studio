@@ -37,13 +37,36 @@ class MissingBinaryError(FFmpegServiceError):
         )
 
 
+import sys
+
+def _resolve_binary(binary: str) -> str:
+    # Resolve local bin relative to project root (2 levels up from web/services/ffmpeg_svc.py)
+    local_bin_dir = Path(__file__).parents[2] / "bin"
+    suffix = ".exe" if sys.platform == "win32" else ""
+    local_binary = local_bin_dir / f"{binary}{suffix}"
+    
+    if local_binary.is_file():
+        return str(local_binary)
+        
+    path_binary = shutil.which(binary)
+    if path_binary:
+        return path_binary
+        
+    raise MissingBinaryError(binary)
+
+
 def get_missing_binaries() -> list[str]:
-    return [binary for binary in REQUIRED_BINARIES if shutil.which(binary) is None]
+    missing = []
+    for binary in REQUIRED_BINARIES:
+        try:
+            _resolve_binary(binary)
+        except MissingBinaryError:
+            missing.append(binary)
+    return missing
 
 
 def _ensure_binary(binary: str) -> None:
-    if shutil.which(binary) is None:
-        raise MissingBinaryError(binary)
+    _resolve_binary(binary)
 
 
 def _stderr_summary(stderr: str, fallback: str) -> str:
@@ -52,16 +75,18 @@ def _stderr_summary(stderr: str, fallback: str) -> str:
 
 
 def _run(cmd: list[str], *, error_message: str) -> subprocess.CompletedProcess[str]:
-    _ensure_binary(cmd[0])
+    resolved_cmd = list(cmd)
+    resolved_cmd[0] = _resolve_binary(cmd[0])
 
     try:
         result = subprocess.run(
-            cmd,
+            resolved_cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
             check=False,
         )
+
     except OSError as exc:
         detail = exc.strerror or str(exc)
         raise FFmpegServiceError(f"{error_message}: {detail}") from exc

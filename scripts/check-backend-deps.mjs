@@ -1,4 +1,6 @@
 import { spawnSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 
 const platform = process.platform;
 
@@ -7,14 +9,21 @@ function commandExists(command, args = ['--version']) {
   return result.error?.code !== 'ENOENT';
 }
 
-function ffmpegInstallHint() {
-  if (platform === 'darwin') {
-    return 'brew install ffmpeg';
+function hasBinary(name) {
+  const exe = platform === 'win32' ? `${name}.exe` : name;
+  const localExists = existsSync(join(process.cwd(), 'bin', exe));
+  if (localExists) return true;
+  return commandExists(name, ['-version']);
+}
+
+// Se não achar localmente nem no PATH, tenta baixar
+if (!hasBinary('ffmpeg') || !hasBinary('ffprobe')) {
+  console.log('FFmpeg/FFprobe não encontrados localmente ou no PATH. Iniciando download automático...');
+  const downloadResult = spawnSync(process.execPath, ['scripts/download-ffmpeg.mjs'], { stdio: 'inherit' });
+  if (downloadResult.status !== 0) {
+    console.error('Erro ao baixar FFmpeg/FFprobe automaticamente.');
+    process.exit(1);
   }
-  if (platform === 'win32') {
-    return 'Install the ffmpeg package for Windows and ensure ffmpeg.exe and ffprobe.exe are on PATH.';
-  }
-  return 'sudo apt install -y ffmpeg';
 }
 
 const missing = [];
@@ -26,17 +35,18 @@ if (!commandExists('uv')) {
   });
 }
 
-if (!commandExists('ffmpeg', ['-version'])) {
+// Duplo check para garantir que tudo deu certo após a tentativa de download
+if (!hasBinary('ffmpeg')) {
   missing.push({
     name: 'ffmpeg',
-    reason: `Instale o pacote do sistema: ${ffmpegInstallHint()}`,
+    reason: 'Não foi possível encontrar nem instalar o FFmpeg.',
   });
 }
 
-if (!commandExists('ffprobe', ['-version'])) {
+if (!hasBinary('ffprobe')) {
   missing.push({
     name: 'ffprobe',
-    reason: `Ele vem com o pacote 'ffmpeg': ${ffmpegInstallHint()}`,
+    reason: 'Não foi possível encontrar nem instalar o FFprobe.',
   });
 }
 
@@ -48,3 +58,4 @@ if (missing.length > 0) {
   console.error('\nCorrija as dependências acima e rode `bun run dev` novamente.');
   process.exit(1);
 }
+
