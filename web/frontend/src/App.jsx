@@ -2319,8 +2319,10 @@ function useWsClient(onProgress) {
 
     function connect() {
       if (cancelled) return;
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
+      const wsUrl = BASE_URL
+        ? `${BASE_URL.replace('http', 'ws')}/ws`
+        : `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`;
+      ws = new WebSocket(wsUrl);
 
       ws.onmessage = (event) => {
         try {
