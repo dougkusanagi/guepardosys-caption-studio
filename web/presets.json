@@ -62,5 +62,22 @@
       "areaHeight": 22,
       "bold": true
     }
+  },
+  {
+    "id": "65f67270-2ee8-482c-9f70-4bf8280338a6",
+    "name": "Borda Roxa - Baixo",
+    "style": {
+      "fontName": "Arial",
+      "fontSize": 16,
+      "primaryColor": "#ffffff",
+      "outlineColor": "#553cd3",
+      "outline": 4,
+      "shadow": 1,
+      "alignment": 2,
+      "positionY": 80,
+      "areaHeight": 22,
+      "bold": true,
+      "highlightWords": true
+    }
   }
 ]

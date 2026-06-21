@@ -176,6 +176,18 @@ function App() {
     }));
   });
 
+  useEffect(() => {
+    async function loadInitialProjects() {
+      try {
+        const list = await listProjects();
+        startTransition(() => setProjects(list));
+      } catch (err) {
+        console.error('Erro ao carregar lista de projetos inicial:', err);
+      }
+    }
+    loadInitialProjects();
+  }, []);
+
   const timelineSubtitles = playback.hasEditedTimeline()
     ? playback.mapSubtitlesToTimeline(subtitles)
     : subtitles;
@@ -469,6 +481,8 @@ function App() {
         waveform: timelineWaveform,
       });
       pushToast(`Projeto "${name}" salvo com sucesso!`, 'success');
+      const list = await listProjects();
+      startTransition(() => setProjects(list));
     } catch (err) {
       pushToast(`Erro ao salvar: ${err.message}`, 'error');
     }
@@ -484,59 +498,73 @@ function App() {
     }
   }
 
+  function loadProjectState(state) {
+    resetEditorState();
+    setProjectId(state.projectId);
+    setFilename(state.filename);
+    setOriginalName(state.originalName);
+    setVideoInfo(state.videoInfo);
+    setOriginalWaveform(state.originalWaveform || state.waveform || []);
+    setTimelineWaveform(state.waveform || state.originalWaveform || []);
+    setSubtitles(state.subtitles || []);
+    setEditIntervals(state.editIntervals || []);
+    setProcessedVideoPath(state.processedVideoPath || null);
+    setCurrentOutputPath(state.currentOutputPath || null);
+    setSubtitleSettings({
+      ...DEFAULT_SUBTITLE_SETTINGS,
+      ...(state.subtitleSettings || {}),
+    });
+    setSubtitleStyle({
+      ...DEFAULT_SUBTITLE_STYLE,
+      ...(state.subtitleStyle || {}),
+    });
+    setTimelineUi({
+      ...DEFAULT_TIMELINE_UI,
+      ...(state.timeline || {}),
+    });
+    const shouldDock = state.layout?.dockProcessedPreview ?? shouldUseDockedPreview(state.videoInfo);
+    const loadedOutputPath = state.currentOutputPath || state.processedVideoPath || null;
+    const previewOutputPath = getPreviewProcessedSource(
+      loadedOutputPath,
+      state.processedVideoPath || null,
+      `/uploads/${state.filename}`,
+    );
+    setDockProcessedPreview(shouldDock);
+    setEditorVisible(true);
+    setShowProjectList(false);
+
+    playback.loadOriginal(`/uploads/${state.filename}`, {
+      showOriginal: !shouldDock,
+      showProcessed: shouldDock,
+    });
+    playback.setSubtitles(state.subtitles || []);
+    if (state.editIntervals?.length) {
+      playback.setEditIntervals(state.editIntervals);
+    }
+    if (loadedOutputPath) {
+      playback.loadProcessed(previewOutputPath);
+    }
+  }
+
   async function openProject(projectName) {
     try {
       const state = await loadProject(projectName);
-
-      resetEditorState();
-      setProjectId(state.projectId);
-      setFilename(state.filename);
-      setOriginalName(state.originalName);
-      setVideoInfo(state.videoInfo);
-      setOriginalWaveform(state.originalWaveform || state.waveform || []);
-      setTimelineWaveform(state.waveform || state.originalWaveform || []);
-      setSubtitles(state.subtitles || []);
-      setEditIntervals(state.editIntervals || []);
-      setProcessedVideoPath(state.processedVideoPath || null);
-      setCurrentOutputPath(state.currentOutputPath || null);
-      setSubtitleSettings({
-        ...DEFAULT_SUBTITLE_SETTINGS,
-        ...(state.subtitleSettings || {}),
-      });
-      setSubtitleStyle({
-        ...DEFAULT_SUBTITLE_STYLE,
-        ...(state.subtitleStyle || {}),
-      });
-      setTimelineUi({
-        ...DEFAULT_TIMELINE_UI,
-        ...(state.timeline || {}),
-      });
-      const shouldDock = state.layout?.dockProcessedPreview ?? shouldUseDockedPreview(state.videoInfo);
-      const loadedOutputPath = state.currentOutputPath || state.processedVideoPath || null;
-      const previewOutputPath = getPreviewProcessedSource(
-        loadedOutputPath,
-        state.processedVideoPath || null,
-        `/uploads/${state.filename}`,
-      );
-      setDockProcessedPreview(shouldDock);
-      setEditorVisible(true);
-      setShowProjectList(false);
-
-      playback.loadOriginal(`/uploads/${state.filename}`, {
-        showOriginal: !shouldDock,
-        showProcessed: shouldDock,
-      });
-      playback.setSubtitles(state.subtitles || []);
-      if (state.editIntervals?.length) {
-        playback.setEditIntervals(state.editIntervals);
-      }
-      if (loadedOutputPath) {
-        playback.loadProcessed(previewOutputPath);
-      }
-
+      loadProjectState(state);
       pushToast(`Projeto "${projectName}" carregado!`, 'success');
     } catch (err) {
       pushToast(`Erro ao carregar: ${err.message}`, 'error');
+    }
+  }
+
+  async function handleImportProject(projectData) {
+    try {
+      await saveProject(projectData);
+      loadProjectState(projectData);
+      const list = await listProjects();
+      startTransition(() => setProjects(list));
+      pushToast(`Projeto "${projectData.name}" importado com sucesso!`, 'success');
+    } catch (err) {
+      pushToast(`Erro ao importar projeto: ${err.message}`, 'error');
     }
   }
 
@@ -600,18 +628,27 @@ function App() {
 
   return (
     <div className="app-shell">
-      <Header
-        editorVisible={editorVisible}
-        originalName={originalName}
-        videoInfo={videoInfo}
-        onGoHome={() => setShowHomeConfirm(true)}
-        onSave={saveCurrentProject}
-        onOpenProjects={openProjectList}
-        onExport={runExport}
-      />
+      {editorVisible && (
+        <Header
+          editorVisible={editorVisible}
+          originalName={originalName}
+          videoInfo={videoInfo}
+          onGoHome={() => setShowHomeConfirm(true)}
+          onSave={saveCurrentProject}
+          onOpenProjects={openProjectList}
+          onExport={runExport}
+        />
+      )}
 
       {!editorVisible ? (
-        <UploadScreen onUpload={handleUpload} uploadState={uploadState} />
+        <UploadScreen
+          onUpload={handleUpload}
+          uploadState={uploadState}
+          projects={projects}
+          onOpenProject={openProject}
+          onDeleteProject={removeSavedProject}
+          onImportProject={handleImportProject}
+        />
       ) : (
         <div id="editor-screen">
           <Toolbar
@@ -737,7 +774,7 @@ function Header({ editorVisible, originalName, videoInfo, onGoHome, onSave, onOp
       <div className="max-w-[1920px] mx-auto px-6 h-14 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 bg-gradient-to-br from-primary-500 to-primary-700 rounded-lg flex items-center justify-center">
-            <Clapperboard className="w-4 h-4 text-white" />
+            <Film className="w-4 h-4 text-white" />
           </div>
           <h1 className="text-lg font-bold bg-gradient-to-r from-primary-600 to-primary-800 bg-clip-text text-transparent">StudioCut</h1>
           <span className="text-[10px] font-medium bg-primary-100 text-primary-700 px-2 py-0.5 rounded-full">AI</span>
@@ -833,8 +870,9 @@ function Header({ editorVisible, originalName, videoInfo, onGoHome, onSave, onOp
   );
 }
 
-function UploadScreen({ onUpload, uploadState }) {
+function UploadScreen({ onUpload, uploadState, projects, onOpenProject, onDeleteProject, onImportProject }) {
   const inputRef = useRef(null);
+  const importInputRef = useRef(null);
   const showUploadState = uploadState.phase !== 'idle';
   const isProcessing = uploadState.phase === 'processing';
   const uploadProgress = isProcessing ? 100 : uploadState.progress;
@@ -844,84 +882,192 @@ function UploadScreen({ onUpload, uploadState }) {
     if (file) onUpload(file);
   }
 
+  function handleImportClick() {
+    importInputRef.current?.click();
+  }
+
+  function handleImportFileChange(event) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const projectData = JSON.parse(e.target.result);
+        if (!projectData.projectId || !projectData.filename) {
+          throw new Error("Formato de projeto inválido. Certifique-se de que é um arquivo JSON de projeto do StudioCut.");
+        }
+        onImportProject(projectData);
+      } catch (err) {
+        alert(`Erro ao ler arquivo de projeto: ${err.message}`);
+      }
+    };
+    reader.readAsText(file);
+    event.target.value = '';
+  }
+
   return (
-    <div id="upload-screen" className="flex items-center justify-center min-h-[calc(100vh-56px)]">
-      <Card className="mx-auto w-full max-w-xl border-surface-200/80 shadow-xl shadow-surface-200/40">
-        <CardContent className="px-6 py-10 text-center">
-          <div className="w-20 h-20 bg-gradient-to-br from-primary-100 to-primary-200 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-primary-100">
-            <Film className="w-10 h-10 text-primary-600" />
-          </div>
-          <h2 className="text-3xl font-bold text-surface-900 mb-2">Editor de Vídeo com IA</h2>
-          <p className="text-surface-500 mb-8 text-lg">
-            Remova silêncios, gere legendas automáticas, corte e edite seus vídeos com inteligência artificial
-          </p>
-
-          <label
-            htmlFor="file-input"
-            id="drop-zone"
-            className="block rounded-2xl border-2 border-dashed border-surface-300 bg-surface-50/60 p-12 cursor-pointer transition-all duration-300 group hover:border-primary-400 hover:bg-primary-50/50"
-            onDragEnter={(event) => { event.preventDefault(); event.currentTarget.classList.add('drop-zone-active'); }}
-            onDragOver={(event) => { event.preventDefault(); event.currentTarget.classList.add('drop-zone-active'); }}
-            onDragLeave={(event) => { event.preventDefault(); event.currentTarget.classList.remove('drop-zone-active'); }}
-            onDrop={(event) => {
-              event.preventDefault();
-              event.currentTarget.classList.remove('drop-zone-active');
-              handleFiles(event.dataTransfer.files);
-            }}
-          >
-            <div className="flex flex-col items-center gap-4">
-              <div className="w-14 h-14 bg-white group-hover:bg-primary-100 rounded-xl flex items-center justify-center transition-colors shadow-sm">
-                <UploadCloud className="w-7 h-7 text-surface-400 group-hover:text-primary-500 transition-colors" />
-              </div>
-              <div>
-                <p className="font-semibold text-surface-700 group-hover:text-primary-700 transition-colors">
-                  Arraste um vídeo ou clique para selecionar
-                </p>
-                <p className="text-sm text-surface-400 mt-1">MP4, MOV, AVI, MKV, WebM • Até 2GB</p>
-              </div>
+    <div id="upload-screen" className="flex items-center justify-center min-h-screen bg-surface-50 p-6 md:p-12">
+      <div className="w-full max-w-6xl grid grid-cols-1 md:grid-cols-2 gap-8 items-stretch">
+        {/* Left Side: New Project (Upload) */}
+        <Card className="border-surface-200/80 shadow-xl shadow-surface-200/40 h-full flex flex-col justify-between">
+          <CardHeader className="text-center pb-2 pt-8">
+            <div className="w-16 h-16 bg-gradient-to-br from-primary-500 to-primary-700 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-primary-200">
+              <Film className="w-8 h-8 text-white" />
             </div>
-            <input
-              ref={inputRef}
-              id="file-input"
-              type="file"
-              accept="video/*"
-              className="hidden"
-              onChange={(event) => handleFiles(event.target.files)}
-            />
-          </label>
+            <CardTitle className="text-2xl font-bold text-surface-900">Novo Projeto</CardTitle>
+            <CardDescription className="text-surface-500 text-sm max-w-sm mx-auto">
+              Remova silêncios, gere legendas automáticas, corte e edite seus vídeos com inteligência artificial.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="px-6 pb-8 pt-4 flex-1 flex flex-col justify-center">
+            <label
+              htmlFor="file-input"
+              id="drop-zone"
+              className="block rounded-2xl border-2 border-dashed border-surface-300 bg-surface-50/60 p-8 cursor-pointer transition-all duration-300 group hover:border-primary-400 hover:bg-primary-50/50"
+              onDragEnter={(event) => { event.preventDefault(); event.currentTarget.classList.add('drop-zone-active'); }}
+              onDragOver={(event) => { event.preventDefault(); event.currentTarget.classList.add('drop-zone-active'); }}
+              onDragLeave={(event) => { event.preventDefault(); event.currentTarget.classList.remove('drop-zone-active'); }}
+              onDrop={(event) => {
+                event.preventDefault();
+                event.currentTarget.classList.remove('drop-zone-active');
+                handleFiles(event.dataTransfer.files);
+              }}
+            >
+              <div className="flex flex-col items-center gap-4">
+                <div className="w-12 h-12 bg-white group-hover:bg-primary-100 rounded-xl flex items-center justify-center transition-colors shadow-sm">
+                  <UploadCloud className="w-6 h-6 text-surface-400 group-hover:text-primary-500 transition-colors" />
+                </div>
+                <div className="text-center">
+                  <p className="font-semibold text-sm text-surface-700 group-hover:text-primary-700 transition-colors">
+                    Arraste um vídeo ou clique para selecionar
+                  </p>
+                  <p className="text-xs text-surface-400 mt-1">MP4, MOV, AVI, MKV, WebM • Até 2GB</p>
+                </div>
+              </div>
+              <input
+                ref={inputRef}
+                id="file-input"
+                type="file"
+                accept="video/*"
+                className="hidden"
+                onChange={(event) => handleFiles(event.target.files)}
+              />
+            </label>
 
-          {showUploadState ? (
-            <div id="upload-progress" className="mt-6 space-y-4 text-left">
-              <Card className="border-surface-200/80 bg-surface-50/80">
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-surface-600">Enviando vídeo</span>
-                    <span className="text-sm font-mono text-primary-600">{uploadProgress}%</span>
-                  </div>
-                  <Progress value={uploadProgress} />
-                </CardContent>
-              </Card>
-
-              {isProcessing ? (
-                <Card className="border-primary-100 bg-white/85 shadow-sm shadow-primary-100/40">
+            {showUploadState && (
+              <div id="upload-progress" className="mt-6 space-y-4 text-left">
+                <Card className="border-surface-200/80 bg-surface-50/80">
                   <CardContent className="p-4">
-                    <div className="flex items-center justify-between gap-3 mb-2">
-                      <div>
-                        <p className="text-sm font-semibold text-surface-700">Preparando editor</p>
-                        <p className="text-xs text-surface-500">Gerando waveform e metadados antes de liberar a interface.</p>
-                      </div>
-                      <Loader2 className="w-4 h-4 text-primary-500 animate-spin flex-shrink-0" />
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-medium text-surface-600">Enviando vídeo</span>
+                      <span className="text-xs font-mono text-primary-600">{uploadProgress}%</span>
                     </div>
-                    <div className="w-full bg-primary-50 rounded-full h-2 overflow-hidden">
-                      <div className="indeterminate-progress" />
-                    </div>
+                    <Progress value={uploadProgress} />
                   </CardContent>
                 </Card>
-              ) : null}
+
+                {isProcessing && (
+                  <Card className="border-primary-100 bg-white/85 shadow-sm shadow-primary-100/40">
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between gap-3 mb-2">
+                        <div>
+                          <p className="text-xs font-semibold text-surface-700">Preparando editor</p>
+                          <p className="text-[10px] text-surface-500">Gerando waveform e metadados...</p>
+                        </div>
+                        <Loader2 className="w-3.5 h-3.5 text-primary-500 animate-spin flex-shrink-0" />
+                      </div>
+                      <div className="w-full bg-primary-50 rounded-full h-1.5 overflow-hidden">
+                        <div className="indeterminate-progress" />
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Right Side: Recent Projects */}
+        <Card className="border-surface-200/80 shadow-xl shadow-surface-200/40 h-full flex flex-col justify-between">
+          <CardHeader className="flex flex-row items-center justify-between pb-4 pt-8 px-6 border-b border-surface-100">
+            <div>
+              <CardTitle className="text-xl font-bold text-surface-900 flex items-center gap-2">
+                <FolderOpen className="w-5 h-5 text-primary-500" />
+                Projetos Recentes
+              </CardTitle>
+              <CardDescription className="text-xs text-surface-500 mt-1">
+                Continue editando um projeto salvo.
+              </CardDescription>
             </div>
-          ) : null}
-        </CardContent>
-      </Card>
+            <div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleImportClick}
+                className="flex items-center gap-1.5 text-xs"
+              >
+                <UploadCloud className="w-3.5 h-3.5" />
+                Importar de Arquivo
+              </Button>
+              <input
+                ref={importInputRef}
+                type="file"
+                accept=".json"
+                className="hidden"
+                onChange={handleImportFileChange}
+              />
+            </div>
+          </CardHeader>
+          <CardContent className="p-6 flex-1 flex flex-col justify-start">
+            <ScrollArea className="h-[360px] pr-2">
+              {projects.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full py-16 text-center">
+                  <FolderOpen className="w-10 h-10 text-surface-300 mb-3" />
+                  <p className="text-sm font-medium text-surface-400">Nenhum projeto recente encontrado</p>
+                  <p className="text-xs text-surface-400 mt-1">Envie um vídeo à esquerda para começar.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {projects.map((project) => (
+                    <Card
+                      key={project.name}
+                      className="cursor-pointer border-surface-200 bg-surface-50/50 transition-all hover:border-primary-200 hover:bg-primary-50/30 hover:shadow-sm"
+                      onClick={() => onOpenProject(project.name)}
+                    >
+                      <CardContent className="flex items-center gap-3.5 p-3.5">
+                        <div className="w-9 h-9 bg-primary-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                          <Film className="w-4 h-4 text-primary-600" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-semibold text-surface-800 truncate">{project.name}</p>
+                          <p className="text-[10px] text-surface-400 truncate mt-0.5">
+                            {project.originalName || ''} • {project.date ? new Date(project.date).toLocaleDateString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : ''}
+                          </p>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-surface-400 hover:bg-red-50 hover:text-red-500 rounded-md"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onDeleteProject(project.name);
+                          }}
+                          title="Excluir"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </ScrollArea>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
