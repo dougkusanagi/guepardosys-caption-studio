@@ -21,7 +21,7 @@ O **Guepardosys Caption Studio** (anteriormente *remove-silence*) é um editor d
 Para fazer o download do instalador oficial do Guepardosys Caption Studio:
 
 1. Acesse a seção de **Releases** no repositório GitHub do projeto:
-   👉 **[Baixar Guepardosys Caption Studio - GitHub Releases](https://github.com/dougkusanagi/remove-silence/releases)**
+   👉 **[Baixar Guepardosys Caption Studio - GitHub Releases](https://github.com/dougkusanagi/guepardosys-caption-studio/releases)**
 2. Baixe o instalador adequado para o seu sistema operacional:
    - **Windows (.exe):** `guepardosys-caption-studio_0.1.0_x64-setup.exe` (Recomendado)
    - **Windows (.msi):** `guepardosys-caption-studio_0.1.0_x64_en-US.msi` (Corporativo)
@@ -42,8 +42,8 @@ Se você é desenvolvedor e deseja compilar o aplicativo ou testar modificaçõe
 
 1. **Clone o repositório:**
    ```bash
-   git clone https://github.com/dougkusanagi/remove-silence.git
-   cd remove-silence
+   git clone https://github.com/dougkusanagi/guepardosys-caption-studio.git
+   cd guepardosys-caption-studio
    ```
 
 2. **Crie o ambiente virtual do Python e instale as dependências:**
