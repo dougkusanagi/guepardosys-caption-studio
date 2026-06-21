@@ -90,6 +90,7 @@ import {
   removeSilence,
   saveProject,
   uploadVideo,
+  BASE_URL,
 } from './lib/api.js';
 import { clamp, cn, formatDuration, formatTime, hexToASSColor } from './lib/utils.js';
 
@@ -2335,7 +2336,8 @@ function usePlaybackController() {
     if (!element) return;
     element.pause();
     if (src) {
-      element.src = src;
+      const fullSrc = (src.startsWith('/') && !src.startsWith('//')) ? `${BASE_URL}${src}` : src;
+      element.src = fullSrc;
     } else {
       element.removeAttribute('src');
     }
