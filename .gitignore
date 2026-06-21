@@ -40,4 +40,4 @@ src-tauri/binaries/
 
 # PyInstaller Spec
 *.spec
-
+!backend.spec

@@ -24,13 +24,12 @@ const pyinstallerResult = spawnSync('uv', [
   '--with',
   'pyinstaller',
   'pyinstaller',
-  '--onefile',
-  '--name',
-  'backend',
+  '--clean',
+  '--noconfirm',
   '--distpath',
   binariesDir,
-  'web/server.py'
-], { stdio: 'inherit', shell: true });
+  'backend.spec'
+], { stdio: 'inherit', shell: false });
 
 
 if (pyinstallerResult.status !== 0) {
