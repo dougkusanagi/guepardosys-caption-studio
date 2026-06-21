@@ -33,3 +33,11 @@ web/projects/
 !web/uploads/.gitkeep
 !web/processed/.gitkeep
 !web/projects/.gitkeep
+
+# Local dependencies & binaries
+bin/
+src-tauri/binaries/
+
+# PyInstaller Spec
+*.spec
+
