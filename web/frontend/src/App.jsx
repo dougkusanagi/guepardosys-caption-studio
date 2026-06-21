@@ -138,6 +138,9 @@ const DEFAULT_CROP_RECT = { x: 0.1, y: 0.1, w: 0.8, h: 0.8 };
 const DEFAULT_UPLOAD_STATE = { phase: 'idle', progress: 0 };
 
 function App() {
+  const [backendReady, setBackendReady] = useState(false);
+  const [backendError, setBackendError] = useState(false);
+
   const [projectId, setProjectId] = useState(null);
   const [filename, setFilename] = useState(null);
   const [originalName, setOriginalName] = useState(null);
@@ -177,15 +180,52 @@ function App() {
   });
 
   useEffect(() => {
-    async function loadInitialProjects() {
-      try {
-        const list = await listProjects();
-        startTransition(() => setProjects(list));
-      } catch (err) {
-        console.error('Erro ao carregar lista de projetos inicial:', err);
+    let active = true;
+    let attempts = 0;
+    const maxAttempts = 20; // 20 segundos de espera máxima antes de mostrar aviso
+
+    async function checkBackend() {
+      while (active) {
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => {
+            controller.abort();
+          }, 1000);
+          
+          const res = await fetch(`${BASE_URL}/api/project/list`, {
+            signal: controller.signal,
+          });
+          
+          clearTimeout(timeoutId);
+          
+          if (res.ok) {
+            if (active) {
+              const list = await res.json();
+              startTransition(() => {
+                setProjects(list);
+                setBackendReady(true);
+              });
+            }
+            break;
+          }
+        } catch (e) {
+          console.log("Aguardando inicialização do backend...");
+        }
+
+        attempts += 1;
+        if (attempts >= maxAttempts) {
+          if (active) setBackendError(true);
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, 1000));
       }
     }
-    loadInitialProjects();
+
+    checkBackend();
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   const timelineSubtitles = playback.hasEditedTimeline()
@@ -434,16 +474,53 @@ function App() {
         sourceFile = burnResult.outputPath;
       }
 
-      const blob = await exportVideo({ projectId, sourceFile });
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement('a');
-      anchor.href = url;
-      anchor.download = `studiocut_export_${Date.now()}.mp4`;
-      document.body.appendChild(anchor);
-      anchor.click();
-      document.body.removeChild(anchor);
-      URL.revokeObjectURL(url);
-      pushToast('Vídeo exportado com sucesso!', 'success');
+      const isTauri = typeof window !== 'undefined' && (
+        window.location.hostname === 'tauri.localhost' || 
+        window.location.protocol === 'tauri:' || 
+        !!window.__TAURI_INTERNALS__
+      );
+
+      if (isTauri) {
+        const { invoke } = await import('@tauri-apps/api/core');
+        
+        const defaultName = originalName 
+          ? `${originalName.replace(/\.[^/.]+$/, "")}-legendado.mp4`
+          : 'studiocut_export-legendado.mp4';
+          
+        setShowProcessingModal(true);
+        setProcessingState({
+          title: 'Exportando Vídeo',
+          message: 'Escolha onde deseja salvar o vídeo final...',
+          progress: 100,
+        });
+
+        const status = await invoke('export_video_to_local', {
+          projectId,
+          sourceFile,
+          defaultName,
+        });
+
+        setShowProcessingModal(false);
+
+        if (status === 'success') {
+          pushToast('Vídeo exportado com sucesso!', 'success');
+        } else if (status === 'cancelled') {
+          pushToast('Exportação cancelada.', 'info');
+        }
+      } else {
+        const blob = await exportVideo({ projectId, sourceFile });
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = originalName
+          ? `${originalName.replace(/\.[^/.]+$/, "")}-legendado.mp4`
+          : `studiocut_export_${Date.now()}.mp4`;
+        document.body.appendChild(anchor);
+        anchor.click();
+        document.body.removeChild(anchor);
+        URL.revokeObjectURL(url);
+        pushToast('Vídeo exportado com sucesso!', 'success');
+      }
     } catch (err) {
       setShowProcessingModal(false);
       pushToast(`Erro ao exportar: ${err.message}`, 'error');
@@ -625,6 +702,52 @@ function App() {
   }, [subtitleStyle, subtitles, currentOutputPath, processedVideoPath, filename]);
 
   const dockedLayoutActive = dockProcessedPreview && (playback.showOriginal || playback.showProcessed);
+
+  if (!backendReady) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-surface-900 text-white p-6">
+        <div className="w-full max-w-md text-center space-y-6">
+          <div className="w-20 h-20 bg-gradient-to-br from-primary-500 to-primary-700 rounded-3xl flex items-center justify-center mx-auto shadow-2xl shadow-primary-500/25 animate-pulse">
+            <Film className="w-10 h-10 text-white" />
+          </div>
+          
+          <div className="space-y-2">
+            <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-white via-surface-100 to-surface-300 bg-clip-text text-transparent">
+              StudioCut
+            </h1>
+            <p className="text-surface-400 text-sm">
+              Processamento Inteligente de Vídeo
+            </p>
+          </div>
+
+          <div className="bg-surface-800/50 border border-surface-700/50 rounded-2xl p-6 shadow-xl backdrop-blur-sm space-y-4">
+            <div className="flex items-center justify-center gap-3">
+              <Loader2 className="w-5 h-5 text-primary-500 animate-spin" />
+              <span className="text-sm font-medium text-surface-200">
+                Iniciando servidor de Inteligência Artificial...
+              </span>
+            </div>
+            
+            <p className="text-xs text-surface-400 leading-relaxed">
+              Isso pode levar alguns segundos na primeira inicialização enquanto o motor de áudio e os modelos são carregados.
+            </p>
+
+            {backendError && (
+              <div className="mt-4 pt-4 border-t border-surface-700/50 text-left text-xs text-amber-400 space-y-2">
+                <p className="font-semibold flex items-center gap-1.5">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                  O servidor está demorando mais do que o esperado...
+                </p>
+                <p className="text-surface-400 leading-relaxed">
+                  Isso pode ocorrer se outra instância do StudioCut já estiver aberta ou se a porta 3000 estiver ocupada por outro aplicativo.
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="app-shell">

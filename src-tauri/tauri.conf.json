@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "remove-silence",
+  "productName": "guepardosys-caption-studio",
   "version": "0.1.0",
-  "identifier": "com.studiocut.desktop",
+  "identifier": "com.guepardosys.caption-studio",
   "build": {
     "frontendDist": "../web/dist",
     "devUrl": "http://localhost:5173",

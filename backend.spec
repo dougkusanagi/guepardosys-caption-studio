@@ -1,11 +1,21 @@
 # -*- mode: python ; coding: utf-8 -*-
 
 
+import os
+import sys
+
+bin_files = []
+suffix = ".exe" if sys.platform == "win32" else ""
+for b in ["ffmpeg", "ffprobe"]:
+    src_path = os.path.join("bin", f"{b}{suffix}")
+    if os.path.exists(src_path):
+        bin_files.append((src_path, "bin"))
+
 a = Analysis(
     ['web/server.py'],
     pathex=[],
     binaries=[],
-    datas=[],
+    datas=bin_files,
     hiddenimports=['tzdata'],
     hookspath=[],
     hooksconfig={},

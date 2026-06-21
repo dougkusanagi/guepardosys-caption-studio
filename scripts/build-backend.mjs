@@ -17,6 +17,13 @@ if (!existsSync(binariesDir)) {
   mkdirSync(binariesDir, { recursive: true });
 }
 
+console.log('Garantindo dependências locais de FFmpeg e FFprobe...');
+const downloadResult = spawnSync('node', ['scripts/download-ffmpeg.mjs'], { stdio: 'inherit' });
+if (downloadResult.status !== 0) {
+  console.error('Falha ao baixar FFmpeg/FFprobe para empacotamento.');
+  process.exit(1);
+}
+
 console.log('Compilando backend Python com PyInstaller...');
 // Executa o PyInstaller usando 'uv run --with pyinstaller'
 const pyinstallerResult = spawnSync('uv', [
