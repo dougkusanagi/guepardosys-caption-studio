@@ -39,9 +39,20 @@ UPLOADS_DIR.mkdir(exist_ok=True)
 PROCESSED_DIR.mkdir(exist_ok=True)
 PROJECTS_DIR.mkdir(exist_ok=True)
 
+from fastapi.middleware.cors import CORSMiddleware
+
 # --- App ---
 app = FastAPI(title="StudioCut", version="1.0.0")
 logger = logging.getLogger(__name__)
+
+# Add CORS Middleware to allow cross-origin requests from Tauri WebView
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Static files
 app.mount("/css", StaticFiles(directory=str(PUBLIC_DIR / "css")), name="css")
