@@ -18,9 +18,11 @@ if (!existsSync(binariesDir)) {
 }
 
 console.log('Compilando backend Python com PyInstaller...');
-// Executa o PyInstaller usando 'uv run'
+// Executa o PyInstaller usando 'uv run --with pyinstaller'
 const pyinstallerResult = spawnSync('uv', [
   'run',
+  '--with',
+  'pyinstaller',
   'pyinstaller',
   '--onefile',
   '--name',
@@ -29,6 +31,7 @@ const pyinstallerResult = spawnSync('uv', [
   binariesDir,
   'web/server.py'
 ], { stdio: 'inherit', shell: true });
+
 
 if (pyinstallerResult.status !== 0) {
   console.error('Falha ao compilar com PyInstaller.');
