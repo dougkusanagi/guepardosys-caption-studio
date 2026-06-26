@@ -24,6 +24,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from web.services import ffmpeg_svc, whisper_svc, subtitle_svc, preset_svc
+from web.shorts.router import router as shorts_router
 
 # --- Paths ---
 BASE_DIR = Path(__file__).parent
@@ -53,6 +54,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Register Shorts Router
+app.include_router(shorts_router, prefix="/api/shorts", tags=["shorts"])
 
 # Static files
 app.mount("/css", StaticFiles(directory=str(PUBLIC_DIR / "css")), name="css")

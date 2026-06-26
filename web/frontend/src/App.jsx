@@ -80,6 +80,7 @@ import {
   SheetTitle,
 } from './components/ui/sheet.jsx';
 import { PresetSelector } from './components/preset-selector.jsx';
+import ShortsWizard from './features/shorts/ShortsWizard.jsx';
 import {
   burnSubtitles,
   deleteProject,
@@ -169,14 +170,20 @@ function App() {
   const [cropActive, setCropActive] = useState(false);
   const [cropRect, setCropRect] = useState(DEFAULT_CROP_RECT);
   const [toasts, setToasts] = useState([]);
+  const [activeTool, setActiveTool] = useState(null); // 'editor' | 'shorts' | null
+  const [shortsProgress, setShortsProgress] = useState(null);
 
   const playback = usePlaybackController();
   const clientId = useWsClient((data) => {
-    setProcessingState((prev) => ({
-      ...prev,
-      message: data.message || prev.message,
-      progress: data.progress ?? prev.progress,
-    }));
+    if (data.stage && data.stage.startsWith('shorts:')) {
+      setShortsProgress(data);
+    } else {
+      setProcessingState((prev) => ({
+        ...prev,
+        message: data.message || prev.message,
+        progress: data.progress ?? prev.progress,
+      }));
+    }
   });
 
   useEffect(() => {
@@ -265,6 +272,8 @@ function App() {
     setOriginalName(null);
     setVideoInfo(null);
     setEditorVisible(false);
+    setActiveTool(null);
+    setShortsProgress(null);
     setProjects([]);
     setShowProjectList(false);
     setShowProcessingModal(false);
@@ -321,6 +330,7 @@ function App() {
       setFilename(result.file.filename);
       setOriginalName(result.file.originalName);
       setVideoInfo(result.info);
+      setActiveTool('editor');
       setEditorVisible(true);
       startTransition(() => {
         setOriginalWaveform(result.waveform || []);
@@ -334,6 +344,41 @@ function App() {
       });
       setUploadState(DEFAULT_UPLOAD_STATE);
       pushToast('Vídeo carregado com sucesso!', 'success');
+    } catch (err) {
+      setUploadState(DEFAULT_UPLOAD_STATE);
+      pushToast(`Erro ao enviar: ${err.message}`, 'error');
+    }
+  }
+
+  async function handleUploadShorts(file) {
+    setUploadState({ phase: 'uploading', progress: 0 });
+    try {
+      const result = await uploadVideo(file, {
+        onUploadProgress: (percent) => {
+          setUploadState((prev) => (
+            prev.phase === 'processing'
+              ? prev
+              : { phase: 'uploading', progress: percent }
+          ));
+        },
+        onProcessingState: () => setUploadState({ phase: 'processing', progress: 100 }),
+      });
+
+      resetEditorState();
+      setProjectId(result.projectId);
+      setFilename(result.file.filename);
+      setOriginalName(result.file.originalName);
+      setVideoInfo(result.info);
+      setActiveTool('shorts');
+      setEditorVisible(false);
+      const shouldDock = shouldUseDockedPreview(result.info);
+      setDockProcessedPreview(shouldDock);
+      playback.loadOriginal(result.file.path, {
+        showOriginal: true,
+        showProcessed: false,
+      });
+      setUploadState(DEFAULT_UPLOAD_STATE);
+      pushToast('Vídeo carregado com sucesso para Shorts!', 'success');
     } catch (err) {
       setUploadState(DEFAULT_UPLOAD_STATE);
       pushToast(`Erro ao enviar: ${err.message}`, 'error');
@@ -608,6 +653,7 @@ function App() {
     );
     setDockProcessedPreview(shouldDock);
     setEditorVisible(true);
+    setActiveTool('editor');
     setShowProjectList(false);
 
     playback.loadOriginal(`/uploads/${state.filename}`, {
@@ -764,14 +810,26 @@ function App() {
       )}
 
       {!editorVisible ? (
-        <UploadScreen
-          onUpload={handleUpload}
-          uploadState={uploadState}
-          projects={projects}
-          onOpenProject={openProject}
-          onDeleteProject={removeSavedProject}
-          onImportProject={handleImportProject}
-        />
+        activeTool === 'shorts' ? (
+          <ShortsWizard
+            projectId={projectId}
+            filename={filename}
+            videoPath={filename ? `${BASE_URL}/uploads/${filename}` : null}
+            clientId={clientId}
+            shortsProgress={shortsProgress}
+            onGoBack={resetWorkspace}
+          />
+        ) : (
+          <UploadScreen
+            onUpload={handleUpload}
+            onUploadShorts={handleUploadShorts}
+            uploadState={uploadState}
+            projects={projects}
+            onOpenProject={openProject}
+            onDeleteProject={removeSavedProject}
+            onImportProject={handleImportProject}
+          />
+        )
       ) : (
         <div id="editor-screen">
           <Toolbar
@@ -993,16 +1051,26 @@ function Header({ editorVisible, originalName, videoInfo, onGoHome, onSave, onOp
   );
 }
 
-function UploadScreen({ onUpload, uploadState, projects, onOpenProject, onDeleteProject, onImportProject }) {
+function UploadScreen({ onUpload, onUploadShorts, uploadState, projects, onOpenProject, onDeleteProject, onImportProject }) {
   const inputRef = useRef(null);
+  const shortsInputRef = useRef(null);
   const importInputRef = useRef(null);
+  
   const showUploadState = uploadState.phase !== 'idle';
   const isProcessing = uploadState.phase === 'processing';
   const uploadProgress = isProcessing ? 100 : uploadState.progress;
+  const [activeUploadTarget, setActiveUploadTarget] = useState(null); // 'editor' | 'shorts'
 
-  function handleFiles(files) {
+  function handleFiles(files, target) {
     const file = files?.[0];
-    if (file) onUpload(file);
+    if (file) {
+      setActiveUploadTarget(target);
+      if (target === 'shorts') {
+        onUploadShorts(file);
+      } else {
+        onUpload(file);
+      }
+    }
   }
 
   function handleImportClick() {
@@ -1031,55 +1099,54 @@ function UploadScreen({ onUpload, uploadState, projects, onOpenProject, onDelete
 
   return (
     <div id="upload-screen" className="flex items-center justify-center min-h-screen bg-surface-50 p-6 md:p-12">
-      <div className="w-full max-w-6xl grid grid-cols-1 md:grid-cols-2 gap-8 items-stretch">
-        {/* Left Side: New Project (Upload) */}
-        <Card className="border-surface-200/80 shadow-xl shadow-surface-200/40 h-full flex flex-col justify-between">
+      <div className="w-full max-w-7xl grid grid-cols-1 lg:grid-cols-3 gap-8 items-stretch">
+        
+        {/* Card 1: Editor Completo */}
+        <Card className="border-surface-200/80 shadow-xl shadow-surface-200/40 h-full flex flex-col justify-between transition-all hover:shadow-2xl">
           <CardHeader className="text-center pb-2 pt-8">
-            <div className="w-16 h-16 bg-gradient-to-br from-primary-500 to-primary-700 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-primary-200">
-              <Film className="w-8 h-8 text-white" />
+            <div className="w-14 h-14 bg-gradient-to-br from-primary-500 to-primary-700 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-primary-200">
+              <Film className="w-7 h-7 text-white" />
             </div>
-            <CardTitle className="text-2xl font-bold text-surface-900">Novo Projeto</CardTitle>
-            <CardDescription className="text-surface-500 text-sm max-w-sm mx-auto">
-              Remova silêncios, gere legendas automáticas, corte e edite seus vídeos com inteligência artificial.
+            <CardTitle className="text-xl font-bold text-surface-900">Editor Completo</CardTitle>
+            <CardDescription className="text-surface-500 text-xs max-w-xs mx-auto">
+              Remova silêncios, adicione legendas, faça cortes manuais e edite a timeline do seu vídeo.
             </CardDescription>
           </CardHeader>
           <CardContent className="px-6 pb-8 pt-4 flex-1 flex flex-col justify-center">
             <label
-              htmlFor="file-input"
-              id="drop-zone"
-              className="block rounded-2xl border-2 border-dashed border-surface-300 bg-surface-50/60 p-8 cursor-pointer transition-all duration-300 group hover:border-primary-400 hover:bg-primary-50/50"
-              onDragEnter={(event) => { event.preventDefault(); event.currentTarget.classList.add('drop-zone-active'); }}
-              onDragOver={(event) => { event.preventDefault(); event.currentTarget.classList.add('drop-zone-active'); }}
-              onDragLeave={(event) => { event.preventDefault(); event.currentTarget.classList.remove('drop-zone-active'); }}
+              htmlFor="file-input-editor"
+              className="block rounded-2xl border-2 border-dashed border-surface-300 bg-surface-50/60 p-6 cursor-pointer transition-all duration-300 group hover:border-primary-400 hover:bg-primary-50/50"
+              onDragEnter={(event) => { event.preventDefault(); event.currentTarget.classList.add('border-primary-500', 'bg-primary-50/20'); }}
+              onDragOver={(event) => { event.preventDefault(); }}
+              onDragLeave={(event) => { event.preventDefault(); event.currentTarget.classList.remove('border-primary-500', 'bg-primary-50/20'); }}
               onDrop={(event) => {
                 event.preventDefault();
-                event.currentTarget.classList.remove('drop-zone-active');
-                handleFiles(event.dataTransfer.files);
+                event.currentTarget.classList.remove('border-primary-500', 'bg-primary-50/20');
+                handleFiles(event.dataTransfer.files, 'editor');
               }}
             >
-              <div className="flex flex-col items-center gap-4">
-                <div className="w-12 h-12 bg-white group-hover:bg-primary-100 rounded-xl flex items-center justify-center transition-colors shadow-sm">
-                  <UploadCloud className="w-6 h-6 text-surface-400 group-hover:text-primary-500 transition-colors" />
+              <div className="flex flex-col items-center gap-3">
+                <div className="w-10 h-10 bg-white group-hover:bg-primary-100 rounded-xl flex items-center justify-center transition-colors shadow-sm">
+                  <UploadCloud className="w-5 h-5 text-surface-400 group-hover:text-primary-500 transition-colors" />
                 </div>
                 <div className="text-center">
-                  <p className="font-semibold text-sm text-surface-700 group-hover:text-primary-700 transition-colors">
-                    Arraste um vídeo ou clique para selecionar
+                  <p className="font-semibold text-xs text-surface-700 group-hover:text-primary-700 transition-colors">
+                    Arraste ou clique para abrir no Editor
                   </p>
-                  <p className="text-xs text-surface-400 mt-1">MP4, MOV, AVI, MKV, WebM • Até 2GB</p>
                 </div>
               </div>
               <input
                 ref={inputRef}
-                id="file-input"
+                id="file-input-editor"
                 type="file"
                 accept="video/*"
                 className="hidden"
-                onChange={(event) => handleFiles(event.target.files)}
+                onChange={(event) => handleFiles(event.target.files, 'editor')}
               />
             </label>
 
-            {showUploadState && (
-              <div id="upload-progress" className="mt-6 space-y-4 text-left">
+            {showUploadState && activeUploadTarget === 'editor' && (
+              <div className="mt-6 space-y-4 text-left">
                 <Card className="border-surface-200/80 bg-surface-50/80">
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between mb-2">
@@ -1111,16 +1178,93 @@ function UploadScreen({ onUpload, uploadState, projects, onOpenProject, onDelete
           </CardContent>
         </Card>
 
-        {/* Right Side: Recent Projects */}
+        {/* Card 2: Gerar Shorts com IA */}
+        <Card className="border-surface-200/80 shadow-xl shadow-surface-200/40 h-full flex flex-col justify-between transition-all hover:shadow-2xl">
+          <CardHeader className="text-center pb-2 pt-8">
+            <div className="w-14 h-14 bg-gradient-to-br from-indigo-500 to-purple-650 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-indigo-200">
+              <Sparkles className="w-7 h-7 text-white" />
+            </div>
+            <CardTitle className="text-xl font-bold text-surface-900">Gerar Shorts IA</CardTitle>
+            <CardDescription className="text-surface-500 text-xs max-w-xs mx-auto">
+              Encontre os melhores momentos de vídeos longos de forma 100% automática e converta para 9:16 vertical.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="px-6 pb-8 pt-4 flex-1 flex flex-col justify-center">
+            <label
+              htmlFor="file-input-shorts"
+              className="block rounded-2xl border-2 border-dashed border-surface-300 bg-surface-50/60 p-6 cursor-pointer transition-all duration-300 group hover:border-indigo-400 hover:bg-indigo-50/50"
+              onDragEnter={(event) => { event.preventDefault(); event.currentTarget.classList.add('border-indigo-500', 'bg-indigo-50/20'); }}
+              onDragOver={(event) => { event.preventDefault(); }}
+              onDragLeave={(event) => { event.preventDefault(); event.currentTarget.classList.remove('border-indigo-500', 'bg-indigo-50/20'); }}
+              onDrop={(event) => {
+                event.preventDefault();
+                event.currentTarget.classList.remove('border-indigo-500', 'bg-indigo-50/20');
+                handleFiles(event.dataTransfer.files, 'shorts');
+              }}
+            >
+              <div className="flex flex-col items-center gap-3">
+                <div className="w-10 h-10 bg-white group-hover:bg-indigo-100 rounded-xl flex items-center justify-center transition-colors shadow-sm">
+                  <UploadCloud className="w-5 h-5 text-surface-400 group-hover:text-indigo-500 transition-colors" />
+                </div>
+                <div className="text-center">
+                  <p className="font-semibold text-xs text-surface-700 group-hover:text-indigo-700 transition-colors">
+                    Arraste ou clique para criar Shorts
+                  </p>
+                </div>
+              </div>
+              <input
+                ref={shortsInputRef}
+                id="file-input-shorts"
+                type="file"
+                accept="video/*"
+                className="hidden"
+                onChange={(event) => handleFiles(event.target.files, 'shorts')}
+              />
+            </label>
+
+            {showUploadState && activeUploadTarget === 'shorts' && (
+              <div className="mt-6 space-y-4 text-left">
+                <Card className="border-surface-200/80 bg-surface-50/80">
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-medium text-surface-600">Enviando vídeo</span>
+                      <span className="text-xs font-mono text-indigo-600">{uploadProgress}%</span>
+                    </div>
+                    <Progress value={uploadProgress} />
+                  </CardContent>
+                </Card>
+
+                {isProcessing && (
+                  <Card className="border-indigo-100 bg-white/85 shadow-sm shadow-indigo-100/40">
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between gap-3 mb-2">
+                        <div>
+                          <p className="text-xs font-semibold text-surface-700">Iniciando IA</p>
+                          <p className="text-[10px] text-surface-500">Alocando recursos de processamento...</p>
+                        </div>
+                        <Loader2 className="w-3.5 h-3.5 text-indigo-500 animate-spin flex-shrink-0" />
+                      </div>
+                      <div className="w-full bg-indigo-50 rounded-full h-1.5 overflow-hidden">
+                        <div className="indeterminate-progress" />
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Card 3: Projetos Recentes */}
         <Card className="border-surface-200/80 shadow-xl shadow-surface-200/40 h-full flex flex-col justify-between">
           <CardHeader className="flex flex-row items-center justify-between pb-4 pt-8 px-6 border-b border-surface-100">
             <div>
               <CardTitle className="text-xl font-bold text-surface-900 flex items-center gap-2">
                 <FolderOpen className="w-5 h-5 text-primary-500" />
-                Projetos Recentes
+                Recentes
               </CardTitle>
               <CardDescription className="text-xs text-surface-500 mt-1">
-                Continue editando um projeto salvo.
+                Continue editando.
               </CardDescription>
             </div>
             <div>
@@ -1132,7 +1276,7 @@ function UploadScreen({ onUpload, uploadState, projects, onOpenProject, onDelete
                 className="flex items-center gap-1.5 text-xs"
               >
                 <UploadCloud className="w-3.5 h-3.5" />
-                Importar de Arquivo
+                Importar
               </Button>
               <input
                 ref={importInputRef}
@@ -1148,8 +1292,8 @@ function UploadScreen({ onUpload, uploadState, projects, onOpenProject, onDelete
               {projects.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full py-16 text-center">
                   <FolderOpen className="w-10 h-10 text-surface-300 mb-3" />
-                  <p className="text-sm font-medium text-surface-400">Nenhum projeto recente encontrado</p>
-                  <p className="text-xs text-surface-400 mt-1">Envie um vídeo à esquerda para começar.</p>
+                  <p className="text-sm font-medium text-surface-400">Nenhum projeto recente</p>
+                  <p className="text-xs text-surface-400 mt-1">Envie um vídeo para começar.</p>
                 </div>
               ) : (
                 <div className="space-y-3">

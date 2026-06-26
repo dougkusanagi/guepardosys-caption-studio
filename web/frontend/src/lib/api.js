@@ -158,3 +158,27 @@ export async function deletePreset(presetId) {
   }
   return res.json();
 }
+
+export function analyzeShorts(params) {
+  return postJson('/api/shorts/analyze', params, 'Shorts analysis failed to start');
+}
+
+export async function getShortsStatus(projectId, jobId) {
+  const url = jobId 
+    ? `${BASE_URL}/api/shorts/${encodeURIComponent(projectId)}/status?jobId=${encodeURIComponent(jobId)}`
+    : `${BASE_URL}/api/shorts/${encodeURIComponent(projectId)}/status`;
+  const res = await fetch(url);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Failed to fetch shorts status');
+  }
+  return res.json();
+}
+
+export function generateShorts(params) {
+  return postJson('/api/shorts/generate', params, 'Shorts generation failed');
+}
+
+export function exportShort(params) {
+  return postJson('/api/shorts/export', params, 'Shorts export failed');
+}

@@ -7,7 +7,7 @@
     "dev": "bun run check:backend && concurrently -k -n backend,frontend -c green,blue \"bun run backend:serve\" \"bun run frontend\"",
     "frontend": "vite --config web/frontend/vite.config.js",
     "backend": "bun run check:backend && bun run backend:serve",
-    "backend:serve": "uv run uvicorn web.server:app --reload --port 3000",
+    "backend:serve": "uv run python -m uvicorn web.server:app --reload --port 3000",
     "build": "vite build --config web/frontend/vite.config.js",
     "preview": "vite preview --config web/frontend/vite.config.js",
     "tauri": "tauri",
