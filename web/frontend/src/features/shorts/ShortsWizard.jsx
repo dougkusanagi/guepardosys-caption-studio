@@ -10,6 +10,21 @@ import ShortsPreview from './ShortsPreview.jsx';
 
 import { analyzeShorts, getShortsStatus, exportShort, cancelShorts } from '../../lib/api.js';
 
+function formatSecondsInText(text) {
+  if (!text) return '';
+  return text.replace(/\b(\d+(?:\.\d+)?)\s*s\b/g, (match, p1) => {
+    const secondsTotal = parseFloat(p1);
+    if (isNaN(secondsTotal)) return match;
+    const roundedSeconds = Math.round(secondsTotal);
+    if (roundedSeconds < 60) {
+      return `${roundedSeconds}s`;
+    }
+    const minutes = Math.floor(roundedSeconds / 60);
+    const secs = roundedSeconds % 60;
+    return secs > 0 ? `${minutes}m${secs}s` : `${minutes}m`;
+  });
+}
+
 export default function ShortsWizard({ 
   projectId, 
   filename, 
@@ -29,7 +44,8 @@ export default function ShortsWizard({
     language: 'pt',
     reframeMode: 'smart',
     whisperModel: 'small',
-    breathPadding: 0.1
+    breathPadding: 0.1,
+    dynamicClipCount: false
   });
   
   const [jobId, setJobId] = useState(null);
@@ -43,15 +59,15 @@ export default function ShortsWizard({
   
   // System logs terminal states
   const [logs, setLogs] = useState([]);
-  const [showLogs, setShowLogs] = useState(false);
+  const [autoScroll, setAutoScroll] = useState(true);
   const logEndRef = useRef(null);
 
   // Auto-scroll logs terminal
   useEffect(() => {
-    if (showLogs && logEndRef.current) {
+    if (autoScroll && logEndRef.current) {
       logEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [logs, showLogs]);
+  }, [logs, autoScroll]);
 
   // 1. Monitor WebSocket progress updates
   useEffect(() => {
@@ -417,12 +433,23 @@ export default function ShortsWizard({
 
             {/* Terminal Console Fixo */}
             <div className="border-t border-surface-200 pt-6 mt-8">
-              <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
                 <h5 className="text-xs font-bold font-mono text-surface-700 flex items-center gap-2">
                   <span className="w-2 h-2 bg-emerald-500 rounded-full animate-ping" />
                   Console de Comunicação do Sidecar (Logs do Whisper/IA)
                 </h5>
-                <span className="text-[10px] font-mono text-surface-400">Status: Conectado</span>
+                <div className="flex items-center gap-4">
+                  <label className="flex items-center gap-1.5 text-[10px] font-mono text-surface-500 cursor-pointer select-none">
+                    <input 
+                      type="checkbox" 
+                      checked={autoScroll} 
+                      onChange={(e) => setAutoScroll(e.target.checked)}
+                      className="rounded border-surface-300 text-primary-600 focus:ring-primary-500 h-3.5 w-3.5 cursor-pointer"
+                    />
+                    Rolar automaticamente
+                  </label>
+                  <span className="text-[10px] font-mono text-surface-400">Status: Conectado</span>
+                </div>
               </div>
               <div className="bg-surface-950 text-emerald-400 font-mono text-[9px] p-4 rounded-xl border border-surface-800 shadow-inner h-[180px] overflow-y-auto">
                 {logs.length === 0 ? (
@@ -430,7 +457,9 @@ export default function ShortsWizard({
                 ) : (
                   <div className="space-y-1.5">
                     {logs.map((log, index) => (
-                      <div key={index} className="whitespace-pre-wrap leading-relaxed">{log}</div>
+                      <div key={index} className="whitespace-pre-wrap leading-relaxed">
+                        {formatSecondsInText(log)}
+                      </div>
                     ))}
                     <div ref={logEndRef} />
                   </div>

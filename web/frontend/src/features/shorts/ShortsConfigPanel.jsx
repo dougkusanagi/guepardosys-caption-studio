@@ -14,7 +14,9 @@ export default function ShortsConfigPanel({ config, onChange, onStart, hideStart
     <div className="space-y-4">
       {/* Clip Count */}
       <div className="space-y-1.5">
-        <Label className="text-xs font-semibold text-surface-700">Quantidade de Clipes Alvo</Label>
+        <Label className="text-xs font-semibold text-surface-700">
+          {config.dynamicClipCount ? 'Quantidade Mínima de Clipes' : 'Quantidade de Clipes Alvo'}
+        </Label>
         <Select
           value={String(config.clipCount)}
           onValueChange={(val) => setConfigValue('clipCount', parseInt(val))}
@@ -30,6 +32,25 @@ export default function ShortsConfigPanel({ config, onChange, onStart, hideStart
             ))}
           </SelectContent>
         </Select>
+      </div>
+
+      {/* Dynamic Clip Count Toggle */}
+      <div className="flex items-center justify-between p-2.5 rounded-lg border border-surface-100 bg-surface-50/50">
+        <div className="space-y-0.5">
+          <Label className="text-xs font-semibold text-surface-700 cursor-pointer select-none" htmlFor="dynamic-clip-count">
+            Deixar a IA decidir quantidade
+          </Label>
+          <p className="text-[10px] text-surface-500">
+            A IA gerará o máximo de clipes virais possíveis (respeitando o mínimo).
+          </p>
+        </div>
+        <input
+          id="dynamic-clip-count"
+          type="checkbox"
+          checked={!!config.dynamicClipCount}
+          onChange={(e) => setConfigValue('dynamicClipCount', e.target.checked)}
+          className="rounded border-surface-300 text-primary-600 focus:ring-primary-500 h-4 w-4 cursor-pointer"
+        />
       </div>
 
       {/* Target Duration */}

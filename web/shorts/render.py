@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 import uuid
 from pathlib import Path
 from typing import Any
@@ -37,11 +38,30 @@ def compute_silence_removed_intervals(
     Get the speech intervals within [clip_start, clip_end] with breath padding applied,
     narrowing down silent gaps.
     """
-    # 1. Collect all words in the range
-    clip_words = [
-        w for w in words
-        if clip_start <= float(w.get("start", 0)) <= clip_end
-    ]
+    # 1. Collect all words in the range, ignoring music notes, sound descriptions and noise
+    clip_words = []
+    for w in words:
+        w_start = float(w.get("start", 0))
+        w_end = float(w.get("end", 0))
+        
+        # Check if the word overlaps with the clip range
+        if w_end > clip_start and w_start < clip_end:
+            word_text = w.get("word", "")
+            cleaned = word_text.strip().lower()
+            # Clean symbols for comparison
+            cleaned_clean = re.sub(r'[^\w\s♪♫♩♬\[\]()]', '', cleaned)
+            if not cleaned_clean:
+                continue
+            # Filter music symbols
+            if any(sym in cleaned_clean for sym in ["♪", "♫", "♩", "♬"]):
+                continue
+            # Filter music/lyrics markers
+            if "música" in cleaned_clean or "music" in cleaned_clean:
+                continue
+            # Filter action/noise markers in brackets or parenthesis
+            if (cleaned_clean.startswith("[") and cleaned_clean.endswith("]")) or (cleaned_clean.startswith("(") and cleaned_clean.endswith(")")):
+                continue
+            clip_words.append(w)
     
     if not clip_words:
         # No words found, return the full clip range as a single interval

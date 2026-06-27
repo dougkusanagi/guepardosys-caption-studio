@@ -72,6 +72,7 @@ class ShortsPipeline:
             target_duration = float(config.get("targetDuration", 30.0))
             clip_count = int(config.get("clipCount", 3))
             language = config.get("language", "pt")
+            dynamic_clip_count = bool(config.get("dynamicClipCount", False))
 
             # 2. Extract Audio for Whisper
             if progress_callback:
@@ -205,6 +206,13 @@ class ShortsPipeline:
             selected_shorts = []
             
             # Form prompts
+            rigorous_instruction = (
+                "\nSeja extremamente rigoroso na avaliação do potencial viral de cada clipe. "
+                "Priorize qualidade sobre quantidade: selecione apenas trechos que sejam de fato muito interessantes, "
+                "com ganchos fortes e storytelling claro. Não hesite em descartar partes mornas."
+                if dynamic_clip_count else ""
+            )
+
             system_prompt = (
                 "Você é um editor de vídeos virais especializado em Reels/Shorts/TikTok. "
                 "Seu trabalho é analisar o áudio transcrito de um vídeo e selecionar os melhores "
@@ -212,14 +220,21 @@ class ShortsPipeline:
                 "Cada corte DEVE conter:\n"
                 "1. Gancho Inicial (Hook): Os primeiros segundos precisam introduzir o tema de forma impactante.\n"
                 "2. Desenvolvimento: Apresentação da ideia principal de forma clara e fluida.\n"
-                "3. Fechamento: O raciocínio precisa terminar de forma satisfatória e lógica (evitando cortes bruscos no meio de frases).\n\n"
+                "3. Fechamento: O raciocínio precisa terminar de forma satisfatória e lógica (evitando cortes bruscos no meio de frases).\n"
+                f"{rigorous_instruction}\n"
                 f"Duração ideal: ~{target_duration} segundos. Limite máximo estrito: 60 segundos.\n"
                 "A duração ideal é apenas um guia, estenda ou encurte para completar a história."
             )
 
+            quantity_instruction = (
+                f"extrair quantos clipes de alta qualidade você conseguir identificar (no mínimo {clip_count} clipes, se possível)"
+                if dynamic_clip_count else
+                f"extrair exatamente {clip_count} propostas de Shorts"
+            )
+
             user_prompt = (
-                f"Por favor, analise a seguinte transcrição estruturada em parágrafos semânticos e extraia "
-                f"exatamente {clip_count} propostas de Shorts focadas em storytelling completo (início, meio e fim).\n\n"
+                f"Por favor, analise a seguinte transcrição estruturada em parágrafos semânticos e tente "
+                f"{quantity_instruction} focadas em storytelling completo (início, meio e fim).\n\n"
                 f"Transcrição:\n{grouped_text}\n\n"
                 "Responda estritamente com um JSON válido contendo o seguinte formato:\n"
                 "{\n"

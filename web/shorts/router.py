@@ -28,6 +28,7 @@ class ShortsAnalyzeRequest(BaseModel):
     reframeMode: str = "smart"  # smart | blur | center
     whisperModel: str = "small"
     breathPadding: float = 0.1
+    dynamicClipCount: bool = False
 
 
 class GenerateClipsRequest(BaseModel):
@@ -54,6 +55,7 @@ async def analyze_shorts(req: ShortsAnalyzeRequest, background_tasks: Background
         "reframeMode": req.reframeMode,
         "whisperModel": req.whisperModel,
         "breathPadding": req.breathPadding,
+        "dynamicClipCount": req.dynamicClipCount,
     }
 
     # Save initial job state in SQLite
