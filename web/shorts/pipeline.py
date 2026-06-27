@@ -37,26 +37,7 @@ class ShortsPipeline:
         self.cancelled_jobs.add(job_id)
         store.update_job_status(project_id, job_id, "cancelled")
 
-    async def unload_lm_studio_models(self):
-        """Contact LM Studio local API and request unloading all loaded model instances from VRAM."""
-        url_list = "http://localhost:1234/api/v1/models"
-        url_unload = "http://localhost:1234/api/v1/models/unload"
-        try:
-            async with httpx.AsyncClient(timeout=5.0) as client:
-                res = await client.get(url_list)
-                if res.status_code == 200:
-                    data = res.json()
-                    models_list = data.get("data", []) if isinstance(data, dict) else data
-                    for model_info in models_list:
-                        instances = model_info.get("loaded_instances", [])
-                        for inst in instances:
-                            inst_id = inst.get("instance_id") or inst.get("id")
-                            if inst_id:
-                                logger.info(f"Requesting LM Studio to unload model instance: {inst_id}")
-                                unload_res = await client.post(url_unload, json={"instance_id": inst_id})
-                                logger.info(f"LM Studio unload response for {inst_id}: {unload_res.status_code}")
-        except Exception as e:
-            logger.warning(f"Failed to request LM Studio VRAM cleanup: {e}")
+
 
     async def run_analysis(
         self,
@@ -368,4 +349,4 @@ class ShortsPipeline:
             raise
         finally:
             self.active_jobs.discard(job_id)
-            await self.unload_lm_studio_models()
+            await loop.run_in_executor(None, ModelManager.clean_vram)

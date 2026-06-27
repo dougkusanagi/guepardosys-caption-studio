@@ -30,6 +30,27 @@ class ModelManager:
             torch.cuda.empty_cache()
             torch.cuda.ipc_collect()
             
+        # Request LM Studio local API to unload LLM models from VRAM
+        try:
+            import httpx
+            url_list = "http://localhost:1234/api/v1/models"
+            url_unload = "http://localhost:1234/api/v1/models/unload"
+            with httpx.Client(timeout=3.0) as client:
+                res = client.get(url_list)
+                if res.status_code == 200:
+                    data = res.json()
+                    models_list = data.get("data", []) if isinstance(data, dict) else data
+                    for model_info in models_list:
+                        instances = model_info.get("loaded_instances", [])
+                        for inst in instances:
+                            inst_id = inst.get("instance_id") or inst.get("id")
+                            if inst_id:
+                                logger.info(f"Requesting LM Studio to unload model instance: {inst_id}")
+                                unload_res = client.post(url_unload, json={"instance_id": inst_id})
+                                logger.info(f"LM Studio unload response for {inst_id}: {unload_res.status_code}")
+        except Exception as e:
+            logger.warning(f"Failed to request LM Studio VRAM cleanup: {e}")
+            
         elapsed = time.time() - start_time
         logger.info(f"VRAM cleanup complete in {elapsed:.2f}s.")
 
