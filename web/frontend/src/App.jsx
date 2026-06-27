@@ -2794,9 +2794,10 @@ function useWsClient(onProgress) {
       };
 
       ws.onclose = () => {
-        if (cancelled || reconnectAttempts >= 5) return;
+        if (cancelled) return;
         reconnectAttempts += 1;
-        const delay = Math.min(1000 * (2 ** reconnectAttempts), 10000);
+        // Exponential backoff capped at 5 seconds for rapid local recovery
+        const delay = Math.min(1000 * (1.5 ** reconnectAttempts), 5000);
         window.setTimeout(connect, delay);
       };
     }

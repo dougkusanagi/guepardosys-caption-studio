@@ -81,12 +81,17 @@ class ConnectionManager:
         self.connections.pop(client_id, None)
 
     async def send(self, client_id: str, data: dict):
-        ws = self.connections.get(client_id)
-        if ws:
+        # Broadcast the progress update to all active connections.
+        # Since this is a local single-user app, broadcasting ensures that if a client reconnects
+        # (getting a new clientId), they will still receive the updates.
+        disconnected = []
+        for cid, ws in list(self.connections.items()):
             try:
                 await ws.send_json(data)
             except Exception:
-                self.disconnect(client_id)
+                disconnected.append(cid)
+        for cid in disconnected:
+            self.disconnect(cid)
 
 
 manager = ConnectionManager()
