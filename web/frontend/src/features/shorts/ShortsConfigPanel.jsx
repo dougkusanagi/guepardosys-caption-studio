@@ -37,13 +37,13 @@ export default function ShortsConfigPanel({ config, onChange, onStart, hideStart
       {/* Dynamic Clip Count Toggle */}
       <div 
         onClick={() => setConfigValue('dynamicClipCount', !config.dynamicClipCount)}
-        className="flex items-start gap-3 p-3 rounded-lg border border-surface-100 bg-surface-50/50 cursor-pointer hover:bg-surface-100/50 transition-colors select-none"
+        className="flex items-center gap-3 p-3 rounded-lg border border-surface-100 bg-surface-50/50 cursor-pointer hover:bg-surface-100/50 transition-colors select-none"
       >
         <input
           type="checkbox"
           checked={!!config.dynamicClipCount}
           readOnly
-          className="rounded border-surface-300 text-primary-600 focus:ring-primary-500 h-4 w-4 mt-0.5 cursor-pointer"
+          className="rounded border-surface-300 text-primary-600 focus:ring-primary-500 h-4 w-4 cursor-pointer"
         />
         <div className="space-y-0.5">
           <span className="text-xs font-semibold text-surface-700">
