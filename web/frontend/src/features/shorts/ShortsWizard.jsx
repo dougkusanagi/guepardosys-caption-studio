@@ -76,14 +76,21 @@ export default function ShortsWizard({
   // System logs terminal states
   const [logs, setLogs] = useState([]);
   const [autoScroll, setAutoScroll] = useState(true);
-  const logEndRef = useRef(null);
+  const [showLogs, setShowLogs] = useState(false);
+  const logContainerRef = useRef(null);
+  const logHistoryContainerRef = useRef(null);
 
   // Auto-scroll logs terminal
   useEffect(() => {
-    if (autoScroll && logEndRef.current) {
-      logEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    if (autoScroll) {
+      if (logContainerRef.current) {
+        logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
+      }
+      if (logHistoryContainerRef.current) {
+        logHistoryContainerRef.current.scrollTop = logHistoryContainerRef.current.scrollHeight;
+      }
     }
-  }, [logs, autoScroll]);
+  }, [logs, autoScroll, showLogs]);
 
   const [exportDir, setExportDir] = useState('');
   const isTauri = typeof window !== 'undefined' && (!!window.__TAURI_INTERNALS__ || !!window.__TAURI__);
@@ -636,7 +643,7 @@ export default function ShortsWizard({
                   <span className="text-[10px] font-mono text-surface-400">Status: Conectado</span>
                 </div>
               </div>
-              <div className="bg-surface-950 text-emerald-400 font-mono text-[9px] p-4 rounded-xl border border-surface-800 shadow-inner h-[180px] overflow-y-auto">
+              <div ref={logContainerRef} className="bg-surface-950 text-emerald-400 font-mono text-[9px] p-4 rounded-xl border border-surface-800 shadow-inner h-[180px] overflow-y-auto">
                 {logs.length === 0 ? (
                   <div className="text-surface-600 italic">Aguardando logs do pipeline...</div>
                 ) : (
@@ -646,7 +653,6 @@ export default function ShortsWizard({
                         {formatSecondsInText(log)}
                       </div>
                     ))}
-                    <div ref={logEndRef} />
                   </div>
                 )}
               </div>
@@ -816,12 +822,11 @@ export default function ShortsWizard({
             </CardHeader>
             {showLogs && (
               <CardContent className="px-6 pb-6">
-                <div className="bg-surface-950 text-emerald-400 font-mono text-[9px] p-4 rounded-xl border border-surface-800 shadow-inner h-[220px] overflow-y-auto">
+                <div ref={logHistoryContainerRef} className="bg-surface-950 text-emerald-400 font-mono text-[9px] p-4 rounded-xl border border-surface-800 shadow-inner h-[220px] overflow-y-auto">
                   <div className="space-y-1.5">
                     {logs.map((log, index) => (
                       <div key={index} className="whitespace-pre-wrap leading-relaxed">{log}</div>
                     ))}
-                    <div ref={logEndRef} />
                   </div>
                 </div>
               </CardContent>
