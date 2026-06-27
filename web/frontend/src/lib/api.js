@@ -182,3 +182,7 @@ export function generateShorts(params) {
 export function exportShort(params) {
   return postJson('/api/shorts/export', params, 'Shorts export failed');
 }
+
+export function cancelShorts(params) {
+  return postJson('/api/shorts/cancel', params, 'Shorts cancellation failed');
+}

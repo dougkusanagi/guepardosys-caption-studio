@@ -159,3 +159,66 @@
     padding-left: 0;
   }
 }
+
+/* ==========================================================================
+   Dark Mode Overrides for Hardcoded Light Classes
+   ========================================================================== */
+
+/* Header and navigation background */
+.dark #app-header,
+.dark header,
+.dark .bg-white,
+.dark .bg-white\/80 {
+  background-color: #1e293b !important; /* surface-800 */
+}
+
+/* Card and container backgrounds */
+.dark .bg-white,
+.dark .bg-white\/95,
+.dark .bg-surface-50,
+.dark .editor-preview-dock {
+  background: #0f172a !important; /* surface-900 */
+}
+
+.dark .bg-surface-100,
+.dark .bg-surface-50 {
+  background-color: #1e293b !important; /* surface-800 */
+}
+
+.dark .bg-surface-50 {
+  background-color: #0f172a !important; /* surface-900 */
+}
+
+.dark .bg-surface-50.p-4,
+.dark .bg-surface-50.p-6,
+.dark .bg-surface-50.p-8,
+.dark .bg-surface-50\/50 {
+  background-color: #1e293b !important; /* surface-800 */
+}
+
+/* Border overrides */
+.dark .border-surface-200,
+.dark .border-surface-200\/80,
+.dark .border-surface-100 {
+  border-color: #334155 !important; /* surface-700 */
+}
+
+/* Text color overrides for light background styling */
+.dark .text-surface-700,
+.dark .text-surface-800,
+.dark .text-surface-900 {
+  color: #f1f5f9 !important; /* surface-100 */
+}
+
+.dark .text-surface-500,
+.dark .text-surface-600 {
+  color: #94a3b8 !important; /* surface-400 */
+}
+
+/* Scrollbars */
+.dark ::-webkit-scrollbar-thumb {
+  background: #475569;
+}
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}

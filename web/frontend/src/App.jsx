@@ -21,6 +21,7 @@ import {
   Scissors,
   SkipBack,
   SkipForward,
+  Sliders,
   Sparkles,
   Stamp,
   Subtitles,
@@ -33,6 +34,8 @@ import {
   VolumeX,
   ZoomIn,
   ZoomOut,
+  Sun,
+  Moon,
 } from 'lucide-react';
 import { Children, isValidElement, startTransition, useEffect, useEffectEvent, useRef, useState } from 'react';
 
@@ -81,6 +84,7 @@ import {
 } from './components/ui/sheet.jsx';
 import { PresetSelector } from './components/preset-selector.jsx';
 import ShortsWizard from './features/shorts/ShortsWizard.jsx';
+import ShortsConfigPanel from './features/shorts/ShortsConfigPanel.jsx';
 import {
   burnSubtitles,
   deleteProject,
@@ -139,6 +143,74 @@ const DEFAULT_CROP_RECT = { x: 0.1, y: 0.1, w: 0.8, h: 0.8 };
 const DEFAULT_UPLOAD_STATE = { phase: 'idle', progress: 0 };
 
 function App() {
+  const [theme, setTheme] = useState(() => {
+    return localStorage.getItem('theme') || 'system';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('theme', theme);
+    
+    const applySelectedTheme = () => {
+      let isDarkTheme = false;
+      if (theme === 'dark') {
+        isDarkTheme = true;
+      } else if (theme === 'system') {
+        isDarkTheme = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      }
+
+      if (window.tailwind) {
+        const lightColors = {
+          50: '#f8fafc',
+          100: '#f1f5f9',
+          200: '#e2e8f0',
+          300: '#cbd5e1',
+          400: '#94a3b8',
+          500: '#64748b',
+          600: '#475569',
+          700: '#334155',
+          800: '#1e293b',
+          900: '#0f172a'
+        };
+
+        const darkColors = {
+          50: '#0f172a',
+          100: '#1e293b',
+          200: '#334155',
+          300: '#475569',
+          400: '#64748b',
+          500: '#94a3b8',
+          600: '#cbd5e1',
+          700: '#e2e8f0',
+          800: '#f1f5f9',
+          900: '#f8fafc'
+        };
+
+        window.tailwind.config.theme.extend.colors.surface = isDarkTheme ? darkColors : lightColors;
+        window.tailwind.config = { ...window.tailwind.config };
+      }
+
+      // Como invertemos a escala em darkColors (50 = escuro, 900 = claro),
+      // devemos manter bg-surface-50 e text-surface-800 em ambos os modos.
+      document.body.classList.add('bg-surface-50', 'text-surface-800');
+      document.body.classList.remove('bg-surface-900', 'text-surface-100');
+
+      if (isDarkTheme) {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+    };
+
+    applySelectedTheme();
+
+    if (theme === 'system') {
+      const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+      const handleChange = () => applySelectedTheme();
+      mediaQuery.addEventListener('change', handleChange);
+      return () => mediaQuery.removeEventListener('change', handleChange);
+    }
+  }, [theme]);
+
   const [backendReady, setBackendReady] = useState(false);
   const [backendError, setBackendError] = useState(false);
 
@@ -172,6 +244,15 @@ function App() {
   const [toasts, setToasts] = useState([]);
   const [activeTool, setActiveTool] = useState(null); // 'editor' | 'shorts' | null
   const [shortsProgress, setShortsProgress] = useState(null);
+  const [autoStartShorts, setAutoStartShorts] = useState(false);
+  const [shortsConfig, setShortsConfig] = useState({
+    clipCount: 3,
+    targetDuration: 30.0,
+    language: 'pt',
+    reframeMode: 'smart',
+    whisperModel: 'small',
+    breathPadding: 0.1
+  });
 
   const playback = usePlaybackController();
   const clientId = useWsClient((data) => {
@@ -369,6 +450,7 @@ function App() {
       setFilename(result.file.filename);
       setOriginalName(result.file.originalName);
       setVideoInfo(result.info);
+      setAutoStartShorts(true);
       setActiveTool('shorts');
       setEditorVisible(false);
       const shouldDock = shouldUseDockedPreview(result.info);
@@ -797,17 +879,17 @@ function App() {
 
   return (
     <div className="app-shell">
-      {editorVisible && (
-        <Header
-          editorVisible={editorVisible}
-          originalName={originalName}
-          videoInfo={videoInfo}
-          onGoHome={() => setShowHomeConfirm(true)}
-          onSave={saveCurrentProject}
-          onOpenProjects={openProjectList}
-          onExport={runExport}
-        />
-      )}
+      <Header
+        editorVisible={editorVisible}
+        originalName={originalName}
+        videoInfo={videoInfo}
+        onGoHome={() => setShowHomeConfirm(true)}
+        onSave={saveCurrentProject}
+        onOpenProjects={openProjectList}
+        onExport={runExport}
+        theme={theme}
+        setTheme={setTheme}
+      />
 
       {!editorVisible ? (
         activeTool === 'shorts' ? (
@@ -818,6 +900,9 @@ function App() {
             clientId={clientId}
             shortsProgress={shortsProgress}
             onGoBack={resetWorkspace}
+            initialConfig={shortsConfig}
+            autoStart={autoStartShorts}
+            onResetAutoStart={() => setAutoStartShorts(false)}
           />
         ) : (
           <UploadScreen
@@ -828,6 +913,8 @@ function App() {
             onOpenProject={openProject}
             onDeleteProject={removeSavedProject}
             onImportProject={handleImportProject}
+            shortsConfig={shortsConfig}
+            setShortsConfig={setShortsConfig}
           />
         )
       ) : (
@@ -936,7 +1023,7 @@ function App() {
   );
 }
 
-function Header({ editorVisible, originalName, videoInfo, onGoHome, onSave, onOpenProjects, onExport }) {
+function Header({ editorVisible, originalName, videoInfo, onGoHome, onSave, onOpenProjects, onExport, theme, setTheme }) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
 
@@ -970,6 +1057,45 @@ function Header({ editorVisible, originalName, videoInfo, onGoHome, onSave, onOp
         </div>
 
         <div className="flex items-center gap-2">
+          <div className="flex items-center gap-0.5 bg-surface-100 p-0.5 rounded-lg border border-surface-200 text-xs mr-2">
+            <button
+              type="button"
+              onClick={() => setTheme('light')}
+              className={`px-2 py-1 rounded font-medium transition-all text-[10px] ${
+                theme === 'light'
+                  ? 'bg-white dark:bg-surface-700 text-surface-900 shadow-sm'
+                  : 'text-surface-500 hover:text-surface-900'
+              }`}
+              title="Modo Claro"
+            >
+              Claro
+            </button>
+            <button
+              type="button"
+              onClick={() => setTheme('dark')}
+              className={`px-2 py-1 rounded font-medium transition-all text-[10px] ${
+                theme === 'dark'
+                  ? 'bg-white dark:bg-surface-700 text-surface-900 shadow-sm'
+                  : 'text-surface-500 hover:text-surface-900'
+              }`}
+              title="Modo Escuro"
+            >
+              Escuro
+            </button>
+            <button
+              type="button"
+              onClick={() => setTheme('system')}
+              className={`px-2 py-1 rounded font-medium transition-all text-[10px] ${
+                theme === 'system'
+                  ? 'bg-white dark:bg-surface-700 text-surface-900 shadow-sm'
+                  : 'text-surface-500 hover:text-surface-900'
+              }`}
+              title="Usar tema do sistema"
+            >
+              Sistema
+            </button>
+          </div>
+
           <div className="relative" ref={dropdownRef}>
             <Button
               type="button"
@@ -1051,10 +1177,12 @@ function Header({ editorVisible, originalName, videoInfo, onGoHome, onSave, onOp
   );
 }
 
-function UploadScreen({ onUpload, onUploadShorts, uploadState, projects, onOpenProject, onDeleteProject, onImportProject }) {
+function UploadScreen({ onUpload, onUploadShorts, uploadState, projects, onOpenProject, onDeleteProject, onImportProject, shortsConfig, setShortsConfig }) {
   const inputRef = useRef(null);
   const shortsInputRef = useRef(null);
   const importInputRef = useRef(null);
+  
+  const [selectedShortsFile, setSelectedShortsFile] = useState(null);
   
   const showUploadState = uploadState.phase !== 'idle';
   const isProcessing = uploadState.phase === 'processing';
@@ -1066,7 +1194,7 @@ function UploadScreen({ onUpload, onUploadShorts, uploadState, projects, onOpenP
     if (file) {
       setActiveUploadTarget(target);
       if (target === 'shorts') {
-        onUploadShorts(file);
+        setSelectedShortsFile(file);
       } else {
         onUpload(file);
       }
@@ -1190,37 +1318,95 @@ function UploadScreen({ onUpload, onUploadShorts, uploadState, projects, onOpenP
             </CardDescription>
           </CardHeader>
           <CardContent className="px-6 pb-8 pt-4 flex-1 flex flex-col justify-center">
-            <label
-              htmlFor="file-input-shorts"
-              className="block rounded-2xl border-2 border-dashed border-surface-300 bg-surface-50/60 p-6 cursor-pointer transition-all duration-300 group hover:border-indigo-400 hover:bg-indigo-50/50"
-              onDragEnter={(event) => { event.preventDefault(); event.currentTarget.classList.add('border-indigo-500', 'bg-indigo-50/20'); }}
-              onDragOver={(event) => { event.preventDefault(); }}
-              onDragLeave={(event) => { event.preventDefault(); event.currentTarget.classList.remove('border-indigo-500', 'bg-indigo-50/20'); }}
-              onDrop={(event) => {
-                event.preventDefault();
-                event.currentTarget.classList.remove('border-indigo-500', 'bg-indigo-50/20');
-                handleFiles(event.dataTransfer.files, 'shorts');
-              }}
-            >
-              <div className="flex flex-col items-center gap-3">
-                <div className="w-10 h-10 bg-white group-hover:bg-indigo-100 rounded-xl flex items-center justify-center transition-colors shadow-sm">
-                  <UploadCloud className="w-5 h-5 text-surface-400 group-hover:text-indigo-500 transition-colors" />
+            {!showUploadState && (
+              <>
+                {selectedShortsFile ? (
+                  <div className="rounded-2xl border border-indigo-200 bg-indigo-50/10 p-5 flex flex-col items-center justify-between gap-4 mb-4">
+                    <div className="flex items-center gap-3 w-full">
+                      <div className="w-10 h-10 bg-indigo-100 dark:bg-surface-700 rounded-xl flex items-center justify-center text-indigo-650 flex-shrink-0">
+                        <Video className="w-5 h-5" />
+                      </div>
+                      <div className="min-w-0 flex-1 text-left">
+                        <p className="text-xs font-semibold text-surface-900 truncate">
+                          {selectedShortsFile.name}
+                        </p>
+                        <p className="text-[10px] text-surface-500">
+                          {(selectedShortsFile.size / (1024 * 1024)).toFixed(1)} MB
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 p-0 text-surface-400 hover:text-red-500 hover:bg-transparent"
+                        onClick={() => setSelectedShortsFile(null)}
+                        title="Remover vídeo selecionado"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <label
+                    htmlFor="file-input-shorts"
+                    className="block rounded-2xl border-2 border-dashed border-surface-300 bg-surface-50/60 p-6 cursor-pointer transition-all duration-300 group hover:border-indigo-400 hover:bg-indigo-50/50 mb-4"
+                    onDragEnter={(event) => { event.preventDefault(); event.currentTarget.classList.add('border-indigo-500', 'bg-indigo-50/20'); }}
+                    onDragOver={(event) => { event.preventDefault(); }}
+                    onDragLeave={(event) => { event.preventDefault(); event.currentTarget.classList.remove('border-indigo-500', 'bg-indigo-50/20'); }}
+                    onDrop={(event) => {
+                      event.preventDefault();
+                      event.currentTarget.classList.remove('border-indigo-500', 'bg-indigo-50/20');
+                      handleFiles(event.dataTransfer.files, 'shorts');
+                    }}
+                  >
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="w-10 h-10 bg-white dark:bg-surface-700 group-hover:bg-indigo-100 rounded-xl flex items-center justify-center transition-colors shadow-sm">
+                        <UploadCloud className="w-5 h-5 text-surface-400 group-hover:text-indigo-500 transition-colors" />
+                      </div>
+                      <div className="text-center">
+                        <p className="font-semibold text-xs text-surface-700 group-hover:text-indigo-700 transition-colors">
+                          Arraste ou clique para criar Shorts
+                        </p>
+                      </div>
+                    </div>
+                    <input
+                      ref={shortsInputRef}
+                      id="file-input-shorts"
+                      type="file"
+                      accept="video/*"
+                      className="hidden"
+                      onChange={(event) => handleFiles(event.target.files, 'shorts')}
+                    />
+                  </label>
+                )}
+
+                <div className="border-t border-surface-200 pt-6 text-left">
+                  <h4 className="text-xs font-bold text-surface-700 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                    <Sliders className="w-3.5 h-3.5 text-indigo-500" />
+                    Ajustes da Inteligência Artificial
+                  </h4>
+                  <ShortsConfigPanel
+                    config={shortsConfig}
+                    onChange={setShortsConfig}
+                    hideStartButton={true}
+                  />
                 </div>
-                <div className="text-center">
-                  <p className="font-semibold text-xs text-surface-700 group-hover:text-indigo-700 transition-colors">
-                    Arraste ou clique para criar Shorts
-                  </p>
-                </div>
-              </div>
-              <input
-                ref={shortsInputRef}
-                id="file-input-shorts"
-                type="file"
-                accept="video/*"
-                className="hidden"
-                onChange={(event) => handleFiles(event.target.files, 'shorts')}
-              />
-            </label>
+
+                {selectedShortsFile && (
+                  <Button
+                    type="button"
+                    onClick={() => {
+                      setActiveUploadTarget('shorts');
+                      onUploadShorts(selectedShortsFile);
+                    }}
+                    className="w-full py-5 mt-4 bg-gradient-to-r from-primary-600 to-indigo-600 hover:from-primary-700 hover:to-indigo-700 text-white font-semibold rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-primary-200/40 transition-all duration-300 transform hover:scale-[1.01]"
+                  >
+                    <Sparkles className="w-4.5 h-4.5 text-white" />
+                    Analisar Vídeo & Encontrar Shorts
+                  </Button>
+                )}
+              </>
+            )}
 
             {showUploadState && activeUploadTarget === 'shorts' && (
               <div className="mt-6 space-y-4 text-left">

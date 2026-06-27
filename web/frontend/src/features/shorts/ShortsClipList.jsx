@@ -80,14 +80,21 @@ export default function ShortsClipList({
                   {/* Clip Info */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <span className="font-semibold text-sm text-surface-900">Short #{clip.index + 1}</span>
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${scoreColor}`}>
+                      <span className="font-semibold text-sm text-surface-900 truncate">
+                        {clip.headline || `Short #${clip.index + 1}`}
+                      </span>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border flex-shrink-0 ${scoreColor}`}>
                         Score Viral: {viralScorePercent}%
                       </span>
                     </div>
-                    <p className="text-xs text-surface-500 font-mono">
+                    <p className="text-xs text-surface-500 font-mono mb-1">
                       {formatTime(clip.start_sec)} - {formatTime(clip.end_sec)} ({Math.round(clip.end_sec - clip.start_sec)}s)
                     </p>
+                    {clip.storytelling_structure && (
+                      <p className="text-[10px] text-surface-400 italic line-clamp-2">
+                        {clip.storytelling_structure}
+                      </p>
+                    )}
                   </div>
 
                   {/* Actions */}

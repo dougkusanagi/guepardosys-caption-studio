@@ -1,0 +1,74 @@
+{
+  "shorts": [
+    {
+      "id": 1,
+      "start_sec": 9.0,
+      "end_sec": 35.9,
+      "headline": "O Caos da Chegada: Como Começar o Dia Certo",
+      "storytelling_structure": "Gancho: A introdução de um atraso casual. Desenvolvimento: O contexto de checagens de áudio e a correria pessoal (trocar de roupa). Fechamento: Estabelece uma atmosfera de transição e urgência, preparando o espectador para o conteúdo principal."
+    },
+    {
+      "id": 2,
+      "start_sec": 94.9,
+      "end_sec": 104.9,
+      "headline": "O Pior Medo da Quarta-feira",
+      "storytelling_structure": "Gancho: A expressão de preocupação extrema ('Parece que vai cair o mundo'). Desenvolvimento: O contexto do calor e a sensação de instabilidade. Fechamento: Revela que a preocupação é mais interna do que externa, criando uma conexão emocional com o espectador."
+    },
+    {
+      "id": 3,
+      "start_sec": 295.9,
+      "end_sec": 401.9,
+      "headline": "O Loop da Ansiedade: Café vs. Chá",
+      "storytelling_structure": "Gancho: A comparação direta entre café e chá. Desenvolvimento: Explica o ciclo vicioso (ansiedade -> desejo de comer/beber -> café). Fechamento: Apresenta a solução implícita, mostrando como a mudança de hábito quebrou o padrão mental."
+    },
+    {
+      "id": 4,
+      "start_sec": 312.9,
+      "end_sec": 388.9,
+      "headline": "A Ciência da Ansiedade e o Hábito",
+      "storytelling_structure": "Gancho: A reflexão sobre a experiência passada (café). Desenvolvimento: Detalha o mecanismo psicológico do loop de ansiedade ligado à ingestão de substâncias. Fechamento: Conecta a experiência pessoal com um princípio universal da psicologia, dando profundidade ao tema."
+    },
+    {
+      "id": 5,
+      "start_sec": 403.9,
+      "end_sec": 416.9,
+      "headline": "Liberdade Mental: O Fim da Necessidade",
+      "storytelling_structure": "Gancho: A chegada a um ponto de mudança ('eu já cheguei num ponto'). Desenvolvimento: A descrição da ausência de necessidade de compulsão. Fechamento: Mostra o resultado prático da transformação – a liberdade de não precisar mais buscar estímulos constantes."
+    },
+    {
+      "id": 6,
+      "start_sec": 436.9,
+      "end_sec": 450.9,
+      "headline": "A Insegurança no Corpo: O Fator Jinx",
+      "storytelling_structure": "Gancho: A introdução da preocupação física (shape do corpo). Desenvolvimento: A referência à referência visual (Jinx) e a insegurança sobre o formato do peito. Fechamento: Estabelece o conflito emocional que motiva a busca por uma mudança estética."
+    },
+    {
+      "id": 7,
+      "start_sec": 542.9,
+      "end_sec": 586.9,
+      "headline": "A Anatomia do Formato: O Coração Invertido",
+      "storytelling_structure": "Gancho: A explicação visual da anatomia (visão de cima). Desenvolvimento: Detalha a analogia do 'coração invertido' e como os músculos se conectam. Fechamento: Oferece uma explicação técnica envolvente, transformando um tema corporal em algo compreensível e fascinante."
+    },
+    {
+      "id": 8,
+      "start_sec": 591.9,
+      "end_sec": 602.9,
+      "headline": "O Segredo do Formato: Como o Corpo Funciona",
+      "storytelling_structure": "Gancho: A síntese da analogia (o formato de coração). Desenvolvimento: Explica como as 'gotas' se ligam aos músculos do peito e braço. Fechamento: Conclui a explicação com uma afirmação forte, deixando o espectador com um novo entendimento sobre a estrutura corporal."
+    },
+    {
+      "id": 9,
+      "start_sec": 151.9,
+      "end_sec": 187.9,
+      "headline": "O Plano de Ação: O Que Você Precisa Saber",
+      "storytelling_structure": "Gancho: Apresentação das ofertas (cursos e planos). Desenvolvimento: Detalha as opções financeiras (parcelamento, anualidade) de forma clara. Fechamento: Oferece valor imediato ao mostrar diferentes caminhos para o espectador investir no conhecimento."
+    },
+    {
+      "id": 10,
+      "start_sec": 191.9,
+      "end_sec": 214.9,
+      "headline": "Transforme Sua Opinião em Mentoria",
+      "storytelling_structure": "Gancho: A oportunidade de participação (Discord). Desenvolvimento: Explica como a pesquisa do público leva a uma mentoria ao vivo com especialistas. Fechamento: Cria um senso de exclusividade e empoderamento, incentivando o engajamento imediato ('Sua opinião faz diferença')."
+    }
+  ]
+}

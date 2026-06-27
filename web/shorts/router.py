@@ -26,6 +26,8 @@ class ShortsAnalyzeRequest(BaseModel):
     language: str = "pt"
     subtitleStyle: dict[str, Any] = Field(default_factory=dict)
     reframeMode: str = "smart"  # smart | blur | center
+    whisperModel: str = "small"
+    breathPadding: float = 0.1
 
 
 class GenerateClipsRequest(BaseModel):
@@ -50,6 +52,8 @@ async def analyze_shorts(req: ShortsAnalyzeRequest, background_tasks: Background
         "language": req.language,
         "subtitleStyle": req.subtitleStyle,
         "reframeMode": req.reframeMode,
+        "whisperModel": req.whisperModel,
+        "breathPadding": req.breathPadding,
     }
 
     # Save initial job state in SQLite
@@ -123,6 +127,33 @@ async def generate_shorts(req: GenerateClipsRequest):
 
 @router.post("/export")
 async def export_short(req: ExportClipRequest):
-    """Placeholder: export a rendered short clip to user local file system."""
-    logger.info(f"Export short request received: {req}")
-    return {"message": "Clip export initiated", "clipId": req.clipId}
+    """Render and export a rendered short clip with silence removal and burning subtitles."""
+    import asyncio
+    from web.shorts.render import render_clip
+    try:
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(
+            None,
+            lambda: render_clip(req.projectId, req.jobId, req.clipId)
+        )
+        return result
+    except Exception as e:
+        logger.exception(f"Failed to export clip {req.clipId}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class CancelJobRequest(BaseModel):
+    projectId: str
+    jobId: str
+
+
+@router.post("/cancel")
+async def cancel_shorts(req: CancelJobRequest):
+    """Cancel an active Shorts analysis job."""
+    logger.info(f"Cancel shorts request received for job {req.jobId}")
+    try:
+        pipeline.cancel_analysis(req.projectId, req.jobId)
+        return {"message": "Job cancellation request queued"}
+    except Exception as e:
+        logger.exception(f"Failed to cancel job {req.jobId}")
+        raise HTTPException(status_code=500, detail=str(e))

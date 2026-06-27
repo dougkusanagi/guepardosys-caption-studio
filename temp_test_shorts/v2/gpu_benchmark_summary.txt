@@ -1,0 +1,37 @@
+=== COMPARAÇÃO DE PERFORMANCE NA GPU (10m Áudio) ===
+Whisper Standard (SMALL):
+  Tempo de carregamento: 3.71s
+  Tempo de transcrição:  40.05s
+  Total de segmentos:    141
+  Simulação Corte Respiros (pad=0.2s): Duração vai de 600.0s para 533.4s (economiza 66.6s)
+
+Faster-Whisper (SMALL):
+  Tempo de carregamento: 1.2s
+  Tempo de transcrição:  17.42s
+  Total de segmentos:    155
+  Simulação Corte Respiros (pad=0.2s): Duração vai de 600.0s para 539.4s (economiza 60.6s)
+
+Whisper Standard (MEDIUM):
+  Tempo de carregamento: 27.6s
+  Tempo de transcrição:  188.5s
+  Total de segmentos:    115
+  Simulação Corte Respiros (pad=0.2s): Duração vai de 600.0s para 484.8s (economiza 115.2s)
+
+Faster-Whisper (MEDIUM):
+  Tempo de carregamento: 26.18s
+  Tempo de transcrição:  26.77s
+  Total de segmentos:    162
+  Simulação Corte Respiros (pad=0.2s): Duração vai de 600.0s para 490.4s (economiza 109.6s)
+
+Whisper Standard (LARGE-V3):
+  Tempo de carregamento: 52.23s
+  Tempo de transcrição:  1111.96s
+  Total de segmentos:    225
+  Simulação Corte Respiros (pad=0.2s): Duração vai de 600.0s para 551.34s (economiza 48.66s)
+
+Faster-Whisper (LARGE-V3):
+  Tempo de carregamento: 47.28s
+  Tempo de transcrição:  389.72s
+  Total de segmentos:    240
+  Simulação Corte Respiros (pad=0.2s): Duração vai de 600.0s para 523.18s (economiza 76.82s)
+

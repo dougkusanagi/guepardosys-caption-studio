@@ -1,0 +1,74 @@
+{
+  "shorts": [
+    {
+      "id": 1,
+      "start_sec": 80.0,
+      "end_sec": 114.0,
+      "headline": "O medo de não conseguir colar: A ansiedade do dia a dia",
+      "storytelling_structure": "Gancho (Medo existencial/ansiedade) -> Desenvolvimento (Contexto da preocupação com o calor e a possibilidade de ficar sem luz) -> Fechamento (Conexão com a necessidade de comunicação, estabelecendo um tom vulnerável)."
+    },
+    {
+      "id": 2,
+      "start_sec": 315.0,
+      "end_sec": 443.0,
+      "headline": "O Loop da Ansiedade: Café vs. Chá e a busca pela calma",
+      "storytelling_structure": "Gancho (Apresentação do conflito: café gera ansiedade) -> Desenvolvimento (Comparação entre o ciclo do café e o efeito calmante do chá) -> Fechamento (Conclusão pessoal sobre como a mudança de hábito diminuiu a necessidade de buscar estímulos)."
+    },
+    {
+      "id": 3,
+      "start_sec": 287.0,
+      "end_sec": 312.0,
+      "headline": "Como eu me sinto agora: Mais saudável e menos ansioso",
+      "storytelling_structure": "Gancho (Ação de mudança) -> Desenvolvimento (O resultado imediato da troca de hábito) -> Fechamento (Afirmação do benefício emocional e físico, oferecendo uma sensação de vitória pessoal)."
+    },
+    {
+      "id": 4,
+      "start_sec": 152.0,
+      "end_sec": 224.0,
+      "headline": "Seu acesso vitalício: A melhor forma de investir em cursos",
+      "storytelling_structure": "Gancho (Apresentação da oferta) -> Desenvolvimento (Detalhes das opções de planos: curso avulso vs. assinatura anual com fidelidade) -> Fechamento (Chamada à ação implícita, focando na vantagem do plano vitalício e flexibilidade)."
+    },
+    {
+      "id": 5,
+      "start_sec": 122.0,
+      "end_sec": 136.0,
+      "headline": "Recadinhos da semana: O que você precisa saber agora",
+      "storytelling_structure": "Gancho (Introdução ao conteúdo) -> Desenvolvimento (Apresentação rápida dos recadinhos/ofertas) -> Fechamento (Transição suave para o próximo tópico, estabelecendo a expectativa de valor)."
+    },
+    {
+      "id": 6,
+      "start_sec": 473.0,
+      "end_sec": 589.0,
+      "headline": "O Segredo da Anatomia: Entenda o formato do peito",
+      "storytelling_structure": "Gancho (A questão estética/dilema) -> Desenvolvimento (Explicação técnica e visual da anatomia: coração invertido e as duas gotas) -> Fechamento (Resolução do problema, fornecendo uma explicação lógica para a forma corporal)."
+    },
+    {
+      "id": 7,
+      "start_sec": 527.0,
+      "end_sec": 539.0,
+      "headline": "A Solução Rápida: Como modelar o visual da personagem",
+      "storytelling_structure": "Gancho (O desafio estético) -> Desenvolvimento (Proposta de solução prática e imediata) -> Fechamento (Sugestão de método simples para alcançar o resultado desejado, focando na facilidade)."
+    },
+    {
+      "id": 8,
+      "start_sec": 254.0,
+      "end_sec": 273.0,
+      "headline": "A verdade que eu esqueci de compartilhar sobre mim",
+      "storytelling_structure": "Gancho (Revelação pessoal e vulnerabilidade) -> Desenvolvimento (Contextualização dos fatores pessoais: TDH, LinkedIn user) -> Fechamento (Quebra de barreira, convidando o público a se conectar com a realidade por trás da imagem)."
+    },
+    {
+      "id": 9,
+      "start_sec": 516.0,
+      "end_sec": 522.0,
+      "headline": "A ideia mais fácil para o seu projeto",
+      "storytelling_structure": "Gancho (Busca por uma solução criativa) -> Desenvolvimento (Apresentação de uma alternativa simples e eficiente) -> Fechamento (Conclusão direta e prática, oferecendo um caminho claro para a execução)."
+    },
+    {
+      "id": 10,
+      "start_sec": 68.0,
+      "end_sec": 74.0,
+      "headline": "Tudo certo? A checagem rápida do áudio",
+      "storytelling_structure": "Gancho (Verificação logística) -> Desenvolvimento (Confirmação de que tudo está OK) -> Fechamento (Estabelecimento de confiança e profissionalismo, mostrando atenção aos detalhes antes de avançar no conteúdo)."
+    }
+  ]
+}

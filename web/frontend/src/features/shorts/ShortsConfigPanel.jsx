@@ -5,10 +5,131 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Label } from '../../components/ui/label.jsx';
 import { Button } from '../../components/ui/button.jsx';
 
-export default function ShortsConfigPanel({ config, onChange, onStart }) {
+export default function ShortsConfigPanel({ config, onChange, onStart, hideStartButton = false }) {
   const setConfigValue = (key, value) => {
     onChange({ ...config, [key]: value });
   };
+
+  const fields = (
+    <div className="space-y-4">
+      {/* Clip Count */}
+      <div className="space-y-1.5">
+        <Label className="text-xs font-semibold text-surface-700">Quantidade de Clipes Alvo</Label>
+        <Select
+          value={String(config.clipCount)}
+          onValueChange={(val) => setConfigValue('clipCount', parseInt(val))}
+        >
+          <SelectTrigger className="w-full bg-surface-50 border-surface-200 text-xs h-9">
+            <SelectValue placeholder="Selecione a quantidade" />
+          </SelectTrigger>
+          <SelectContent>
+            {[1, 2, 3, 4, 5, 7, 10].map((num) => (
+              <SelectItem key={num} value={String(num)} className="text-xs">
+                {num} {num === 1 ? 'Clipe' : 'Clipes'}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Target Duration */}
+      <div className="space-y-1.5">
+        <Label className="text-xs font-semibold text-surface-700">Duração Recomendada</Label>
+        <Select
+          value={String(config.targetDuration)}
+          onValueChange={(val) => setConfigValue('targetDuration', parseFloat(val))}
+        >
+          <SelectTrigger className="w-full bg-surface-50 border-surface-200 text-xs h-9">
+            <SelectValue placeholder="Selecione a duração" />
+          </SelectTrigger>
+          <SelectContent className="text-xs">
+            <SelectItem value="15" className="text-xs">~15 segundos (Ideal para Stories/Shorts)</SelectItem>
+            <SelectItem value="30" className="text-xs">~30 segundos (Recomendado/Viral)</SelectItem>
+            <SelectItem value="45" className="text-xs">~45 segundos (Ideal para Reels/TikTok)</SelectItem>
+            <SelectItem value="60" className="text-xs">~60 segundos (Duração limite)</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Reframe Mode */}
+      <div className="space-y-1.5">
+        <Label className="text-xs font-semibold text-surface-700">Enquadramento (9:16)</Label>
+        <Select
+          value={config.reframeMode}
+          onValueChange={(val) => setConfigValue('reframeMode', val)}
+        >
+          <SelectTrigger className="w-full bg-surface-50 border-surface-200 text-xs h-9">
+            <SelectValue placeholder="Selecione o enquadramento" />
+          </SelectTrigger>
+          <SelectContent className="text-xs">
+            <SelectItem value="smart" className="text-xs">Enquadramento Inteligente (Rastreia pessoas)</SelectItem>
+            <SelectItem value="blur" className="text-xs">Vertical com Blur (Fundo desfocado)</SelectItem>
+            <SelectItem value="center" className="text-xs">Centralizado Estático (Corta meio)</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Language */}
+      <div className="space-y-1.5">
+        <Label className="text-xs font-semibold text-surface-700">Idioma do Áudio</Label>
+        <Select
+          value={config.language}
+          onValueChange={(val) => setConfigValue('language', val)}
+        >
+          <SelectTrigger className="w-full bg-surface-50 border-surface-200 text-xs h-9">
+            <SelectValue placeholder="Selecione o idioma" />
+          </SelectTrigger>
+          <SelectContent className="text-xs">
+            <SelectItem value="pt" className="text-xs">Português (Brasil)</SelectItem>
+            <SelectItem value="en" className="text-xs">Inglês</SelectItem>
+            <SelectItem value="es" className="text-xs">Espanhol</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Whisper Model */}
+      <div className="space-y-1.5">
+        <Label className="text-xs font-semibold text-surface-700">Modelo Whisper (Transcrição)</Label>
+        <Select
+          value={config.whisperModel || 'small'}
+          onValueChange={(val) => setConfigValue('whisperModel', val)}
+        >
+          <SelectTrigger className="w-full bg-surface-50 border-surface-200 text-xs h-9">
+            <SelectValue placeholder="Selecione o modelo" />
+          </SelectTrigger>
+          <SelectContent className="text-xs">
+            <SelectItem value="small" className="text-xs">Small (Rápido - 1GB VRAM)</SelectItem>
+            <SelectItem value="medium" className="text-xs">Medium (Equilibrado - 1.5GB VRAM)</SelectItem>
+            <SelectItem value="large-v3" className="text-xs">Large-v3 (Máxima Precisão - 3GB VRAM)</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Silence Padding (Respiro) */}
+      <div className="space-y-1.5">
+        <Label className="text-xs font-semibold text-surface-700">Respiro entre Falas</Label>
+        <Select
+          value={String(config.breathPadding !== undefined ? config.breathPadding : 0.1)}
+          onValueChange={(val) => setConfigValue('breathPadding', parseFloat(val))}
+        >
+          <SelectTrigger className="w-full bg-surface-50 border-surface-200 text-xs h-9">
+            <SelectValue placeholder="Selecione o tempo de respiro" />
+          </SelectTrigger>
+          <SelectContent className="text-xs">
+            <SelectItem value="0" className="text-xs">0.0s (Corte Seco - Sem Silêncio)</SelectItem>
+            <SelectItem value="0.05" className="text-xs">0.05s (Mínimo Respiro)</SelectItem>
+            <SelectItem value="0.1" className="text-xs">0.1s (Recomendado/Viral)</SelectItem>
+            <SelectItem value="0.2" className="text-xs">0.2s (Conversa Natural)</SelectItem>
+            <SelectItem value="0.3" className="text-xs">0.3s (Tradicional)</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+    </div>
+  );
+
+  if (hideStartButton) {
+    return fields;
+  }
 
   return (
     <Card className="border-surface-200/80 shadow-xl shadow-surface-200/40 w-full max-w-xl mx-auto">
@@ -23,83 +144,8 @@ export default function ShortsConfigPanel({ config, onChange, onStart }) {
           Defina as diretrizes para nossa inteligência artificial analisar e recortar os melhores momentos.
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-6 px-6 pb-6">
-        {/* Clip Count */}
-        <div className="space-y-2">
-          <Label className="text-sm font-medium text-surface-700">Quantidade de Clipes Alvo</Label>
-          <Select
-            value={String(config.clipCount)}
-            onValueChange={(val) => setConfigValue('clipCount', parseInt(val))}
-          >
-            <SelectTrigger className="w-full bg-surface-50 border-surface-200">
-              <SelectValue placeholder="Selecione a quantidade" />
-            </SelectTrigger>
-            <SelectContent>
-              {[1, 2, 3, 4, 5, 7, 10].map((num) => (
-                <SelectItem key={num} value={String(num)}>
-                  {num} {num === 1 ? 'Clipe' : 'Clipes'}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        {/* Target Duration */}
-        <div className="space-y-2">
-          <Label className="text-sm font-medium text-surface-700">Duração Recomendada</Label>
-          <Select
-            value={String(config.targetDuration)}
-            onValueChange={(val) => setConfigValue('targetDuration', parseFloat(val))}
-          >
-            <SelectTrigger className="w-full bg-surface-50 border-surface-200">
-              <SelectValue placeholder="Selecione a duração" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="15">~15 segundos (Ideal para Stories/Shorts curtos)</SelectItem>
-              <SelectItem value="30">~30 segundos (Recomendado para engajamento)</SelectItem>
-              <SelectItem value="45">~45 segundos (Ideal para Reels e TikTok)</SelectItem>
-              <SelectItem value="60">~60 segundos (Duração limite de Reels/Shorts)</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        {/* Reframe Mode */}
-        <div className="space-y-2">
-          <Label className="text-sm font-medium text-surface-700">Modo de Enquadramento (9:16)</Label>
-          <Select
-            value={config.reframeMode}
-            onValueChange={(val) => setConfigValue('reframeMode', val)}
-          >
-            <SelectTrigger className="w-full bg-surface-50 border-surface-200">
-              <SelectValue placeholder="Selecione o enquadramento" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="smart">Enquadramento Inteligente (Rastreia pessoas e rostos)</SelectItem>
-              <SelectItem value="blur">Vertical com Blur (Preenche fundo desfocado)</SelectItem>
-              <SelectItem value="center">Centralizado Estático (Apenas corta o meio)</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        {/* Language */}
-        <div className="space-y-2">
-          <Label className="text-sm font-medium text-surface-700">Idioma do Áudio (Whisper)</Label>
-          <Select
-            value={config.language}
-            onValueChange={(val) => setConfigValue('language', val)}
-          >
-            <SelectTrigger className="w-full bg-surface-50 border-surface-200">
-              <SelectValue placeholder="Selecione o idioma" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="pt">Português (Brasil)</SelectItem>
-              <SelectItem value="en">Inglês</SelectItem>
-              <SelectItem value="es">Espanhol</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        {/* Action Button */}
+      <CardContent className="px-6 pb-6 pt-0 space-y-6">
+        {fields}
         <Button
           onClick={onStart}
           className="w-full py-6 mt-2 bg-gradient-to-r from-primary-600 to-indigo-600 hover:from-primary-700 hover:to-indigo-700 text-white font-semibold rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-primary-200/40 transition-all duration-300 transform hover:scale-[1.01]"

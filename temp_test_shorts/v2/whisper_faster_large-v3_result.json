@@ -1,0 +1,1448 @@
+{
+  "model_size": "large-v3",
+  "load_time_sec": 47.28,
+  "transcription_time_sec": 389.72,
+  "total_segments": 240,
+  "segments": [
+    {
+      "index": 0,
+      "start_sec": 0.0,
+      "end_sec": 9.0,
+      "text": "Cheguei atrasado. E aí, pessoas, tudo bem?"
+    },
+    {
+      "index": 1,
+      "start_sec": 9.0,
+      "end_sec": 14.0,
+      "text": "Deixa eu tocar a musiquinha aqui."
+    },
+    {
+      "index": 2,
+      "start_sec": 18.0,
+      "end_sec": 23.0,
+      "text": "Já diminui, tá? Me avisa aí se ficar muito alto por acaso."
+    },
+    {
+      "index": 3,
+      "start_sec": 23.0,
+      "end_sec": 27.0,
+      "text": "Boa tarde, vamos chegando, vamos chegando."
+    },
+    {
+      "index": 4,
+      "start_sec": 27.0,
+      "end_sec": 31.0,
+      "text": "Não se acanhe."
+    },
+    {
+      "index": 5,
+      "start_sec": 31.0,
+      "end_sec": 34.0,
+      "text": "Tudo tranquilo."
+    },
+    {
+      "index": 6,
+      "start_sec": 34.0,
+      "end_sec": 38.0,
+      "text": "Tive que correr pra trocar de camisa também, tá calorão."
+    },
+    {
+      "index": 7,
+      "start_sec": 52.0,
+      "end_sec": 55.0,
+      "text": "Como é que tá o áudio aí?"
+    },
+    {
+      "index": 8,
+      "start_sec": 57.0,
+      "end_sec": 60.0,
+      "text": "Alô, como é que tá o áudio?"
+    },
+    {
+      "index": 9,
+      "start_sec": 67.0,
+      "end_sec": 69.0,
+      "text": "Vamos chegando."
+    },
+    {
+      "index": 10,
+      "start_sec": 69.0,
+      "end_sec": 72.0,
+      "text": "Tá tudo certo o áudio, beleza."
+    },
+    {
+      "index": 11,
+      "start_sec": 72.0,
+      "end_sec": 74.0,
+      "text": "Muito boa tarde."
+    },
+    {
+      "index": 12,
+      "start_sec": 80.0,
+      "end_sec": 84.0,
+      "text": "Manda um oi quem já tá no chat, manda um salve aí."
+    },
+    {
+      "index": 13,
+      "start_sec": 85.0,
+      "end_sec": 86.0,
+      "text": "Mais uma vez."
+    },
+    {
+      "index": 14,
+      "start_sec": 86.0,
+      "end_sec": 88.0,
+      "text": "Mais uma quarta-feira."
+    },
+    {
+      "index": 15,
+      "start_sec": 89.0,
+      "end_sec": 90.0,
+      "text": "Que eu..."
+    },
+    {
+      "index": 16,
+      "start_sec": 90.0,
+      "end_sec": 95.0,
+      "text": "Hoje eu fiquei preocupado até de não conseguir colar porque o tempo tá..."
+    },
+    {
+      "index": 17,
+      "start_sec": 95.0,
+      "end_sec": 98.0,
+      "text": "Parece que vai cair o mundo, sabe? Acho que nem começou a chover ainda."
+    },
+    {
+      "index": 18,
+      "start_sec": 98.0,
+      "end_sec": 100.0,
+      "text": "Mas com o calor que tá fazendo..."
+    },
+    {
+      "index": 19,
+      "start_sec": 101.0,
+      "end_sec": 103.0,
+      "text": "Achei até que eu pudesse ficar sem luz, né?"
+    },
+    {
+      "index": 20,
+      "start_sec": 105.0,
+      "end_sec": 108.0,
+      "text": "Mas se isso acontecesse eu ia mandar mensagem."
+    },
+    {
+      "index": 21,
+      "start_sec": 108.0,
+      "end_sec": 110.0,
+      "text": "Pra avisar a produção."
+    },
+    {
+      "index": 22,
+      "start_sec": 110.0,
+      "end_sec": 112.0,
+      "text": "Boa tarde, Adriano."
+    },
+    {
+      "index": 23,
+      "start_sec": 112.0,
+      "end_sec": 114.0,
+      "text": "Tudo em pieces?"
+    },
+    {
+      "index": 24,
+      "start_sec": 114.0,
+      "end_sec": 116.0,
+      "text": "Se não for, imagina eu não veria."
+    },
+    {
+      "index": 25,
+      "start_sec": 116.0,
+      "end_sec": 118.0,
+      "text": "Eu não posso pagar uma coisa tão barata como essa."
+    },
+    {
+      "index": 26,
+      "start_sec": 118.0,
+      "end_sec": 120.0,
+      "text": "Agora, parece que eu já vou ter que comer tudo que eu quero."
+    },
+    {
+      "index": 27,
+      "start_sec": 120.0,
+      "end_sec": 121.0,
+      "text": "Agora não."
+    },
+    {
+      "index": 28,
+      "start_sec": 121.0,
+      "end_sec": 124.0,
+      "text": "Bom, antes de começar aqui com a nossa jinx."
+    },
+    {
+      "index": 29,
+      "start_sec": 124.0,
+      "end_sec": 127.0,
+      "text": "Vou trazer os recadinhos da semana rapidinho."
+    },
+    {
+      "index": 30,
+      "start_sec": 127.0,
+      "end_sec": 128.0,
+      "text": "Então ó."
+    },
+    {
+      "index": 31,
+      "start_sec": 130.0,
+      "end_sec": 133.0,
+      "text": "Deixa eu trago aqui, mais pra perto."
+    },
+    {
+      "index": 32,
+      "start_sec": 133.0,
+      "end_sec": 135.0,
+      "text": "Tá."
+    },
+    {
+      "index": 33,
+      "start_sec": 137.0,
+      "end_sec": 138.0,
+      "text": "Ô..."
+    },
+    {
+      "index": 34,
+      "start_sec": 138.0,
+      "end_sec": 140.0,
+      "text": "Deixe tudo em ritmo, Zé."
+    },
+    {
+      "index": 35,
+      "start_sec": 140.0,
+      "end_sec": 141.0,
+      "text": "Aqui tá o meu."
+    },
+    {
+      "index": 36,
+      "start_sec": 141.0,
+      "end_sec": 142.0,
+      "text": "Relaxa, né?"
+    },
+    {
+      "index": 37,
+      "start_sec": 142.0,
+      "end_sec": 152.7,
+      "text": "Então, um recadinho"
+    },
+    {
+      "index": 38,
+      "start_sec": 152.7,
+      "end_sec": 156.16,
+      "text": "Primeiro, promoção de cursos e planos de assinatura"
+    },
+    {
+      "index": 39,
+      "start_sec": 156.16,
+      "end_sec": 157.54,
+      "text": "Então, curso avulso"
+    },
+    {
+      "index": 40,
+      "start_sec": 157.54,
+      "end_sec": 159.42,
+      "text": "De R$398,00"
+    },
+    {
+      "index": 41,
+      "start_sec": 159.42,
+      "end_sec": 161.84,
+      "text": "Por 10x de R$23,88"
+    },
+    {
+      "index": 42,
+      "start_sec": 161.84,
+      "end_sec": 163.12,
+      "text": "Sem juros, tá bom?"
+    },
+    {
+      "index": 43,
+      "start_sec": 163.76,
+      "end_sec": 165.7,
+      "text": "Ou R$238,00 à vista"
+    },
+    {
+      "index": 44,
+      "start_sec": 165.7,
+      "end_sec": 167.46,
+      "text": "Acesso vitalício, né?"
+    },
+    {
+      "index": 45,
+      "start_sec": 167.54,
+      "end_sec": 167.98,
+      "text": "Nesse caso"
+    },
+    {
+      "index": 46,
+      "start_sec": 167.98,
+      "end_sec": 171.5,
+      "text": "Plano mensal, cancele quando quiser"
+    },
+    {
+      "index": 47,
+      "start_sec": 171.5,
+      "end_sec": 174.32,
+      "text": "De R$148,00 por R$103,60"
+    },
+    {
+      "index": 48,
+      "start_sec": 174.32,
+      "end_sec": 175.06,
+      "text": "No primeiro mês"
+    },
+    {
+      "index": 49,
+      "start_sec": 175.06,
+      "end_sec": 177.3,
+      "text": "Meses seguintes, R$148,00"
+    },
+    {
+      "index": 50,
+      "start_sec": 177.3,
+      "end_sec": 179.66,
+      "text": "Plano anual"
+    },
+    {
+      "index": 51,
+      "start_sec": 179.66,
+      "end_sec": 181.22,
+      "text": "Com fidelidade de 12 meses"
+    },
+    {
+      "index": 52,
+      "start_sec": 181.22,
+      "end_sec": 183.22,
+      "text": "De R$99,00 por R$69,30"
+    },
+    {
+      "index": 53,
+      "start_sec": 183.22,
+      "end_sec": 184.08,
+      "text": "No primeiro mês"
+    },
+    {
+      "index": 54,
+      "start_sec": 184.08,
+      "end_sec": 187.0,
+      "text": "E os meses seguintes, R$99,00 por mês, tá bom?"
+    },
+    {
+      "index": 55,
+      "start_sec": 188.32,
+      "end_sec": 189.7,
+      "text": "E o segundo recadinho"
+    },
+    {
+      "index": 56,
+      "start_sec": 189.7,
+      "end_sec": 191.8,
+      "text": "Então, pesquisa com o público do Discord"
+    },
+    {
+      "index": 57,
+      "start_sec": 191.8,
+      "end_sec": 193.74,
+      "text": "E se você é do Discord"
+    },
+    {
+      "index": 58,
+      "start_sec": 193.74,
+      "end_sec": 194.84,
+      "text": "Do nosso Discord, né?"
+    },
+    {
+      "index": 59,
+      "start_sec": 195.24,
+      "end_sec": 196.02,
+      "text": "Da Unhide"
+    },
+    {
+      "index": 60,
+      "start_sec": 196.02,
+      "end_sec": 198.7,
+      "text": "Você pode ganhar uma mentoria ao vivo de uma hora"
+    },
+    {
+      "index": 61,
+      "start_sec": 198.7,
+      "end_sec": 199.94,
+      "text": "Com nossos especialistas"
+    },
+    {
+      "index": 62,
+      "start_sec": 199.94,
+      "end_sec": 201.48,
+      "text": "É só responder a pesquisa"
+    },
+    {
+      "index": 63,
+      "start_sec": 201.48,
+      "end_sec": 202.34,
+      "text": "De dois minutinhos"
+    },
+    {
+      "index": 64,
+      "start_sec": 202.34,
+      "end_sec": 203.8,
+      "text": "Que a produção vai colocar no chat"
+    },
+    {
+      "index": 65,
+      "start_sec": 203.8,
+      "end_sec": 205.26,
+      "text": "Sua opinião faz diferença"
+    },
+    {
+      "index": 66,
+      "start_sec": 205.26,
+      "end_sec": 207.1,
+      "text": "Então, manda pra gente"
+    },
+    {
+      "index": 67,
+      "start_sec": 207.1,
+      "end_sec": 209.86,
+      "text": "Sua opinião aí"
+    },
+    {
+      "index": 68,
+      "start_sec": 209.86,
+      "end_sec": 212.0,
+      "text": "Por meio da pesquisa de público"
+    },
+    {
+      "index": 69,
+      "start_sec": 212.0,
+      "end_sec": 214.88,
+      "text": "Que a gente tá fazendo lá no Discord, beleza?"
+    },
+    {
+      "index": 70,
+      "start_sec": 215.36,
+      "end_sec": 217.16,
+      "text": "Aproveita e já fica fazendo parte lá também"
+    },
+    {
+      "index": 71,
+      "start_sec": 217.16,
+      "end_sec": 230.0,
+      "text": "Show, é só isso"
+    },
+    {
+      "index": 72,
+      "start_sec": 230.0,
+      "end_sec": 231.46,
+      "text": "E aí, fechou?"
+    },
+    {
+      "index": 73,
+      "start_sec": 231.48,
+      "end_sec": 233.06,
+      "text": "Felipe, tudo bem, meu querido?"
+    },
+    {
+      "index": 74,
+      "start_sec": 233.06,
+      "end_sec": 234.06,
+      "text": "Obrigado, mano"
+    },
+    {
+      "index": 75,
+      "start_sec": 234.06,
+      "end_sec": 237.06,
+      "text": "Boa tarde, boa tarde"
+    },
+    {
+      "index": 76,
+      "start_sec": 237.06,
+      "end_sec": 241.06,
+      "text": "Olívia, grande Olívia"
+    },
+    {
+      "index": 77,
+      "start_sec": 241.06,
+      "end_sec": 243.06,
+      "text": "Sogrinha"
+    },
+    {
+      "index": 78,
+      "start_sec": 243.06,
+      "end_sec": 245.06,
+      "text": "Boa tarde, Olívia"
+    },
+    {
+      "index": 79,
+      "start_sec": 245.06,
+      "end_sec": 248.06,
+      "text": "Vou chamar ela de Dona Oliva"
+    },
+    {
+      "index": 80,
+      "start_sec": 248.06,
+      "end_sec": 250.06,
+      "text": "Deixa quieto"
+    },
+    {
+      "index": 81,
+      "start_sec": 254.06,
+      "end_sec": 256.06,
+      "text": "Deixa eu trazer aqui, novamente"
+    },
+    {
+      "index": 82,
+      "start_sec": 256.06,
+      "end_sec": 258.06,
+      "text": "Na verdade, eu esqueci até de compartilhar aquela"
+    },
+    {
+      "index": 83,
+      "start_sec": 258.06,
+      "end_sec": 260.06,
+      "text": "Então, só um minutinho"
+    },
+    {
+      "index": 84,
+      "start_sec": 261.48,
+      "end_sec": 263.38,
+      "text": "Correria, TDAH"
+    },
+    {
+      "index": 85,
+      "start_sec": 263.38,
+      "end_sec": 264.56,
+      "text": "Tudo isso conta"
+    },
+    {
+      "index": 86,
+      "start_sec": 264.56,
+      "end_sec": 267.22,
+      "text": "LinkedIn user"
+    },
+    {
+      "index": 87,
+      "start_sec": 267.22,
+      "end_sec": 269.02,
+      "text": "Opa, opa"
+    },
+    {
+      "index": 88,
+      "start_sec": 269.02,
+      "end_sec": 271.56,
+      "text": "Quem são as vozes?"
+    },
+    {
+      "index": 89,
+      "start_sec": 277.56,
+      "end_sec": 278.44,
+      "text": "Desculpe"
+    },
+    {
+      "index": 90,
+      "start_sec": 278.44,
+      "end_sec": 280.32,
+      "text": "Mas assim fica mais fácil"
+    },
+    {
+      "index": 91,
+      "start_sec": 280.32,
+      "end_sec": 285.22,
+      "text": "Faltando um chazinho"
+    },
+    {
+      "index": 92,
+      "start_sec": 285.22,
+      "end_sec": 287.86,
+      "text": "Acho que"
+    },
+    {
+      "index": 93,
+      "start_sec": 287.86,
+      "end_sec": 290.86,
+      "text": "Inclusive, terminando"
+    },
+    {
+      "index": 94,
+      "start_sec": 290.86,
+      "end_sec": 293.94,
+      "text": "Terminando a última semana"
+    },
+    {
+      "index": 95,
+      "start_sec": 293.94,
+      "end_sec": 294.92,
+      "text": "Pra fazer um mês"
+    },
+    {
+      "index": 96,
+      "start_sec": 294.92,
+      "end_sec": 297.24,
+      "text": "Que eu diminuí"
+    },
+    {
+      "index": 97,
+      "start_sec": 297.24,
+      "end_sec": 299.54,
+      "text": "Tipo, 98% do café"
+    },
+    {
+      "index": 98,
+      "start_sec": 299.54,
+      "end_sec": 303.44,
+      "text": "Tenho literalmente tomado chá"
+    },
+    {
+      "index": 99,
+      "start_sec": 303.44,
+      "end_sec": 305.66,
+      "text": "O dia inteiro"
+    },
+    {
+      "index": 100,
+      "start_sec": 305.66,
+      "end_sec": 307.68,
+      "text": "Mas é bom, faz bem"
+    },
+    {
+      "index": 101,
+      "start_sec": 307.68,
+      "end_sec": 311.66,
+      "text": "Me sinto até mais saudável"
+    },
+    {
+      "index": 102,
+      "start_sec": 311.66,
+      "end_sec": 315.8,
+      "text": "Bom"
+    },
+    {
+      "index": 103,
+      "start_sec": 315.8,
+      "end_sec": 317.84,
+      "text": "Semana passada, né"
+    },
+    {
+      "index": 104,
+      "start_sec": 317.84,
+      "end_sec": 319.14,
+      "text": "A gente trabalhou"
+    },
+    {
+      "index": 105,
+      "start_sec": 319.14,
+      "end_sec": 320.84,
+      "text": "Nas tranças"
+    },
+    {
+      "index": 106,
+      "start_sec": 320.86,
+      "end_sec": 321.86,
+      "text": "Nessa roupinha aqui, né"
+    },
+    {
+      "index": 107,
+      "start_sec": 321.86,
+      "end_sec": 322.86,
+      "text": "Nessa roupitinha"
+    },
+    {
+      "index": 108,
+      "start_sec": 322.86,
+      "end_sec": 323.86,
+      "text": "Essa roupitinha muito louca"
+    },
+    {
+      "index": 109,
+      "start_sec": 323.86,
+      "end_sec": 324.86,
+      "text": "Né, ele é tudo reemendado"
+    },
+    {
+      "index": 110,
+      "start_sec": 324.86,
+      "end_sec": 325.86,
+      "text": "Deixa eu catar aqui"
+    },
+    {
+      "index": 111,
+      "start_sec": 325.86,
+      "end_sec": 326.86,
+      "text": "Os..."
+    },
+    {
+      "index": 112,
+      "start_sec": 326.86,
+      "end_sec": 327.86,
+      "text": "As referências da Jinx"
+    },
+    {
+      "index": 113,
+      "start_sec": 327.86,
+      "end_sec": 328.86,
+      "text": "Deixa eu ver a que ponto a gente anda"
+    },
+    {
+      "index": 114,
+      "start_sec": 328.86,
+      "end_sec": 329.86,
+      "text": "Pra além dessa referência que eu tenho aqui"
+    },
+    {
+      "index": 115,
+      "start_sec": 329.86,
+      "end_sec": 330.86,
+      "text": "Como faz pra acordar?"
+    },
+    {
+      "index": 116,
+      "start_sec": 330.86,
+      "end_sec": 331.86,
+      "text": "Não, de manhã eu ainda tomo café"
+    },
+    {
+      "index": 117,
+      "start_sec": 331.86,
+      "end_sec": 332.86,
+      "text": "De manhã"
+    },
+    {
+      "index": 118,
+      "start_sec": 332.86,
+      "end_sec": 333.86,
+      "text": "De manhã"
+    },
+    {
+      "index": 119,
+      "start_sec": 333.86,
+      "end_sec": 334.86,
+      "text": "De manhã"
+    },
+    {
+      "index": 120,
+      "start_sec": 334.86,
+      "end_sec": 335.86,
+      "text": "De manhã"
+    },
+    {
+      "index": 121,
+      "start_sec": 335.86,
+      "end_sec": 336.86,
+      "text": "De manhã"
+    },
+    {
+      "index": 122,
+      "start_sec": 336.86,
+      "end_sec": 337.86,
+      "text": "De manhã"
+    },
+    {
+      "index": 123,
+      "start_sec": 337.86,
+      "end_sec": 338.86,
+      "text": "De manhã"
+    },
+    {
+      "index": 124,
+      "start_sec": 338.86,
+      "end_sec": 339.86,
+      "text": "De manhã"
+    },
+    {
+      "index": 125,
+      "start_sec": 339.86,
+      "end_sec": 340.86,
+      "text": "De manhã"
+    },
+    {
+      "index": 126,
+      "start_sec": 340.86,
+      "end_sec": 341.86,
+      "text": "De manhã"
+    },
+    {
+      "index": 127,
+      "start_sec": 341.86,
+      "end_sec": 342.86,
+      "text": "De manhã"
+    },
+    {
+      "index": 128,
+      "start_sec": 342.86,
+      "end_sec": 343.86,
+      "text": "De manhã"
+    },
+    {
+      "index": 129,
+      "start_sec": 343.86,
+      "end_sec": 344.86,
+      "text": "De manhã"
+    },
+    {
+      "index": 130,
+      "start_sec": 344.86,
+      "end_sec": 345.86,
+      "text": "De manhã"
+    },
+    {
+      "index": 131,
+      "start_sec": 345.86,
+      "end_sec": 346.86,
+      "text": "De manhã"
+    },
+    {
+      "index": 132,
+      "start_sec": 346.86,
+      "end_sec": 347.86,
+      "text": "De manhã"
+    },
+    {
+      "index": 133,
+      "start_sec": 347.86,
+      "end_sec": 348.86,
+      "text": "De manhã"
+    },
+    {
+      "index": 134,
+      "start_sec": 348.86,
+      "end_sec": 349.86,
+      "text": "De manhã"
+    },
+    {
+      "index": 135,
+      "start_sec": 349.86,
+      "end_sec": 350.86,
+      "text": "De manhã"
+    },
+    {
+      "index": 136,
+      "start_sec": 350.86,
+      "end_sec": 351.86,
+      "text": "De manhã"
+    },
+    {
+      "index": 137,
+      "start_sec": 351.86,
+      "end_sec": 352.86,
+      "text": "De manhã"
+    },
+    {
+      "index": 138,
+      "start_sec": 352.86,
+      "end_sec": 353.86,
+      "text": "De manhã"
+    },
+    {
+      "index": 139,
+      "start_sec": 353.86,
+      "end_sec": 354.86,
+      "text": "De manhã"
+    },
+    {
+      "index": 140,
+      "start_sec": 354.86,
+      "end_sec": 355.86,
+      "text": "Tem tomado essa"
+    },
+    {
+      "index": 141,
+      "start_sec": 355.86,
+      "end_sec": 356.86,
+      "text": "Esse um café de manhã"
+    },
+    {
+      "index": 142,
+      "start_sec": 356.86,
+      "end_sec": 357.86,
+      "text": "E ai, logo no início, cara"
+    },
+    {
+      "index": 143,
+      "start_sec": 357.86,
+      "end_sec": 358.86,
+      "text": "Você sente a diferença"
+    },
+    {
+      "index": 144,
+      "start_sec": 358.86,
+      "end_sec": 362.1,
+      "text": "Sente a diferença porque"
+    },
+    {
+      "index": 145,
+      "start_sec": 362.1,
+      "end_sec": 363.86,
+      "text": "O café também te vicia, né"
+    },
+    {
+      "index": 146,
+      "start_sec": 363.86,
+      "end_sec": 364.86,
+      "text": "É óbvio"
+    },
+    {
+      "index": 147,
+      "start_sec": 364.86,
+      "end_sec": 365.86,
+      "text": "E ai eu"
+    },
+    {
+      "index": 148,
+      "start_sec": 365.86,
+      "end_sec": 366.86,
+      "text": "Assim que eu parei"
+    },
+    {
+      "index": 149,
+      "start_sec": 366.86,
+      "end_sec": 367.86,
+      "text": "Foi talvez meio brusco"
+    },
+    {
+      "index": 150,
+      "start_sec": 367.86,
+      "end_sec": 368.86,
+      "text": "Eu tava tomando chá"
+    },
+    {
+      "index": 151,
+      "start_sec": 368.86,
+      "end_sec": 369.86,
+      "text": "O tempo todo"
+    },
+    {
+      "index": 152,
+      "start_sec": 369.86,
+      "end_sec": 370.86,
+      "text": "Terminava um copo de chá"
+    },
+    {
+      "index": 153,
+      "start_sec": 370.86,
+      "end_sec": 371.86,
+      "text": "Ia lá fazer outro chá"
+    },
+    {
+      "index": 154,
+      "start_sec": 371.86,
+      "end_sec": 372.86,
+      "text": "E-e"
+    },
+    {
+      "index": 155,
+      "start_sec": 372.86,
+      "end_sec": 373.86,
+      "text": "Quase igual"
+    },
+    {
+      "index": 156,
+      "start_sec": 373.86,
+      "end_sec": 374.86,
+      "text": "Eu tomava café, sabe"
+    },
+    {
+      "index": 157,
+      "start_sec": 374.86,
+      "end_sec": 375.86,
+      "text": "Mas isso faz parte da ansiedade"
+    },
+    {
+      "index": 158,
+      "start_sec": 375.86,
+      "end_sec": 376.86,
+      "text": "Também"
+    },
+    {
+      "index": 159,
+      "start_sec": 376.86,
+      "end_sec": 378.86,
+      "text": "Mas aí tem um loop, né"
+    },
+    {
+      "index": 160,
+      "start_sec": 378.86,
+      "end_sec": 379.86,
+      "text": "Que to"
+    },
+    {
+      "index": 161,
+      "start_sec": 379.86,
+      "end_sec": 382.24,
+      "text": "Porque você toma café e fica ansioso"
+    },
+    {
+      "index": 162,
+      "start_sec": 382.24,
+      "end_sec": 383.62,
+      "text": "É porque você fica ansioso"
+    },
+    {
+      "index": 163,
+      "start_sec": 383.62,
+      "end_sec": 384.96,
+      "text": "Você quer comer ou beber alguma coisa"
+    },
+    {
+      "index": 164,
+      "start_sec": 384.96,
+      "end_sec": 385.96,
+      "text": "Aí você vai e faz um café"
+    },
+    {
+      "index": 165,
+      "start_sec": 385.96,
+      "end_sec": 387.84,
+      "text": "E aí você fica nesse loop"
+    },
+    {
+      "index": 166,
+      "start_sec": 387.84,
+      "end_sec": 390.42,
+      "text": "E aí com o chá"
+    },
+    {
+      "index": 167,
+      "start_sec": 390.42,
+      "end_sec": 393.38,
+      "text": "Já agora na quarta semana"
+    },
+    {
+      "index": 168,
+      "start_sec": 393.38,
+      "end_sec": 396.24,
+      "text": "Primeiro que a ansiedade"
+    },
+    {
+      "index": 169,
+      "start_sec": 396.24,
+      "end_sec": 397.84,
+      "text": "Diminuiu muito"
+    },
+    {
+      "index": 170,
+      "start_sec": 397.84,
+      "end_sec": 398.76,
+      "text": "Muita coisa mesmo"
+    },
+    {
+      "index": 171,
+      "start_sec": 398.76,
+      "end_sec": 400.12,
+      "text": "O que foi bom"
+    },
+    {
+      "index": 172,
+      "start_sec": 400.12,
+      "end_sec": 402.94,
+      "text": "Que é o principal motivo de eu ter dado uma pausa com o café"
+    },
+    {
+      "index": 173,
+      "start_sec": 402.94,
+      "end_sec": 407.56,
+      "text": "E eu já cheguei num ponto"
+    },
+    {
+      "index": 174,
+      "start_sec": 407.56,
+      "end_sec": 409.66,
+      "text": "Em que eu não tô mais com aquela necessidade"
+    },
+    {
+      "index": 175,
+      "start_sec": 409.66,
+      "end_sec": 410.78,
+      "text": "De ficar tomando uma parada"
+    },
+    {
+      "index": 176,
+      "start_sec": 410.78,
+      "end_sec": 414.36,
+      "text": "E aí eu tomo às vezes"
+    },
+    {
+      "index": 177,
+      "start_sec": 414.36,
+      "end_sec": 416.26,
+      "text": "Ainda tô tomando bastante"
+    },
+    {
+      "index": 178,
+      "start_sec": 416.26,
+      "end_sec": 418.52,
+      "text": "Mas uns três copos de chá por dia"
+    },
+    {
+      "index": 179,
+      "start_sec": 418.52,
+      "end_sec": 419.28,
+      "text": "Três, quatro"
+    },
+    {
+      "index": 180,
+      "start_sec": 419.28,
+      "end_sec": 423.6,
+      "text": "Mas nem tanto quanto eu exagerava antes"
+    },
+    {
+      "index": 181,
+      "start_sec": 423.6,
+      "end_sec": 425.02,
+      "text": "Tá"
+    },
+    {
+      "index": 182,
+      "start_sec": 425.02,
+      "end_sec": 426.78,
+      "text": "Catei aqui as referências"
+    },
+    {
+      "index": 183,
+      "start_sec": 426.78,
+      "end_sec": 428.66,
+      "text": "Que a gente tinha antes da Jinx"
+    },
+    {
+      "index": 184,
+      "start_sec": 428.66,
+      "end_sec": 432.8,
+      "text": "E a gente tá num ponto muito bom com ela já"
+    },
+    {
+      "index": 185,
+      "start_sec": 432.8,
+      "end_sec": 436.8,
+      "text": "Eu tava me preocupando agora"
+    },
+    {
+      "index": 186,
+      "start_sec": 436.8,
+      "end_sec": 438.38,
+      "text": "Com o shape do corpo dela"
+    },
+    {
+      "index": 187,
+      "start_sec": 438.38,
+      "end_sec": 439.64,
+      "text": "Eu tava me preocupando agora"
+    },
+    {
+      "index": 188,
+      "start_sec": 439.64,
+      "end_sec": 441.46,
+      "text": "Com o chest, né"
+    },
+    {
+      "index": 189,
+      "start_sec": 441.46,
+      "end_sec": 442.5,
+      "text": "Os seios"
+    },
+    {
+      "index": 190,
+      "start_sec": 442.5,
+      "end_sec": 446.36,
+      "text": "Porque da altura que tá aqui"
+    },
+    {
+      "index": 191,
+      "start_sec": 446.36,
+      "end_sec": 451.04,
+      "text": "Eu sinto que a gente podia ter"
+    },
+    {
+      "index": 192,
+      "start_sec": 451.04,
+      "end_sec": 453.18,
+      "text": "Trazido um pouco mais de seios ali"
+    },
+    {
+      "index": 193,
+      "start_sec": 453.18,
+      "end_sec": 460.26,
+      "text": "E eu negligenciei isso até esse momento"
+    },
+    {
+      "index": 194,
+      "start_sec": 460.26,
+      "end_sec": 461.54,
+      "text": "Então ela ficou meio chapadona"
+    },
+    {
+      "index": 195,
+      "start_sec": 469.64,
+      "end_sec": 471.5,
+      "text": "A Maria respondeu ali do lado"
+    },
+    {
+      "index": 196,
+      "start_sec": 471.5,
+      "end_sec": 472.5,
+      "text": "A Jinx é chapada mesmo"
+    },
+    {
+      "index": 197,
+      "start_sec": 472.5,
+      "end_sec": 473.92,
+      "text": "Eu sei"
+    },
+    {
+      "index": 198,
+      "start_sec": 473.92,
+      "end_sec": 475.68,
+      "text": "Mas ela tem alguma coisa ali"
+    },
+    {
+      "index": 199,
+      "start_sec": 475.68,
+      "end_sec": 482.32,
+      "text": "E aí tô pensando agora"
+    },
+    {
+      "index": 200,
+      "start_sec": 482.32,
+      "end_sec": 483.32,
+      "text": "Se vale a pena a gente"
+    },
+    {
+      "index": 201,
+      "start_sec": 483.32,
+      "end_sec": 485.22,
+      "text": "Fazer isso rapidinho"
+    },
+    {
+      "index": 202,
+      "start_sec": 485.22,
+      "end_sec": 487.16,
+      "text": "Acho que vale a pena"
+    },
+    {
+      "index": 203,
+      "start_sec": 487.16,
+      "end_sec": 489.02,
+      "text": "Fazer rapidinho pra ficar mais"
+    },
+    {
+      "index": 204,
+      "start_sec": 489.02,
+      "end_sec": 492.36,
+      "text": "Mais fiel ao personagem, né"
+    },
+    {
+      "index": 205,
+      "start_sec": 492.36,
+      "end_sec": 498.96,
+      "text": "Deixa eu ver se eu consigo fazer"
+    },
+    {
+      "index": 206,
+      "start_sec": 498.96,
+      "end_sec": 499.04,
+      "text": "Deixa eu ver se eu consigo fazer"
+    },
+    {
+      "index": 207,
+      "start_sec": 499.04,
+      "end_sec": 499.06,
+      "text": "Deixa eu ver se eu consigo fazer"
+    },
+    {
+      "index": 208,
+      "start_sec": 499.06,
+      "end_sec": 499.18,
+      "text": "Deixa eu ver se eu consigo fazer"
+    },
+    {
+      "index": 209,
+      "start_sec": 499.18,
+      "end_sec": 499.2,
+      "text": "Deixa eu ver se eu consigo fazer"
+    },
+    {
+      "index": 210,
+      "start_sec": 499.2,
+      "end_sec": 499.26,
+      "text": "Deixa eu ver se eu consigo fazer"
+    },
+    {
+      "index": 211,
+      "start_sec": 499.26,
+      "end_sec": 500.74,
+      "text": "Deixa eu ver se eu consigo fazer"
+    },
+    {
+      "index": 212,
+      "start_sec": 500.74,
+      "end_sec": 502.94,
+      "text": "Essa camisa ela tá com shrinkwrap"
+    },
+    {
+      "index": 213,
+      "start_sec": 502.94,
+      "end_sec": 503.6,
+      "text": "Beleza"
+    },
+    {
+      "index": 214,
+      "start_sec": 503.6,
+      "end_sec": 505.48,
+      "text": "Então"
+    },
+    {
+      "index": 215,
+      "start_sec": 505.48,
+      "end_sec": 508.94,
+      "text": "Acho que eu vou ter que modelar"
+    },
+    {
+      "index": 216,
+      "start_sec": 508.94,
+      "end_sec": 510.76,
+      "text": "Direto daqui mesmo"
+    },
+    {
+      "index": 217,
+      "start_sec": 510.76,
+      "end_sec": 513.08,
+      "text": "O seu junto"
+    },
+    {
+      "index": 218,
+      "start_sec": 513.08,
+      "end_sec": 516.92,
+      "text": "Pensando, pensando"
+    },
+    {
+      "index": 219,
+      "start_sec": 516.92,
+      "end_sec": 518.54,
+      "text": "Um jeito fácil de fazer"
+    },
+    {
+      "index": 220,
+      "start_sec": 518.54,
+      "end_sec": 520.92,
+      "text": "Acho que seria fazendo um modelo separado"
+    },
+    {
+      "index": 221,
+      "start_sec": 521.78,
+      "end_sec": 528.42,
+      "text": "Podia ter exemplos"
+    },
+    {
+      "index": 222,
+      "start_sec": 528.42,
+      "end_sec": 528.8,
+      "text": "Um"
+    },
+    {
+      "index": 223,
+      "start_sec": 528.8,
+      "end_sec": 533.8,
+      "text": "Pouco mais refinadas dela aqui. Mas eu não tenho. Mas tudo bem."
+    },
+    {
+      "index": 224,
+      "start_sec": 533.8,
+      "end_sec": 538.8,
+      "text": "A parada aqui é o seguinte. Na visão de cima..."
+    },
+    {
+      "index": 225,
+      "start_sec": 542.8,
+      "end_sec": 547.8,
+      "text": "A anatomia dos seios é mais ou menos um coração invertido."
+    },
+    {
+      "index": 226,
+      "start_sec": 550.8,
+      "end_sec": 552.8,
+      "text": "Vou explicar o que eu quero dizer com isso."
+    },
+    {
+      "index": 227,
+      "start_sec": 555.8,
+      "end_sec": 557.8,
+      "text": "A gente pode fazer tipo... Opa!"
+    },
+    {
+      "index": 228,
+      "start_sec": 559.8,
+      "end_sec": 562.8,
+      "text": "Ele é tipo um... Nossa!"
+    },
+    {
+      "index": 229,
+      "start_sec": 562.8,
+      "end_sec": 564.8,
+      "text": "Deixa eu ver se eu consigo desenhar."
+    },
+    {
+      "index": 230,
+      "start_sec": 568.8,
+      "end_sec": 571.8,
+      "text": "Ah, acho que tá dando pra ter a ideia, né?"
+    },
+    {
+      "index": 231,
+      "start_sec": 571.8,
+      "end_sec": 574.8,
+      "text": "Um coração. Um coração invertido."
+    },
+    {
+      "index": 232,
+      "start_sec": 576.8,
+      "end_sec": 578.8,
+      "text": "A gente tem meio que duas gotas."
+    },
+    {
+      "index": 233,
+      "start_sec": 578.8,
+      "end_sec": 581.8,
+      "text": "E elas se linkam ali no músculo do..."
+    },
+    {
+      "index": 234,
+      "start_sec": 583.8,
+      "end_sec": 585.8,
+      "text": "Nos músculos do braço e do..."
+    },
+    {
+      "index": 235,
+      "start_sec": 586.8,
+      "end_sec": 588.8,
+      "text": "Do chest, né? Do peito."
+    },
+    {
+      "index": 236,
+      "start_sec": 588.8,
+      "end_sec": 589.8,
+      "text": "Do peitoral."
+    },
+    {
+      "index": 237,
+      "start_sec": 591.8,
+      "end_sec": 594.8,
+      "text": "É o que eu quis dizer com o formato de coração."
+    },
+    {
+      "index": 238,
+      "start_sec": 594.8,
+      "end_sec": 598.8,
+      "text": "Mas a gota também funciona com as partes separadas."
+    },
+    {
+      "index": 239,
+      "start_sec": 598.8,
+      "end_sec": 599.8,
+      "text": "Então a gente pode..."
+    }
+  ]
+}

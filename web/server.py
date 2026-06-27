@@ -92,6 +92,65 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 
+async def connection_watchdog():
+    """
+    Monitora conexões de clientes e desliga o servidor se nenhuma conexão estiver
+    ativa após um período de tolerância. Isso evita vazamento de VRAM/processos órfãos.
+    """
+    import os
+    import sys
+    import signal
+
+    startup_grace = 30.0  # segundos para esperar o frontend conectar ao iniciar
+    disconnect_timeout = 60.0  # segundos de tolerância sem conexões (evita queda se proxy falhar/recarregar)
+    check_interval = 2.0  # intervalo de checagem
+
+    logger.info("Watchdog de conexões iniciado. Aguardando conexão inicial do frontend...")
+    await asyncio.sleep(startup_grace)
+
+    no_connection_seconds = 0.0
+    while True:
+        await asyncio.sleep(check_interval)
+        
+        # Verifica se o pipeline de Shorts está executando alguma tarefa pesada na VRAM
+        pipeline_busy = False
+        try:
+            from web.shorts.router import pipeline
+            if pipeline.is_busy():
+                pipeline_busy = True
+        except Exception as e:
+            logger.debug(f"Falha ao verificar status do pipeline no watchdog: {e}")
+
+        if len(manager.connections) == 0 and not pipeline_busy:
+            no_connection_seconds += check_interval
+            if no_connection_seconds >= disconnect_timeout:
+                logger.warning(
+                    f"Nenhum cliente conectado por {disconnect_timeout} segundos. Finalizando processo para liberar VRAM..."
+                )
+                
+                # Executa a limpeza da VRAM
+                try:
+                    from web.shorts.models import ModelManager
+                    ModelManager.clean_vram()
+                except Exception as e:
+                    logger.error(f"Erro ao limpar VRAM no watchdog: {e}")
+
+                # Se não estiver compilado (execução em dev/uvicorn), tenta matar o processo pai (uvicorn master)
+                if not getattr(sys, "frozen", False):
+                    try:
+                        ppid = os.getppid()
+                        if ppid > 1:
+                            logger.info(f"Finalizando processo pai (PID: {ppid})")
+                            os.kill(ppid, signal.SIGTERM)
+                    except Exception as e:
+                        logger.error(f"Erro ao tentar finalizar processo pai: {e}")
+
+                # Finaliza o processo atual
+                os._exit(0)
+        else:
+            no_connection_seconds = 0.0
+
+
 @app.exception_handler(ffmpeg_svc.FFmpegServiceError)
 async def handle_ffmpeg_error(_: Request, exc: ffmpeg_svc.FFmpegServiceError):
     return JSONResponse({"error": str(exc)}, status_code=exc.status_code)
@@ -105,6 +164,21 @@ async def log_missing_media_binaries():
             "Dependências do sistema ausentes: %s. Instale o pacote 'ffmpeg' e reinicie o backend.",
             ", ".join(missing),
         )
+    # Inicia o watchdog de conexão
+    asyncio.create_task(connection_watchdog())
+
+
+@app.on_event("shutdown")
+def shutdown_cleanup():
+    logger.info("FastAPI server shutting down. Cleaning up heavy models and forcing process termination...")
+    try:
+        from web.shorts.models import ModelManager
+        ModelManager.clean_vram()
+    except Exception as e:
+        logger.error(f"Failed to clean VRAM on shutdown: {e}")
+    import os
+    # Force exit to prevent process/VRAM leak on hot-reload
+    os._exit(0)
 
 
 # --- Request Models ---

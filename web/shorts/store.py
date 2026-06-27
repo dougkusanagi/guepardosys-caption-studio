@@ -60,9 +60,21 @@ def init_db(conn: sqlite3.Connection):
         end_sec REAL NOT NULL,
         score REAL DEFAULT 0.0,
         output_path TEXT,
-        status TEXT DEFAULT 'pending'  -- pending | processing | done | error
+        status TEXT DEFAULT 'pending',  -- pending | processing | done | error
+        headline TEXT,
+        storytelling_structure TEXT
     )
     """)
+
+    # Fallback migrations to add columns if database already existed
+    try:
+        cursor.execute("ALTER TABLE shorts_clips ADD COLUMN headline TEXT")
+    except sqlite3.OperationalError:
+        pass
+    try:
+        cursor.execute("ALTER TABLE shorts_clips ADD COLUMN storytelling_structure TEXT")
+    except sqlite3.OperationalError:
+        pass
 
     conn.commit()
 
@@ -177,8 +189,8 @@ def save_clips(project_id: str, job_id: str, clips: list[dict[str, Any]]):
             clip_id = clip.get("id") or f"{job_id}_{idx}"
             cursor.execute(
                 """
-                INSERT INTO shorts_clips (id, job_id, index_num, start_sec, end_sec, score, output_path, status)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO shorts_clips (id, job_id, index_num, start_sec, end_sec, score, output_path, status, headline, storytelling_structure)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     clip_id,
@@ -188,7 +200,9 @@ def save_clips(project_id: str, job_id: str, clips: list[dict[str, Any]]):
                     clip["end_sec"],
                     clip.get("score", 0.0),
                     clip.get("output_path"),
-                    clip.get("status", "pending")
+                    clip.get("status", "pending"),
+                    clip.get("headline", ""),
+                    clip.get("storytelling_structure", "")
                 )
             )
         conn.commit()
@@ -200,7 +214,7 @@ def get_clips(project_id: str, job_id: str) -> list[dict[str, Any]]:
         cursor = conn.cursor()
         cursor.execute(
             """
-            SELECT id, index_num, start_sec, end_sec, score, output_path, status 
+            SELECT id, index_num, start_sec, end_sec, score, output_path, status, headline, storytelling_structure 
             FROM shorts_clips 
             WHERE job_id = ?
             ORDER BY index_num ASC
@@ -215,7 +229,9 @@ def get_clips(project_id: str, job_id: str) -> list[dict[str, Any]]:
                 "end_sec": row["end_sec"],
                 "score": row["score"],
                 "outputPath": row["output_path"],
-                "status": row["status"]
+                "status": row["status"],
+                "headline": row["headline"] or "",
+                "storytelling_structure": row["storytelling_structure"] or ""
             }
             for row in cursor.fetchall()
         ]

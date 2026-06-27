@@ -1,0 +1,74 @@
+{
+  "shorts": [
+    {
+      "id": 1,
+      "start_sec": 0.0,
+      "end_sec": 21.8,
+      "headline": "A Rotina Caótica que Me Deixou Preocupado",
+      "storytelling_structure": "Gancho: Início com a sensação de atraso e preocupação ('fiquei preocupado até de não conseguir colar'). Desenvolvimento: A descrição da ansiedade causada pelo calor/clima. Fechamento: Estabelece o tom de estresse inicial do dia."
+    },
+    {
+      "id": 2,
+      "start_sec": 283.0,
+      "end_sec": 313.0,
+      "headline": "O Segredo para Diminuir a Ansiedade em 98%",
+      "storytelling_structure": "Gancho: Apresenta uma solução de saúde ('terminando a última semana pra fazer um mês que eu diminuir 98% do café'). Desenvolvimento: Explica o método (chá o dia inteiro). Fechamento: Conclui com o benefício emocional ('Me sinto até mais saudável')."
+    },
+    {
+      "id": 3,
+      "start_sec": 356.0,
+      "end_sec": 433.0,
+      "headline": "O Loop da Ansiedade: Café vs. Chá",
+      "storytelling_structure": "Gancho: Introduz o conflito do hábito ('você sente a diferença porque o café também te vicia'). Desenvolvimento: Explica o ciclo vicioso (café -> ansiedade -> busca por bebida). Fechamento: Revela a solução e o resultado positivo da mudança de hábito com o chá."
+    },
+    {
+      "id": 4,
+      "start_sec": 435.0,
+      "end_sec": 462.0,
+      "headline": "A Questão Estética na Criação de Personagens",
+      "storytelling_structure": "Gancho: Apresenta a preocupação estética ('Eu tava me preocupando agora com o shape do corpo dela'). Desenvolvimento: Contextualiza o problema (falta de volume no chest/seios). Fechamento: Mostra a consequência da negligência ('ela ficou meio chapadona ali')."
+    },
+    {
+      "id": 5,
+      "start_sec": 466.0,
+      "end_sec": 507.0,
+      "headline": "A Busca pela Fidelidade no Design",
+      "storytelling_structure": "Gancho: Apresenta a necessidade de correção ('A Maria responde o olho do lado do The Jinx, isso é chapada mesmo'). Desenvolvimento: O desejo de refazer para ser mais fiel ao personagem. Fechamento: Estabelece a ação necessária (modelar e corrigir)."
+    },
+    {
+      "id": 6,
+      "start_sec": 530.0,
+      "end_sec": 548.0,
+      "headline": "A Anatomia por Trás da Imagem",
+      "storytelling_structure": "Gancho: Foca no detalhe técnico ('a anatomia do ensaio'). Desenvolvimento: Explica o conceito visual (coração invertido). Fechamento: Define a forma geométrica que será usada na criação."
+    },
+    {
+      "id": 7,
+      "start_sec": 560.0,
+      "end_sec": 598.0,
+      "headline": "Como Desenhar um Coração Invertido",
+      "storytelling_structure": "Gancho: Apresenta a ideia central ('É tipo... Nossa! Deixa eu ver se consigo desenhar'). Desenvolvimento: Detalha a estrutura (duas gotas se linkando no peitoral). Fechamento: Oferece o resultado da explicação anatômica."
+    },
+    {
+      "id": 8,
+      "start_sec": 12.5,
+      "end_sec": 30.0,
+      "headline": "Seu Dia Começa com Estresse?",
+      "storytelling_structure": "Gancho: Pergunta direta ao espectador ('Cheguei atrasado. Eita, sou hoje. Tudo bem?'). Desenvolvimento: Contextualiza o estresse inicial da rotina. Fechamento: Cria identificação imediata com a sensação de começar o dia mal."
+    },
+    {
+      "id": 9,
+      "start_sec": 100.0,
+      "end_sec": 254.0,
+      "headline": "O Valor da Sua Opinião no Discord",
+      "storytelling_structure": "Gancho: Apresenta uma oportunidade ('você pode ganhar uma mentoria ao vivo'). Desenvolvimento: Explica o mecanismo (responder à pesquisa de dois minutinhos). Fechamento: Chamada para ação clara e engajadora ('Sua opinião faz diferença. Manda pra gente...')."
+    },
+    {
+      "id": 10,
+      "start_sec": 277.0,
+      "end_sec": 315.0,
+      "headline": "A Transformação da Semana",
+      "storytelling_structure": "Gancho: Transição de contexto ('Falta um chazinho...'). Desenvolvimento: Resume o aprendizado e a mudança (do café para o chá). Fechamento: Reforça o benefício geral da pausa e do bem-estar."
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+BENCHMARK DE TRANSCRIÇÃO (Modelos 'small' em CPU - 10 Minutos de Áudio)
+========================================================================
+OpenAI Whisper Standard:
+  Tempo de Transcrição: 146.71s
+  Segmentos extraídos:  141
+
+Faster-Whisper:
+  Tempo de Transcrição: 155.65s
+  Segmentos extraídos:  161
+
+Velocidade: Faster-Whisper foi 0.94x mais rápido.
