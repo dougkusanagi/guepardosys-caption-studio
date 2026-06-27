@@ -235,3 +235,35 @@ def get_clips(project_id: str, job_id: str) -> list[dict[str, Any]]:
             }
             for row in cursor.fetchall()
         ]
+
+
+def has_active_jobs() -> bool:
+    """Check if ANY project has jobs with 'pending' or 'analyzing' status.
+
+    This is used by the connection watchdog as an extra safety layer to prevent
+    shutting down the backend while shorts generation is in progress, even if
+    no WebSocket clients are connected.
+    """
+    if not PROCESSED_DIR.exists():
+        return False
+
+    for project_dir in PROCESSED_DIR.iterdir():
+        if not project_dir.is_dir():
+            continue
+        db_path = project_dir / "shorts" / DB_FILE_NAME
+        if not db_path.exists():
+            continue
+        try:
+            conn = sqlite3.connect(str(db_path))
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT COUNT(*) as cnt FROM shorts_jobs WHERE status IN ('pending', 'analyzing', 'generating')"
+            )
+            row = cursor.fetchone()
+            conn.close()
+            if row and row["cnt"] > 0:
+                return True
+        except Exception:
+            continue
+    return False

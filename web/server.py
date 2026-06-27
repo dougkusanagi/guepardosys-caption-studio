@@ -127,6 +127,18 @@ async def connection_watchdog():
             logger.debug(f"Falha ao verificar status do pipeline no watchdog: {e}")
 
         if len(manager.connections) == 0 and not pipeline_busy:
+            # Extra safety: check the database for any active/pending jobs
+            db_has_active_jobs = False
+            try:
+                from web.shorts import store as shorts_store
+                db_has_active_jobs = shorts_store.has_active_jobs()
+            except Exception as e:
+                logger.debug(f"Falha ao verificar jobs ativos no banco: {e}")
+
+            if db_has_active_jobs:
+                no_connection_seconds = 0.0
+                continue
+
             no_connection_seconds += check_interval
             if no_connection_seconds >= disconnect_timeout:
                 logger.warning(

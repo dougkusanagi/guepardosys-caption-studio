@@ -80,6 +80,11 @@ async def analyze_shorts(req: ShortsAnalyzeRequest, background_tasks: Background
         except Exception as e:
             logger.debug(f"WS progress dispatch failed: {e}")
 
+    # Mark the job as active NOW (before the background task starts) to prevent
+    # the connection watchdog from shutting down the server during the gap between
+    # the HTTP response being sent and the background task actually starting.
+    pipeline.active_jobs.add(job_id)
+
     # Launch pipeline background worker
     background_tasks.add_task(
         pipeline.run_analysis,
