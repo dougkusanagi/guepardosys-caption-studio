@@ -63,11 +63,58 @@ async fn export_video_to_local(
   Ok("success".to_string())
 }
 
+#[tauri::command]
+async fn pick_directory() -> Result<String, String> {
+  let folder_handle = rfd::AsyncFileDialog::new()
+    .pick_folder()
+    .await;
+
+  match folder_handle {
+    Some(handle) => Ok(handle.path().to_string_lossy().to_string()),
+    None => Ok("cancelled".to_string()),
+  }
+}
+
+#[tauri::command]
+async fn save_file_to_directory(
+  source_url: String,
+  target_dir: String,
+  file_name: String,
+) -> Result<String, String> {
+  let client = reqwest::Client::new();
+  let response = client.get(&source_url)
+    .send()
+    .await
+    .map_err(|e| format!("Erro de conexão com o backend: {}", e))?;
+
+  if !response.status().is_success() {
+    return Err(format!("Falha ao obter o arquivo do backend: {}", response.status()));
+  }
+
+  let dest_path = std::path::Path::new(&target_dir).join(&file_name);
+  
+  let mut file = std::fs::File::create(&dest_path)
+    .map_err(|e| format!("Não foi possível criar o arquivo de destino: {}", e))?;
+
+  let content = response.bytes().await
+    .map_err(|e| format!("Erro ao obter bytes do vídeo: {}", e))?;
+
+  use std::io::Write;
+  file.write_all(&content)
+    .map_err(|e| format!("Erro ao escrever o arquivo no disco: {}", e))?;
+
+  Ok("success".to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   let app = tauri::Builder::default()
     .plugin(tauri_plugin_shell::init())
-    .invoke_handler(tauri::generate_handler![export_video_to_local])
+    .invoke_handler(tauri::generate_handler![
+      export_video_to_local,
+      pick_directory,
+      save_file_to_directory
+    ])
     .setup(|app| {
       if cfg!(debug_assertions) {
         app.handle().plugin(

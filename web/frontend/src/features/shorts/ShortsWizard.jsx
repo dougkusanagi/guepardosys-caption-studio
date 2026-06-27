@@ -8,7 +8,7 @@ import ShortsConfigPanel from './ShortsConfigPanel.jsx';
 import ShortsClipList from './ShortsClipList.jsx';
 import ShortsPreview from './ShortsPreview.jsx';
 
-import { analyzeShorts, getShortsStatus, exportShort, cancelShorts } from '../../lib/api.js';
+import { BASE_URL, analyzeShorts, getShortsStatus, exportShort, cancelShorts } from '../../lib/api.js';
 
 function formatSecondsInText(text) {
   if (!text) return '';
@@ -68,6 +68,21 @@ export default function ShortsWizard({
       logEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [logs, autoScroll]);
+
+  const [exportDir, setExportDir] = useState('');
+  const isTauri = typeof window !== 'undefined' && (!!window.__TAURI_INTERNALS__ || !!window.__TAURI__);
+
+  const handlePickDirectory = async () => {
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      const selected = await invoke('pick_directory');
+      if (selected && selected !== 'cancelled') {
+        setExportDir(selected);
+      }
+    } catch (err) {
+      console.error('Failed to pick directory:', err);
+    }
+  };
 
   // 1. Monitor WebSocket progress updates
   useEffect(() => {
@@ -510,33 +525,96 @@ export default function ShortsWizard({
                   reframeMode={config.reframeMode}
                 />
                 
+                {/* Folder Select Box */}
+                {isTauri && selectedClips.size > 0 && (
+                  <div className="w-full mt-4 space-y-1.5 text-left">
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-surface-500">
+                      Pasta de Destino
+                    </label>
+                    <div className="flex gap-2 w-full">
+                      <input
+                        type="text"
+                        value={exportDir}
+                        placeholder="Clique em 'Selecionar' para escolher a pasta..."
+                        readOnly
+                        onClick={handlePickDirectory}
+                        className="flex-1 text-xs bg-surface-50 border border-surface-200 rounded-lg px-3 py-2 cursor-pointer text-surface-700 font-mono overflow-ellipsis whitespace-nowrap overflow-hidden focus:outline-none"
+                      />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handlePickDirectory}
+                        className="border-surface-200 hover:bg-surface-50 text-xs px-3 font-semibold text-surface-600"
+                      >
+                        Selecionar
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
                 {selectedClips.size > 0 && (
                   <Button
                     onClick={async () => {
                       const clipsToExport = Array.from(selectedClips);
                       let successCount = 0;
+                      
                       for (const cid of clipsToExport) {
                         const clipObj = clips.find(c => c.id === cid);
                         setExportingClipId(cid);
                         try {
-                          await exportShort({
+                          const res = await exportShort({
                             projectId,
                             jobId,
                             clipId: cid
                           });
-                          successCount++;
+                          
+                          if (isTauri) {
+                            if (exportDir) {
+                              const { invoke } = await import('@tauri-apps/api/core');
+                              const cleanHeadline = (clipObj.headline || `clipe_${cid}`).replace(/[\\/:*?"<>|]/g, "_");
+                              const saveStatus = await invoke('save_file_to_directory', {
+                                sourceUrl: `${BASE_URL}${res.outputPath}`,
+                                targetDir: exportDir,
+                                fileName: `${cleanHeadline}.mp4`
+                              });
+                              if (saveStatus === 'success') {
+                                successCount++;
+                              }
+                            }
+                          } else {
+                            // Web download fallback
+                            const fileRes = await fetch(`${BASE_URL}${res.outputPath}`);
+                            const blob = await fileRes.blob();
+                            const url = URL.createObjectURL(blob);
+                            const anchor = document.createElement('a');
+                            anchor.href = url;
+                            anchor.download = `${(clipObj.headline || `clipe_${cid}`).replace(/[\\/:*?"<>|]/g, "_")}.mp4`;
+                            document.body.appendChild(anchor);
+                            anchor.click();
+                            document.body.removeChild(anchor);
+                            URL.revokeObjectURL(url);
+                            successCount++;
+                          }
                         } catch (err) {
                           console.error(`Error exporting clip ${cid}:`, err);
                         }
                       }
                       setExportingClipId(null);
-                      alert(`Exportação concluída! ${successCount} de ${clipsToExport.length} clipes foram salvos na pasta de processados.`);
+                      if (isTauri && exportDir) {
+                        alert(`Exportação concluída! ${successCount} de ${clipsToExport.length} clipes foram salvos em:\n${exportDir}`);
+                      } else {
+                        alert(`Exportação concluída! ${successCount} de ${clipsToExport.length} clipes foram exportados.`);
+                      }
                       fetchClips(); // Refresh status/paths
                     }}
                     className="w-full mt-6 py-5 bg-gradient-to-r from-primary-600 to-indigo-600 hover:from-primary-700 hover:to-indigo-700 text-white font-semibold rounded-xl"
-                    disabled={exportingClipId !== null}
+                    disabled={exportingClipId !== null || (isTauri && !exportDir)}
                   >
-                    {exportingClipId !== null ? 'Exportando Lote...' : `Exportar Selecionados (${selectedClips.size})`}
+                    {exportingClipId !== null 
+                      ? 'Exportando Lote...' 
+                      : (isTauri && !exportDir)
+                        ? 'Selecione uma pasta para salvar'
+                        : `Exportar Selecionados (${selectedClips.size})`}
                   </Button>
                 )}
               </Card>
