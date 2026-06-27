@@ -138,6 +138,11 @@ async def export_short(req: ExportClipRequest):
     import asyncio
     from web.shorts.render import render_clip
     try:
+        from web.server import TaskTracker
+        TaskTracker.active_tasks += 1
+    except Exception:
+        pass
+    try:
         loop = asyncio.get_event_loop()
         result = await loop.run_in_executor(
             None,
@@ -147,6 +152,12 @@ async def export_short(req: ExportClipRequest):
     except Exception as e:
         logger.exception(f"Failed to export clip {req.clipId}")
         raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        try:
+            from web.server import TaskTracker
+            TaskTracker.active_tasks = max(0, TaskTracker.active_tasks - 1)
+        except Exception:
+            pass
 
 
 class CancelJobRequest(BaseModel):
@@ -163,4 +174,22 @@ async def cancel_shorts(req: CancelJobRequest):
         return {"message": "Job cancellation request queued"}
     except Exception as e:
         logger.exception(f"Failed to cancel job {req.jobId}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class UpdateStyleRequest(BaseModel):
+    projectId: str
+    jobId: str
+    subtitleStyle: dict[str, Any]
+
+
+@router.post("/update-style")
+async def update_style(req: UpdateStyleRequest):
+    """Update subtitle style and reset clip rendering states."""
+    logger.info(f"Update style request received for job {req.jobId}")
+    try:
+        store.update_job_subtitle_style(req.projectId, req.jobId, req.subtitleStyle)
+        return {"message": "Style updated successfully and clips reset."}
+    except Exception as e:
+        logger.exception(f"Failed to update style for job {req.jobId}")
         raise HTTPException(status_code=500, detail=str(e))

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Sparkles, Sliders, ArrowLeft, ArrowRight, Loader2, CheckCircle2, AlertTriangle, Play, RefreshCw, Undo2, XCircle } from 'lucide-react';
+import { Sparkles, Sliders, ArrowLeft, ArrowRight, Loader2, CheckCircle2, AlertTriangle, Play, RefreshCw, Undo2, XCircle, Power, ShieldAlert } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/card.jsx';
 import { Button } from '../../components/ui/button.jsx';
 import { Progress } from '../../components/ui/progress.jsx';
@@ -25,6 +25,21 @@ function formatSecondsInText(text) {
   });
 }
 
+const DEFAULT_SUBTITLE_STYLE = {
+  fontName: 'Arial',
+  fontSize: 42,
+  primaryColor: '#ffffff',
+  outlineColor: '#000000',
+  outline: 2,
+  shadow: 1,
+  alignment: 2,
+  positionY: 75,
+  areaHeight: 18,
+  bold: true,
+  highlightWords: true,
+  highlightColor: '#facc15',
+};
+
 export default function ShortsWizard({ 
   projectId, 
   filename, 
@@ -48,6 +63,7 @@ export default function ShortsWizard({
     dynamicClipCount: false
   });
   
+  const [subtitleStyle, setSubtitleStyle] = useState(DEFAULT_SUBTITLE_STYLE);
   const [jobId, setJobId] = useState(null);
   const [clips, setClips] = useState([]);
   const [selectedClips, setSelectedClips] = useState(new Set());
@@ -71,6 +87,144 @@ export default function ShortsWizard({
 
   const [exportDir, setExportDir] = useState('');
   const isTauri = typeof window !== 'undefined' && (!!window.__TAURI_INTERNALS__ || !!window.__TAURI__);
+
+  // Auto shutdown states
+  const [shutdownOnComplete, setShutdownOnComplete] = useState(false);
+  const [countdownActive, setCountdownActive] = useState(false);
+  const [countdownSeconds, setCountdownSeconds] = useState(30);
+  const [shutdownMessage, setShutdownMessage] = useState('');
+  const shutdownTimerRef = useRef(null);
+
+  const triggerShutdownCountdown = async (message) => {
+    if (!isTauri) return;
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      await invoke('shutdown_pc', { timeout: 30 });
+      setShutdownMessage(message);
+      setCountdownSeconds(30);
+      setCountdownActive(true);
+      
+      if (shutdownTimerRef.current) clearInterval(shutdownTimerRef.current);
+      shutdownTimerRef.current = setInterval(() => {
+        setCountdownSeconds((prev) => {
+          if (prev <= 1) {
+            clearInterval(shutdownTimerRef.current);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    } catch (err) {
+      console.error('Failed to start shutdown:', err);
+      alert(`Erro ao iniciar desligamento: ${err.message || err}`);
+    }
+  };
+
+  const handleCancelShutdown = async () => {
+    if (!isTauri) return;
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      await invoke('cancel_shutdown');
+      if (shutdownTimerRef.current) {
+        clearInterval(shutdownTimerRef.current);
+        shutdownTimerRef.current = null;
+      }
+      setCountdownActive(false);
+      setShutdownOnComplete(false);
+    } catch (err) {
+      console.error('Failed to cancel shutdown:', err);
+      alert(`Erro ao cancelar desligamento: ${err.message || err}`);
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (shutdownTimerRef.current) clearInterval(shutdownTimerRef.current);
+    };
+  }, []);
+
+  // Pre-rendering queue logic
+  const [activeRenderIndex, setActiveRenderIndex] = useState(-1);
+
+  useEffect(() => {
+    if (clips.length === 0 || step === 'config') return;
+
+    const nextPendingIndex = clips.findIndex(c => c.status === 'pending');
+    if (nextPendingIndex !== -1 && activeRenderIndex === -1) {
+      const clipToRender = clips[nextPendingIndex];
+      setActiveRenderIndex(nextPendingIndex);
+
+      setClips(prev => prev.map((c, idx) => idx === nextPendingIndex ? { ...c, status: 'processing' } : c));
+
+      exportShort({
+        projectId,
+        jobId,
+        clipId: clipToRender.id
+      }).then(res => {
+        setClips(prev => {
+          const updated = prev.map((c, idx) => idx === nextPendingIndex ? { ...c, status: 'done', outputPath: res.outputPath } : c);
+          
+          if (nextPendingIndex === 0 && step === 'analyzing') {
+            setStep('review');
+            setActivePreviewClip(updated[0]);
+            setSelectedClips(new Set(updated.map(c => c.id)));
+          }
+          
+          if (activePreviewClip && activePreviewClip.id === clipToRender.id) {
+            setActivePreviewClip(updated[nextPendingIndex]);
+          }
+          return updated;
+        });
+        setActiveRenderIndex(-1);
+      }).catch(err => {
+        console.error("Failed to pre-render clip:", err);
+        setClips(prev => prev.map((c, idx) => idx === nextPendingIndex ? { ...c, status: 'error' } : c));
+        
+        if (nextPendingIndex === 0 && step === 'analyzing') {
+          setStep('review');
+          if (clips.length > 0) {
+            setActivePreviewClip(clips[0]);
+            setSelectedClips(new Set(clips.map(c => c.id)));
+          }
+        }
+        setActiveRenderIndex(-1);
+      });
+    }
+  }, [clips, step, activeRenderIndex, jobId, projectId, activePreviewClip]);
+
+  // Trigger shutdown when all clips finished rendering in background
+  useEffect(() => {
+    if (clips.length > 0 && shutdownOnComplete && !countdownActive) {
+      const allDone = clips.every(c => c.status === 'done' || c.status === 'error');
+      if (allDone) {
+        triggerShutdownCountdown("Geração e processamento de todos os clipes concluídos!");
+      }
+    }
+  }, [clips, shutdownOnComplete, countdownActive]);
+
+  const handleUpdateSubtitleStyle = async (newStyle) => {
+    try {
+      setSubtitleStyle(newStyle);
+      
+      const response = await fetch(`${BASE_URL}/api/shorts/update-style`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId, jobId, subtitleStyle: newStyle })
+      });
+      if (!response.ok) {
+        throw new Error(`HTTP error ${response.status}`);
+      }
+      
+      // Style updated! Reset local clips status to pending and clear output paths
+      setClips(prev => prev.map(c => ({ ...c, status: 'pending', outputPath: null })));
+      // Reset step to 'analyzing' to wait for clip 0 to re-render!
+      setStep('analyzing');
+      setLocalProgress({ percent: 95, message: 'Re-renderizando clipes com o novo estilo...', stage: 'shorts:done' });
+    } catch (err) {
+      console.error("Failed to update subtitle style:", err);
+      alert(`Erro ao atualizar estilo: ${err.message || err}`);
+    }
+  };
 
   const handlePickDirectory = async () => {
     try {
@@ -121,11 +275,6 @@ export default function ShortsWizard({
       const status = await getShortsStatus(projectId, jobId);
       if (status.clips) {
         setClips(status.clips);
-        if (status.clips.length > 0) {
-          setActivePreviewClip(status.clips[0]);
-          setSelectedClips(new Set(status.clips.map(c => c.id)));
-        }
-        setStep('review');
       }
     } catch (err) {
       console.error('Failed to fetch clips:', err);
@@ -171,9 +320,14 @@ export default function ShortsWizard({
           
           if (statusStr === 'ready' && status.clips && status.clips.length > 0) {
             setClips(status.clips);
-            setActivePreviewClip(status.clips[0]);
-            setSelectedClips(new Set(status.clips.map(c => c.id)));
-            setStep('review');
+            const doneClips = status.clips.filter(c => c.status === 'done');
+            if (doneClips.length > 0) {
+              setActivePreviewClip(doneClips[0]);
+              setSelectedClips(new Set(status.clips.map(c => c.id)));
+              setStep('review');
+            } else {
+              setStep('analyzing');
+            }
           } else if (statusStr === 'analyzing' || statusStr === 'pending') {
             setStep('analyzing');
           } else {
@@ -303,7 +457,23 @@ export default function ShortsWizard({
           <ArrowLeft className="w-4 h-4" />
           Voltar para Home
         </Button>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
+          {isTauri && (
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-white border border-surface-200 rounded-full hover:bg-surface-50 transition-all duration-200 shadow-sm">
+              <label className="flex items-center gap-2 text-[11px] font-semibold text-surface-600 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={shutdownOnComplete}
+                  onChange={(e) => setShutdownOnComplete(e.target.checked)}
+                  className="rounded border-surface-300 text-red-650 focus:ring-red-500 h-3.5 w-3.5 cursor-pointer"
+                />
+                <span className="flex items-center gap-1.5">
+                  <Power className={`w-3.5 h-3.5 ${shutdownOnComplete ? 'text-red-500 animate-pulse' : 'text-surface-400'}`} />
+                  Desligar PC ao terminar
+                </span>
+              </label>
+            </div>
+          )}
           <span className="text-xs font-semibold px-2.5 py-1 bg-indigo-50 border border-indigo-100 text-indigo-700 rounded-full flex items-center gap-1">
             <Sparkles className="w-3 h-3" />
             Módulo Shorts IA v1.0 (Beta)
@@ -523,6 +693,9 @@ export default function ShortsWizard({
                   videoSrc={videoPath}
                   clip={activePreviewClip}
                   reframeMode={config.reframeMode}
+                  baseUrl={BASE_URL}
+                  subtitleStyle={subtitleStyle}
+                  onUpdateSubtitleStyle={handleUpdateSubtitleStyle}
                 />
                 
                 {/* Folder Select Box */}
@@ -600,10 +773,14 @@ export default function ShortsWizard({
                         }
                       }
                       setExportingClipId(null);
-                      if (isTauri && exportDir) {
-                        alert(`Exportação concluída! ${successCount} de ${clipsToExport.length} clipes foram salvos em:\n${exportDir}`);
+                      if (shutdownOnComplete) {
+                        triggerShutdownCountdown(`Exportação concluída! ${successCount} de ${clipsToExport.length} clipes foram exportados.`);
                       } else {
-                        alert(`Exportação concluída! ${successCount} de ${clipsToExport.length} clipes foram exportados.`);
+                        if (isTauri && exportDir) {
+                          alert(`Exportação concluída! ${successCount} de ${clipsToExport.length} clipes foram salvos em:\n${exportDir}`);
+                        } else {
+                          alert(`Exportação concluída! ${successCount} de ${clipsToExport.length} clipes foram exportados.`);
+                        }
                       }
                       fetchClips(); // Refresh status/paths
                     }}
@@ -652,6 +829,49 @@ export default function ShortsWizard({
           </Card>
         </div>
       )}
+
+      {/* Countdown modal for shutdown */}
+      {countdownActive && (
+        <div className="fixed inset-0 bg-surface-950/85 backdrop-blur-md flex items-center justify-center z-50 animate-fade-in">
+          <div className="w-full max-w-md border border-red-500/30 bg-surface-900 text-white rounded-2xl shadow-2xl p-8 relative overflow-hidden">
+            {/* Glow effects */}
+            <div className="absolute -top-24 -left-24 w-48 h-48 bg-red-500/10 rounded-full blur-3xl" />
+            <div className="absolute -bottom-24 -right-24 w-48 h-48 bg-indigo-500/10 rounded-full blur-3xl" />
+
+            <div className="flex flex-col items-center text-center space-y-6 relative z-10">
+              <div className="w-20 h-20 rounded-full bg-red-500/10 border-2 border-red-500/30 flex items-center justify-center animate-pulse">
+                <Power className="w-10 h-10 text-red-500" />
+              </div>
+              
+              <div className="space-y-2">
+                <h3 className="text-xl font-black tracking-tight text-red-400">
+                  Desligando o Computador
+                </h3>
+                <p className="text-xs text-surface-400">
+                  {shutdownMessage || 'O processo foi concluído com sucesso.'}
+                </p>
+              </div>
+
+              <div className="text-5xl font-mono font-black text-white bg-surface-800/80 px-6 py-4 rounded-2xl border border-surface-700/50 shadow-inner">
+                {countdownSeconds}s
+              </div>
+
+              <p className="text-[10px] text-surface-400 max-w-xs leading-relaxed">
+                Caso queira continuar usando o computador, você pode abortar o desligamento a qualquer momento clicando no botão abaixo.
+              </p>
+
+              <Button
+                onClick={handleCancelShutdown}
+                className="w-full py-6 bg-red-650 hover:bg-red-750 text-white font-bold rounded-xl shadow-lg shadow-red-950/30 flex items-center justify-center gap-2 group transition-all duration-200 border-none"
+              >
+                <ShieldAlert className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                Cancelar Desligamento
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+

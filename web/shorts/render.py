@@ -117,6 +117,20 @@ def render_clip(project_id: str, job_id: str, clip_id: str) -> dict[str, Any]:
     if not clip:
         raise ValueError(f"Clip {clip_id} not found in database.")
         
+    # Check cache
+    if clip.get("output_path") and clip.get("status") == "done":
+        rel_path = clip["output_path"].lstrip("/")
+        if rel_path.startswith("processed"):
+            rel_path = rel_path[len("processed"):].lstrip("/")
+        abs_output_path = PROCESSED_DIR / rel_path
+        if abs_output_path.exists() and abs_output_path.stat().st_size > 0:
+            logger.info(f"Clip {clip_id} already rendered. Returning cached output: {clip['output_path']}")
+            return {
+                "clipId": clip_id,
+                "outputPath": clip["output_path"],
+                "status": "done"
+            }
+        
     job = store.get_job(project_id, job_id)
     if not job:
         raise ValueError(f"Job {job_id} not found.")

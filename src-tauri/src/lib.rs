@@ -106,6 +106,56 @@ async fn save_file_to_directory(
   Ok("success".to_string())
 }
 
+#[tauri::command]
+async fn shutdown_pc(timeout: u32) -> Result<String, String> {
+  #[cfg(target_os = "windows")]
+  {
+    use std::process::Command;
+    let comment = "StudioCut: Desligamento automatico agendado apos conclusao do processo.";
+    let output = Command::new("shutdown")
+      .args(&["/s", "/t", &timeout.to_string(), "/c", comment])
+      .output();
+      
+    match output {
+      Ok(out) if out.status.success() => Ok("success".to_string()),
+      Ok(out) => {
+        let err_msg = String::from_utf8_lossy(&out.stderr).to_string();
+        Err(format!("Falha no comando de desligamento: {}", err_msg))
+      }
+      Err(e) => Err(format!("Nao foi possivel executar o shutdown: {}", e)),
+    }
+  }
+  #[cfg(not(target_os = "windows"))]
+  {
+    let _ = timeout;
+    Err("Desligamento automatico nao e suportado neste sistema operacional.".to_string())
+  }
+}
+
+#[tauri::command]
+async fn cancel_shutdown() -> Result<String, String> {
+  #[cfg(target_os = "windows")]
+  {
+    use std::process::Command;
+    let output = Command::new("shutdown")
+      .arg("/a")
+      .output();
+      
+    match output {
+      Ok(out) if out.status.success() => Ok("success".to_string()),
+      Ok(out) => {
+        let err_msg = String::from_utf8_lossy(&out.stderr).to_string();
+        Err(format!("Falha ao cancelar o desligamento: {}", err_msg))
+      }
+      Err(e) => Err(format!("Nao foi possivel executar a cancelamento do shutdown: {}", e)),
+    }
+  }
+  #[cfg(not(target_os = "windows"))]
+  {
+    Err("Cancelamento de desligamento nao e suportado neste sistema operacional.".to_string())
+  }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   let app = tauri::Builder::default()
@@ -113,7 +163,9 @@ pub fn run() {
     .invoke_handler(tauri::generate_handler![
       export_video_to_local,
       pick_directory,
-      save_file_to_directory
+      save_file_to_directory,
+      shutdown_pc,
+      cancel_shutdown
     ])
     .setup(|app| {
       if cfg!(debug_assertions) {

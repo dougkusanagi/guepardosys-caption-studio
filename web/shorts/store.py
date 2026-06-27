@@ -267,3 +267,37 @@ def has_active_jobs() -> bool:
         except Exception:
             continue
     return False
+
+
+def update_job_subtitle_style(project_id: str, job_id: str, subtitle_style: dict):
+    """Update the subtitle style in the job's config and reset clip rendering states."""
+    with get_db(project_id) as conn:
+        cursor = conn.cursor()
+        # 1. Fetch current job config
+        cursor.execute("SELECT config_json FROM shorts_jobs WHERE id = ?", (job_id,))
+        row = cursor.fetchone()
+        if row:
+            config = json.loads(row["config_json"]) if row["config_json"] else {}
+            config["subtitleStyle"] = subtitle_style
+            config_json = json.dumps(config)
+            # Update config
+            cursor.execute(
+                """
+                UPDATE shorts_jobs
+                SET config_json = ?, updated_at = datetime('now')
+                WHERE id = ?
+                """,
+                (config_json, job_id)
+            )
+        
+        # 2. Reset status of all clips for this job
+        cursor.execute(
+            """
+            UPDATE shorts_clips
+            SET status = 'pending', output_path = NULL
+            WHERE job_id = ?
+            """,
+            (job_id,)
+        )
+        conn.commit()
+

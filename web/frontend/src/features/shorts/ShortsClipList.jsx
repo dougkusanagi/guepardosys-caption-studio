@@ -43,6 +43,10 @@ export default function ShortsClipList({
             const isExporting = exportingClipId === clip.id;
             const viralScorePercent = Math.round(clip.score * 100);
 
+            const isPending = clip.status === 'pending';
+            const isProcessing = clip.status === 'processing';
+            const isDone = clip.status === 'done' || !clip.status;
+
             // Dynamic color based on viral score
             const scoreColor = 
               viralScorePercent >= 90 ? 'text-emerald-600 bg-emerald-50 border-emerald-100' :
@@ -52,30 +56,40 @@ export default function ShortsClipList({
             return (
               <Card 
                 key={clip.id}
-                className={`border transition-all duration-200 cursor-pointer ${
-                  isActive 
-                    ? 'border-primary-500 shadow-md shadow-primary-50/50 bg-primary-50/10' 
-                    : 'border-surface-200/80 hover:border-surface-300 bg-white'
+                className={`border transition-all duration-200 ${
+                  !isDone
+                    ? 'border-surface-150 bg-surface-50/50 opacity-60 cursor-not-allowed select-none'
+                    : isActive 
+                      ? 'border-primary-500 shadow-md shadow-primary-50/50 bg-primary-50/10 cursor-pointer' 
+                      : 'border-surface-200/80 hover:border-surface-300 bg-white cursor-pointer'
                 }`}
-                onClick={() => onSelectPreview(clip)}
+                onClick={() => {
+                  if (isDone) onSelectPreview(clip);
+                }}
               >
                 <CardContent className="p-4 flex items-center justify-between gap-4">
                   {/* Select Checkbox/Indicator */}
-                  <div 
-                    className="flex-shrink-0"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onToggleSelect(clip.id);
-                    }}
-                  >
-                    <div className={`w-5 h-5 rounded-full border flex items-center justify-center transition-colors ${
-                      isSelected 
-                        ? 'bg-primary-600 border-primary-600 text-white' 
-                        : 'border-surface-300 hover:border-primary-400 bg-white'
-                    }`}>
-                      {isSelected && <CheckCircle2 className="w-3.5 h-3.5 fill-white text-primary-600" />}
+                  {isDone ? (
+                    <div 
+                      className="flex-shrink-0"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onToggleSelect(clip.id);
+                      }}
+                    >
+                      <div className={`w-5 h-5 rounded-full border flex items-center justify-center transition-colors ${
+                        isSelected 
+                          ? 'bg-primary-600 border-primary-600 text-white' 
+                          : 'border-surface-300 hover:border-primary-400 bg-white'
+                      }`}>
+                        {isSelected && <CheckCircle2 className="w-3.5 h-3.5 fill-white text-primary-600" />}
+                      </div>
                     </div>
-                  </div>
+                  ) : (
+                    <div className="flex-shrink-0 w-5 h-5 rounded-full bg-surface-100 flex items-center justify-center text-surface-400 text-xs">
+                      ⏱
+                    </div>
+                  )}
 
                   {/* Clip Info */}
                   <div className="flex-1 min-w-0">
@@ -97,28 +111,41 @@ export default function ShortsClipList({
                     )}
                   </div>
 
-                  {/* Actions */}
+                  {/* Actions / Status */}
                   <div className="flex items-center gap-2 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
-                    <Button
-                      variant={isActive ? "secondary" : "outline"}
-                      size="sm"
-                      onClick={() => onSelectPreview(clip)}
-                      className="text-xs h-8 px-2.5 flex items-center gap-1"
-                    >
-                      <Play className={`w-3.5 h-3.5 ${isActive ? 'fill-current' : ''}`} />
-                      Assistir
-                    </Button>
-                    
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      disabled={isExporting}
-                      onClick={() => onExportClip(clip)}
-                      className="text-xs h-8 px-2.5 bg-surface-900 hover:bg-surface-800 text-white flex items-center gap-1"
-                    >
-                      <Download className="w-3.5 h-3.5" />
-                      {isExporting ? 'Exportando...' : 'Exportar'}
-                    </Button>
+                    {isDone ? (
+                      <>
+                        <Button
+                          variant={isActive ? "secondary" : "outline"}
+                          size="sm"
+                          onClick={() => onSelectPreview(clip)}
+                          className="text-xs h-8 px-2.5 flex items-center gap-1"
+                        >
+                          <Play className={`w-3.5 h-3.5 ${isActive ? 'fill-current' : ''}`} />
+                          Assistir
+                        </Button>
+                        
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          disabled={isExporting}
+                          onClick={() => onExportClip(clip)}
+                          className="text-xs h-8 px-2.5 bg-surface-900 hover:bg-surface-800 text-white flex items-center gap-1"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                          {isExporting ? 'Exportando...' : 'Exportar'}
+                        </Button>
+                      </>
+                    ) : (
+                      <div className="flex flex-col items-end gap-1">
+                        <span className="text-[9px] font-bold text-surface-500 uppercase tracking-wider animate-pulse flex items-center gap-1">
+                          {isProcessing ? 'Removendo os silêncios...' : 'Aguardando fila...'}
+                        </span>
+                        <div className="w-20 h-1 bg-surface-200 rounded-full overflow-hidden">
+                          <div className={`h-full bg-indigo-500 rounded-full ${isProcessing ? 'w-2/3 animate-pulse' : 'w-1/6'}`} />
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>

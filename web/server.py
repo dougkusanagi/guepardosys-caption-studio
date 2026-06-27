@@ -64,6 +64,19 @@ app.mount("/js", StaticFiles(directory=str(PUBLIC_DIR / "js")), name="js")
 app.mount("/uploads", StaticFiles(directory=str(UPLOADS_DIR)), name="uploads")
 app.mount("/processed", StaticFiles(directory=str(PROCESSED_DIR)), name="processed")
 
+from contextlib import contextmanager
+
+class TaskTracker:
+    active_tasks = 0
+
+@contextmanager
+def track_task():
+    TaskTracker.active_tasks += 1
+    try:
+        yield
+    finally:
+        TaskTracker.active_tasks = max(0, TaskTracker.active_tasks - 1)
+
 
 # --- WebSocket Manager ---
 class ConnectionManager:
@@ -126,7 +139,7 @@ async def connection_watchdog():
         except Exception as e:
             logger.debug(f"Falha ao verificar status do pipeline no watchdog: {e}")
 
-        if len(manager.connections) == 0 and not pipeline_busy:
+        if len(manager.connections) == 0 and not pipeline_busy and TaskTracker.active_tasks == 0:
             # Extra safety: check the database for any active/pending jobs
             db_has_active_jobs = False
             try:
@@ -350,193 +363,209 @@ async def upload_video(video: UploadFile = File(...)):
 @app.post("/api/process/remove-silence")
 async def remove_silence(req: RemoveSilenceRequest):
     """AI-powered silence removal using Whisper."""
-    input_path = UPLOADS_DIR / req.filename
-    if not input_path.exists():
-        return JSONResponse({"error": "Arquivo não encontrado"}, status_code=404)
+    TaskTracker.active_tasks += 1
+    try:
+        input_path = UPLOADS_DIR / req.filename
+        if not input_path.exists():
+            return JSONResponse({"error": "Arquivo não encontrado"}, status_code=404)
 
-    project_dir = PROCESSED_DIR / req.projectId
-    project_dir.mkdir(parents=True, exist_ok=True)
+        project_dir = PROCESSED_DIR / req.projectId
+        project_dir.mkdir(parents=True, exist_ok=True)
 
-    # Send initial progress
-    await send_progress(req.clientId, "transcribe", 0, "Extraindo áudio...")
+        # Send initial progress
+        await send_progress(req.clientId, "transcribe", 0, "Extraindo áudio...")
 
-    # Extract 16kHz audio for Whisper
-    audio_path = project_dir / "audio_16k.wav"
-    ffmpeg_svc.extract_audio(str(input_path), str(audio_path), sample_rate=16000)
+        # Extract 16kHz audio for Whisper
+        audio_path = project_dir / "audio_16k.wav"
+        ffmpeg_svc.extract_audio(str(input_path), str(audio_path), sample_rate=16000)
 
-    await send_progress(req.clientId, "transcribe", 10, "Transcrevendo com Whisper...")
+        await send_progress(req.clientId, "transcribe", 10, "Transcrevendo com Whisper...")
 
-    # Transcribe (runs in thread pool to not block event loop)
-    loop = asyncio.get_event_loop()
-    transcription = await loop.run_in_executor(
-        None,
-        lambda: whisper_svc.transcribe(str(audio_path), req.model, req.language)
-    )
+        # Transcribe (runs in thread pool to not block event loop)
+        loop = asyncio.get_event_loop()
+        transcription = await loop.run_in_executor(
+            None,
+            lambda: whisper_svc.transcribe(str(audio_path), req.model, req.language)
+        )
 
-    await send_progress(req.clientId, "transcribe", 80, "Analisando intervalos de fala...")
+        await send_progress(req.clientId, "transcribe", 80, "Analisando intervalos de fala...")
 
-    # Collect and process intervals
-    info = ffmpeg_svc.get_video_info(str(input_path))
-    duration = info["duration"]
+        # Collect and process intervals
+        info = ffmpeg_svc.get_video_info(str(input_path))
+        duration = info["duration"]
 
-    intervals = whisper_svc.collect_speech_intervals(
-        transcription, duration, req.padStart, req.padEnd
-    )
-    merged = whisper_svc.merge_intervals(intervals, req.minGap)
-    final = whisper_svc.drop_tiny_intervals(merged, req.minKeep)
+        intervals = whisper_svc.collect_speech_intervals(
+            transcription, duration, req.padStart, req.padEnd
+        )
+        merged = whisper_svc.merge_intervals(intervals, req.minGap)
+        final = whisper_svc.drop_tiny_intervals(merged, req.minKeep)
 
-    if not final:
-        return JSONResponse({"error": "Nenhuma fala detectada no vídeo"}, status_code=400)
+        if not final:
+            return JSONResponse({"error": "Nenhuma fala detectada no vídeo"}, status_code=400)
 
-    kept = sum(e - s for s, e in final)
+        kept = sum(e - s for s, e in final)
 
-    await send_progress(req.clientId, "cut", 0, "Cortando vídeo...")
+        await send_progress(req.clientId, "cut", 0, "Cortando vídeo...")
 
-    # Cut video
-    output_name = f"processed_{uuid.uuid4().hex[:8]}.mp4"
-    output_path = project_dir / output_name
+        # Cut video
+        output_name = f"processed_{uuid.uuid4().hex[:8]}.mp4"
+        output_path = project_dir / output_name
 
-    await loop.run_in_executor(
-        None,
-        lambda: ffmpeg_svc.cut_video(str(input_path), str(output_path), final)
-    )
+        await loop.run_in_executor(
+            None,
+            lambda: ffmpeg_svc.cut_video(str(input_path), str(output_path), final)
+        )
 
-    # Generate new waveform
-    new_waveform_path = project_dir / "waveform_processed.json"
-    new_waveform = ffmpeg_svc.generate_waveform(str(output_path), str(new_waveform_path))
+        # Generate new waveform
+        new_waveform_path = project_dir / "waveform_processed.json"
+        new_waveform = ffmpeg_svc.generate_waveform(str(output_path), str(new_waveform_path))
 
-    await send_progress(req.clientId, "done", 100, "Concluído!")
+        await send_progress(req.clientId, "done", 100, "Concluído!")
 
-    return {
-        "outputPath": f"/processed/{req.projectId}/{output_name}",
-        "intervals": [
-            {"start": round(s, 3), "end": round(e, 3), "duration": round(e - s, 3)}
-            for s, e in final
-        ],
-        "stats": {
-            "originalDuration": duration,
-            "keptDuration": round(kept, 2),
-            "removedDuration": round(duration - kept, 2),
-            "segmentCount": len(final),
-        },
-        "waveform": new_waveform,
-        "transcription": transcription,
-    }
+        return {
+            "outputPath": f"/processed/{req.projectId}/{output_name}",
+            "intervals": [
+                {"start": round(s, 3), "end": round(e, 3), "duration": round(e - s, 3)}
+                for s, e in final
+            ],
+            "stats": {
+                "originalDuration": duration,
+                "keptDuration": round(kept, 2),
+                "removedDuration": round(duration - kept, 2),
+                "segmentCount": len(final),
+            },
+            "waveform": new_waveform,
+            "transcription": transcription,
+        }
+    finally:
+        TaskTracker.active_tasks = max(0, TaskTracker.active_tasks - 1)
 
 
 @app.post("/api/process/subtitles")
 async def generate_subtitles(req: SubtitleRequest):
     """Generate subtitles using Whisper AI."""
-    input_path = UPLOADS_DIR / req.filename
-    if not input_path.exists():
-        return JSONResponse({"error": "Arquivo não encontrado"}, status_code=404)
+    TaskTracker.active_tasks += 1
+    try:
+        input_path = UPLOADS_DIR / req.filename
+        if not input_path.exists():
+            return JSONResponse({"error": "Arquivo não encontrado"}, status_code=404)
 
-    project_dir = PROCESSED_DIR / req.projectId
-    project_dir.mkdir(parents=True, exist_ok=True)
+        project_dir = PROCESSED_DIR / req.projectId
+        project_dir.mkdir(parents=True, exist_ok=True)
 
-    await send_progress(req.clientId, "subtitles", 0, "Extraindo áudio...")
+        await send_progress(req.clientId, "subtitles", 0, "Extraindo áudio...")
 
-    audio_path = project_dir / "audio_sub.wav"
-    ffmpeg_svc.extract_audio(str(input_path), str(audio_path), sample_rate=16000)
+        audio_path = project_dir / "audio_sub.wav"
+        ffmpeg_svc.extract_audio(str(input_path), str(audio_path), sample_rate=16000)
 
-    await send_progress(req.clientId, "subtitles", 10, "Gerando legendas com IA...")
+        await send_progress(req.clientId, "subtitles", 10, "Gerando legendas com IA...")
 
-    loop = asyncio.get_event_loop()
-    transcription = await loop.run_in_executor(
-        None,
-        lambda: whisper_svc.transcribe(str(audio_path), req.model, req.language)
-    )
+        loop = asyncio.get_event_loop()
+        transcription = await loop.run_in_executor(
+            None,
+            lambda: whisper_svc.transcribe(str(audio_path), req.model, req.language)
+        )
 
-    subtitles = whisper_svc.get_subtitle_segments(transcription)
+        subtitles = whisper_svc.get_subtitle_segments(transcription)
 
-    # Write files
-    srt_path = project_dir / "subtitles.srt"
-    ass_path = project_dir / "subtitles.ass"
-    subtitle_svc.write_srt(subtitles, str(srt_path))
-    subtitle_svc.write_ass(
-        subtitles,
-        str(ass_path),
-        req.style or None,
-        play_res=_get_video_play_res(input_path),
-    )
+        # Write files
+        srt_path = project_dir / "subtitles.srt"
+        ass_path = project_dir / "subtitles.ass"
+        subtitle_svc.write_srt(subtitles, str(srt_path))
+        subtitle_svc.write_ass(
+            subtitles,
+            str(ass_path),
+            req.style or None,
+            play_res=_get_video_play_res(input_path),
+        )
 
-    await send_progress(req.clientId, "subtitles", 100, "Legendas geradas!")
+        await send_progress(req.clientId, "subtitles", 100, "Legendas geradas!")
 
-    return {
-        "subtitles": subtitles,
-        "srtPath": f"/processed/{req.projectId}/subtitles.srt",
-        "assPath": f"/processed/{req.projectId}/subtitles.ass",
-    }
+        return {
+            "subtitles": subtitles,
+            "srtPath": f"/processed/{req.projectId}/subtitles.srt",
+            "assPath": f"/processed/{req.projectId}/subtitles.ass",
+        }
+    finally:
+        TaskTracker.active_tasks = max(0, TaskTracker.active_tasks - 1)
 
 
 @app.post("/api/process/burn-subtitles")
 async def burn_subtitles(req: BurnSubtitleRequest):
     """Burn subtitles into the video."""
-    project_dir = PROCESSED_DIR / req.projectId
-    ass_path = project_dir / "subtitles.ass"
-    source_file = req.sourceFile or f"/uploads/{req.filename}"
-    input_path = _resolve_source_path(source_file)
+    TaskTracker.active_tasks += 1
+    try:
+        project_dir = PROCESSED_DIR / req.projectId
+        ass_path = project_dir / "subtitles.ass"
+        source_file = req.sourceFile or f"/uploads/{req.filename}"
+        input_path = _resolve_source_path(source_file)
 
-    if input_path is None or not input_path.exists():
-        return JSONResponse({"error": "Arquivo de origem não encontrado"}, status_code=404)
+        if input_path is None or not input_path.exists():
+            return JSONResponse({"error": "Arquivo de origem não encontrado"}, status_code=404)
 
-    subtitles = req.subtitles or []
-    if not subtitles:
-        if not ass_path.exists():
-            return JSONResponse({"error": "Gere as legendas primeiro"}, status_code=400)
-        subtitles = _parse_srt(project_dir / "subtitles.srt")
+        subtitles = req.subtitles or []
+        if not subtitles:
+            if not ass_path.exists():
+                return JSONResponse({"error": "Gere as legendas primeiro"}, status_code=400)
+            subtitles = _parse_srt(project_dir / "subtitles.srt")
 
-    subtitle_svc.write_ass(
-        subtitles,
-        str(ass_path),
-        req.style or None,
-        play_res=_get_video_play_res(input_path),
-    )
+        subtitle_svc.write_ass(
+            subtitles,
+            str(ass_path),
+            req.style or None,
+            play_res=_get_video_play_res(input_path),
+        )
 
-    await send_progress(req.clientId, "burn", 0, "Aplicando legendas...")
+        await send_progress(req.clientId, "burn", 0, "Aplicando legendas...")
 
-    output_name = f"subtitled_{uuid.uuid4().hex[:8]}.mp4"
-    output_path = project_dir / output_name
+        output_name = f"subtitled_{uuid.uuid4().hex[:8]}.mp4"
+        output_path = project_dir / output_name
 
-    loop = asyncio.get_event_loop()
-    await loop.run_in_executor(
-        None,
-        lambda: ffmpeg_svc.burn_subtitles(str(input_path), str(ass_path), str(output_path))
-    )
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(
+            None,
+            lambda: ffmpeg_svc.burn_subtitles(str(input_path), str(ass_path), str(output_path))
+        )
 
-    await send_progress(req.clientId, "done", 100, "Legendas aplicadas!")
+        await send_progress(req.clientId, "done", 100, "Legendas aplicadas!")
 
-    return {"outputPath": f"/processed/{req.projectId}/{output_name}"}
+        return {"outputPath": f"/processed/{req.projectId}/{output_name}"}
+    finally:
+        TaskTracker.active_tasks = max(0, TaskTracker.active_tasks - 1)
 
 
 @app.post("/api/process/crop")
 async def crop_video(req: CropRequest):
     """Crop video to specified region."""
-    input_path = UPLOADS_DIR / req.filename
-    if not input_path.exists():
-        return JSONResponse({"error": "Arquivo não encontrado"}, status_code=404)
+    TaskTracker.active_tasks += 1
+    try:
+        input_path = UPLOADS_DIR / req.filename
+        if not input_path.exists():
+            return JSONResponse({"error": "Arquivo não encontrado"}, status_code=404)
 
-    project_dir = PROCESSED_DIR / req.projectId
-    project_dir.mkdir(parents=True, exist_ok=True)
+        project_dir = PROCESSED_DIR / req.projectId
+        project_dir.mkdir(parents=True, exist_ok=True)
 
-    await send_progress(req.clientId, "crop", 0, "Cortando vídeo...")
+        await send_progress(req.clientId, "crop", 0, "Cortando vídeo...")
 
-    output_name = f"cropped_{uuid.uuid4().hex[:8]}.mp4"
-    output_path = project_dir / output_name
+        output_name = f"cropped_{uuid.uuid4().hex[:8]}.mp4"
+        output_path = project_dir / output_name
 
-    loop = asyncio.get_event_loop()
-    await loop.run_in_executor(
-        None,
-        lambda: ffmpeg_svc.crop_video(
-            str(input_path), str(output_path), req.x, req.y, req.width, req.height
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(
+            None,
+            lambda: ffmpeg_svc.crop_video(
+                str(input_path), str(output_path), req.x, req.y, req.width, req.height
+            )
         )
-    )
 
-    info = ffmpeg_svc.get_video_info(str(output_path))
+        info = ffmpeg_svc.get_video_info(str(output_path))
 
-    await send_progress(req.clientId, "done", 100, "Corte concluído!")
+        await send_progress(req.clientId, "done", 100, "Corte concluído!")
 
-    return {"outputPath": f"/processed/{req.projectId}/{output_name}", "info": info}
+        return {"outputPath": f"/processed/{req.projectId}/{output_name}", "info": info}
+    finally:
+        TaskTracker.active_tasks = max(0, TaskTracker.active_tasks - 1)
 
 
 @app.post("/api/export")
