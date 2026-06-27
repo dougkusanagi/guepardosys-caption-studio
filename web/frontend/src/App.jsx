@@ -1227,12 +1227,12 @@ function UploadScreen({ onUpload, onUploadShorts, uploadState, projects, onOpenP
 
   return (
     <div id="upload-screen" className="flex items-center justify-center min-h-screen bg-surface-50 p-6 md:p-12">
-      <div className="w-full max-w-7xl grid grid-cols-1 lg:grid-cols-3 gap-8 items-stretch">
+      <div className="w-full max-w-7xl grid grid-cols-1 lg:grid-cols-2 gap-8 items-stretch">
         
         {/* Card 1: Editor Completo */}
         <Card className="border-surface-200/80 shadow-xl shadow-surface-200/40 h-full flex flex-col justify-between transition-all hover:shadow-2xl">
           <CardHeader className="text-center pb-2 pt-8">
-            <div className="w-14 h-14 bg-gradient-to-br from-primary-500 to-primary-700 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-primary-200">
+            <div className="w-14 h-14 bg-gradient-to-br from-primary-500 to-primary-700 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-primary-200 dark:shadow-black/40">
               <Film className="w-7 h-7 text-white" />
             </div>
             <CardTitle className="text-xl font-bold text-surface-900">Editor Completo</CardTitle>
@@ -1240,7 +1240,7 @@ function UploadScreen({ onUpload, onUploadShorts, uploadState, projects, onOpenP
               Remova silêncios, adicione legendas, faça cortes manuais e edite a timeline do seu vídeo.
             </CardDescription>
           </CardHeader>
-          <CardContent className="px-6 pb-8 pt-4 flex-1 flex flex-col justify-center">
+          <CardContent className="px-6 pb-8 pt-4 flex-1 flex flex-col justify-start gap-6">
             <label
               htmlFor="file-input-editor"
               className="block rounded-2xl border-2 border-dashed border-surface-300 bg-surface-50/60 p-6 cursor-pointer transition-all duration-300 group hover:border-primary-400 hover:bg-primary-50/50"
@@ -1274,7 +1274,7 @@ function UploadScreen({ onUpload, onUploadShorts, uploadState, projects, onOpenP
             </label>
 
             {showUploadState && activeUploadTarget === 'editor' && (
-              <div className="mt-6 space-y-4 text-left">
+              <div className="mt-2 space-y-4 text-left">
                 <Card className="border-surface-200/80 bg-surface-50/80">
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between mb-2">
@@ -1303,13 +1303,87 @@ function UploadScreen({ onUpload, onUploadShorts, uploadState, projects, onOpenP
                 )}
               </div>
             )}
+
+            {/* Projetos Recentes inside Editor Completo */}
+            <div className="border-t border-surface-200 pt-6 text-left flex-1 flex flex-col min-h-[300px]">
+              <div className="flex items-center justify-between mb-4">
+                <h4 className="text-xs font-bold text-surface-700 uppercase tracking-wider flex items-center gap-1.5">
+                  <FolderOpen className="w-3.5 h-3.5 text-primary-500" />
+                  Recentes
+                </h4>
+                <div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleImportClick}
+                    className="flex items-center gap-1.5 text-xs h-7 px-2"
+                  >
+                    <UploadCloud className="w-3.5 h-3.5" />
+                    Importar
+                  </Button>
+                  <input
+                    ref={importInputRef}
+                    type="file"
+                    accept=".json"
+                    className="hidden"
+                    onChange={handleImportFileChange}
+                  />
+                </div>
+              </div>
+
+              <ScrollArea className="flex-1 min-h-[220px] max-h-[360px] pr-2">
+                {projects.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-10 text-center">
+                    <FolderOpen className="w-8 h-8 text-surface-300 mb-2" />
+                    <p className="text-xs font-medium text-surface-400">Nenhum projeto recente</p>
+                    <p className="text-[10px] text-surface-400 mt-1">Envie um vídeo para começar.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {projects.map((project) => (
+                      <Card
+                        key={project.name}
+                        className="cursor-pointer border-surface-200 bg-surface-50/50 transition-all hover:border-primary-200 hover:bg-primary-50/30 hover:shadow-sm"
+                        onClick={() => onOpenProject(project.name)}
+                      >
+                        <CardContent className="flex items-center gap-3 p-2.5">
+                          <div className="w-7 h-7 bg-primary-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                            <Film className="w-3.5 h-3.5 text-primary-600" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[11px] font-semibold text-surface-800 truncate">{project.name}</p>
+                            <p className="text-[9px] text-surface-400 truncate mt-0.5">
+                              {project.originalName || ''} • {project.date ? new Date(project.date).toLocaleDateString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : ''}
+                            </p>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-surface-400 hover:bg-red-50 hover:text-red-500 rounded-md"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              onDeleteProject(project.name);
+                            }}
+                            title="Excluir"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+              </ScrollArea>
+            </div>
           </CardContent>
         </Card>
 
         {/* Card 2: Gerar Shorts com IA */}
         <Card className="border-surface-200/80 shadow-xl shadow-surface-200/40 h-full flex flex-col justify-between transition-all hover:shadow-2xl">
           <CardHeader className="text-center pb-2 pt-8">
-            <div className="w-14 h-14 bg-gradient-to-br from-indigo-500 to-purple-650 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-indigo-200">
+            <div className="w-14 h-14 bg-gradient-to-br from-indigo-500 to-purple-650 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-indigo-200 dark:shadow-black/40">
               <Sparkles className="w-7 h-7 text-white" />
             </div>
             <CardTitle className="text-xl font-bold text-surface-900">Gerar Shorts IA</CardTitle>
@@ -1438,86 +1512,6 @@ function UploadScreen({ onUpload, onUploadShorts, uploadState, projects, onOpenP
                 )}
               </div>
             )}
-          </CardContent>
-        </Card>
-
-        {/* Card 3: Projetos Recentes */}
-        <Card className="border-surface-200/80 shadow-xl shadow-surface-200/40 h-full flex flex-col justify-between">
-          <CardHeader className="flex flex-row items-center justify-between pb-4 pt-8 px-6 border-b border-surface-100">
-            <div>
-              <CardTitle className="text-xl font-bold text-surface-900 flex items-center gap-2">
-                <FolderOpen className="w-5 h-5 text-primary-500" />
-                Recentes
-              </CardTitle>
-              <CardDescription className="text-xs text-surface-500 mt-1">
-                Continue editando.
-              </CardDescription>
-            </div>
-            <div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={handleImportClick}
-                className="flex items-center gap-1.5 text-xs"
-              >
-                <UploadCloud className="w-3.5 h-3.5" />
-                Importar
-              </Button>
-              <input
-                ref={importInputRef}
-                type="file"
-                accept=".json"
-                className="hidden"
-                onChange={handleImportFileChange}
-              />
-            </div>
-          </CardHeader>
-          <CardContent className="p-6 flex-1 flex flex-col justify-start">
-            <ScrollArea className="h-[360px] pr-2">
-              {projects.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full py-16 text-center">
-                  <FolderOpen className="w-10 h-10 text-surface-300 mb-3" />
-                  <p className="text-sm font-medium text-surface-400">Nenhum projeto recente</p>
-                  <p className="text-xs text-surface-400 mt-1">Envie um vídeo para começar.</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {projects.map((project) => (
-                    <Card
-                      key={project.name}
-                      className="cursor-pointer border-surface-200 bg-surface-50/50 transition-all hover:border-primary-200 hover:bg-primary-50/30 hover:shadow-sm"
-                      onClick={() => onOpenProject(project.name)}
-                    >
-                      <CardContent className="flex items-center gap-3.5 p-3.5">
-                        <div className="w-9 h-9 bg-primary-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                          <Film className="w-4 h-4 text-primary-600" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-semibold text-surface-800 truncate">{project.name}</p>
-                          <p className="text-[10px] text-surface-400 truncate mt-0.5">
-                            {project.originalName || ''} • {project.date ? new Date(project.date).toLocaleDateString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : ''}
-                          </p>
-                        </div>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-surface-400 hover:bg-red-50 hover:text-red-500 rounded-md"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            onDeleteProject(project.name);
-                          }}
-                          title="Excluir"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              )}
-            </ScrollArea>
           </CardContent>
         </Card>
       </div>
