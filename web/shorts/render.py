@@ -236,6 +236,19 @@ def render_clip(project_id: str, job_id: str, clip_id: str) -> dict[str, Any]:
                 "[fg]scale=1080:1920:force_original_aspect_ratio=decrease[fg_scaled];"
                 "[bg_blurred][fg_scaled]overlay=(main_w-overlay_w)/2:(main_h-overlay_h)/2"
             )
+        elif reframe_mode == "smart":
+            face_cx_ratio = config.get("face_cx_ratio")
+            if face_cx_ratio is not None and video_stream:
+                w = video_stream.get("width", 1920)
+                h = video_stream.get("height", 1080)
+                crop_w = h * 9 / 16
+                face_cx = face_cx_ratio * w
+                crop_x = face_cx - crop_w / 2
+                crop_x = max(0, min(crop_x, w - crop_w))
+                reframe_vf = f"crop={int(crop_w)}:{h}:{int(crop_x)}:0,scale=1080:1920"
+            else:
+                # Fallback to center crop
+                reframe_vf = "crop=ih*9/16:ih:(iw-ih*9/16)/2:0,scale=1080:1920"
         else:
             # Default to center crop
             reframe_vf = "crop=ih*9/16:ih:(iw-ih*9/16)/2:0,scale=1080:1920"
@@ -243,8 +256,15 @@ def render_clip(project_id: str, job_id: str, clip_id: str) -> dict[str, Any]:
         # Just normalize/scale to 1080x1920
         reframe_vf = "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(1080-iw)/2:(1920-ih)/2"
 
+    denoise = bool(config.get("denoise", False))
+    denoised_audio_path = work_dir / "audio_denoised.wav"
+    has_denoised = denoise and denoised_audio_path.exists()
+
     # Build single filter complex
-    filter_complex = ffmpeg_svc.build_filter_complex(intervals)
+    if has_denoised:
+        filter_complex = ffmpeg_svc.build_filter_complex(intervals, audio_stream="[1:a]")
+    else:
+        filter_complex = ffmpeg_svc.build_filter_complex(intervals, audio_stream="[0:a]")
     
     # Resolve ASS subtitle filter path for FFmpeg (needs escape)
     escaped_ass = str(ass_path).replace("\\", "/").replace(":", "\\:")
@@ -253,14 +273,24 @@ def render_clip(project_id: str, job_id: str, clip_id: str) -> dict[str, Any]:
     filter_complex += f";[outv]{reframe_vf},ass='{escaped_ass}'[outv_final]"
     
     ffmpeg_bin = ffmpeg_svc._resolve_binary("ffmpeg")
-    cmd = [
-        ffmpeg_bin, "-y", "-i", str(video_path),
-        "-filter_complex", filter_complex,
-        "-map", "[outv_final]", "-map", "[outa]",
-        "-c:v", "libx264", "-preset", "medium", "-crf", "20",
-        "-c:a", "aac", "-b:a", "192k",
-        str(output_path)
-    ]
+    if has_denoised:
+        cmd = [
+            ffmpeg_bin, "-y", "-i", str(video_path), "-i", str(denoised_audio_path),
+            "-filter_complex", filter_complex,
+            "-map", "[outv_final]", "-map", "[outa]",
+            "-c:v", "libx264", "-preset", "medium", "-crf", "20",
+            "-c:a", "aac", "-b:a", "192k",
+            str(output_path)
+        ]
+    else:
+        cmd = [
+            ffmpeg_bin, "-y", "-i", str(video_path),
+            "-filter_complex", filter_complex,
+            "-map", "[outv_final]", "-map", "[outa]",
+            "-c:v", "libx264", "-preset", "medium", "-crf", "20",
+            "-c:a", "aac", "-b:a", "192k",
+            str(output_path)
+        ]
     
     logger.info(f"Executing FFmpeg render cmd for {clip_id}...")
     try:

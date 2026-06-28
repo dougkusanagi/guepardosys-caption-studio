@@ -106,6 +106,7 @@ const DEFAULT_SILENCE_SETTINGS = {
   padStart: 0.12,
   padEnd: 0.18,
   minKeep: 0.12,
+  denoise: false,
 };
 
 const DEFAULT_SUBTITLE_SETTINGS = {
@@ -2385,6 +2386,25 @@ function SubtitleSidebar({ open, settings, setSettings, style, setStyle, subtitl
                     <option value="fr">Francês</option>
                     <option value="de">Alemão</option>
                   </SelectField>
+                  <div 
+                    onClick={() => setSettings((prev) => ({ ...prev, denoise: !prev.denoise }))}
+                    className="flex items-center gap-3 p-3 rounded-lg border border-surface-100 bg-surface-50/50 cursor-pointer hover:bg-surface-100/50 transition-colors select-none mt-2"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={!!settings.denoise}
+                      readOnly
+                      className="rounded border-surface-300 text-primary-600 focus:ring-primary-500 h-4 w-4 cursor-pointer"
+                    />
+                    <div className="space-y-0.5 text-left">
+                      <span className="text-xs font-semibold text-surface-700">
+                        Redução de Ruído com IA
+                      </span>
+                      <p className="text-[9px] text-surface-500 leading-normal font-normal">
+                        Remove ruídos de fundo antes de transcrever as legendas.
+                      </p>
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
 
@@ -2578,6 +2598,25 @@ function SilenceSidebar({ open, settings, setSettings, onClose, onRun }) {
                   <InputField label="Padding no início" type="number" step="0.01" value={settings.padStart} onChange={(value) => setSettings((prev) => ({ ...prev, padStart: parseFloat(value) || 0 }))} />
                   <InputField label="Padding no fim" type="number" step="0.01" value={settings.padEnd} onChange={(value) => setSettings((prev) => ({ ...prev, padEnd: parseFloat(value) || 0 }))} />
                   <InputField label="Trecho mínimo mantido" type="number" step="0.01" value={settings.minKeep} onChange={(value) => setSettings((prev) => ({ ...prev, minKeep: parseFloat(value) || 0 }))} />
+                  <div 
+                    onClick={() => setSettings((prev) => ({ ...prev, denoise: !prev.denoise }))}
+                    className="flex items-center gap-3 p-3 rounded-lg border border-surface-100 bg-surface-50/50 cursor-pointer hover:bg-surface-100/50 transition-colors select-none mt-2"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={!!settings.denoise}
+                      readOnly
+                      className="rounded border-surface-300 text-primary-600 focus:ring-primary-500 h-4 w-4 cursor-pointer"
+                    />
+                    <div className="space-y-0.5 text-left">
+                      <span className="text-xs font-semibold text-surface-700">
+                        Redução de Ruído com IA
+                      </span>
+                      <p className="text-[9px] text-surface-500 leading-normal font-normal">
+                        Remove ruídos de fundo antes de processar silêncios.
+                      </p>
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
 

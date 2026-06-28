@@ -6,7 +6,7 @@ import { Progress } from '../../components/ui/progress.jsx';
 
 import ShortsConfigPanel from './ShortsConfigPanel.jsx';
 import ShortsClipList from './ShortsClipList.jsx';
-import ShortsPreview from './ShortsPreview.jsx';
+import ShortsPreview, { SubtitleStyleEditor } from './ShortsPreview.jsx';
 
 import { BASE_URL, analyzeShorts, getShortsStatus, exportShort, cancelShorts } from '../../lib/api.js';
 
@@ -60,7 +60,8 @@ export default function ShortsWizard({
     reframeMode: 'smart',
     whisperModel: 'small',
     breathPadding: 0.1,
-    dynamicClipCount: false
+    dynamicClipCount: false,
+    denoise: false
   });
   
   const [subtitleStyle, setSubtitleStyle] = useState(DEFAULT_SUBTITLE_STYLE);
@@ -664,10 +665,10 @@ export default function ShortsWizard({
       {/* --- step: Revisão (Review) --- */}
       {step === 'review' && (
         <div className="space-y-8">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+          <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start">
             {/* Left panel: clips list & details */}
-            <div className="lg:col-span-7 space-y-6">
-              <Card className="border-surface-200/80 shadow-md">
+            <div className="xl:col-span-5 space-y-6">
+              <Card className="border-surface-200/80 shadow-md bg-white">
                 <CardHeader className="pb-4">
                   <CardTitle className="text-lg font-bold text-surface-900">Análise Completa!</CardTitle>
                   <CardDescription className="text-xs text-surface-500">
@@ -688,9 +689,9 @@ export default function ShortsWizard({
               </Card>
             </div>
 
-            {/* Right panel: vertical 9:16 loop preview */}
-            <div className="lg:col-span-5 flex flex-col items-center justify-center">
-              <Card className="w-full border-surface-200/80 shadow-md bg-surface-50 p-6 flex flex-col items-center">
+            {/* Center panel: vertical 9:16 loop preview */}
+            <div className="xl:col-span-4 flex flex-col items-center justify-center">
+              <Card className="w-full border-surface-200/80 shadow-md bg-white p-6 flex flex-col items-center">
                 <h4 className="text-xs font-semibold uppercase tracking-wider text-surface-500 mb-4">
                   Pré-visualização do Corte
                 </h4>
@@ -800,6 +801,16 @@ export default function ShortsWizard({
                         : `Exportar Selecionados (${selectedClips.size})`}
                   </Button>
                 )}
+              </Card>
+            </div>
+
+            {/* Right panel: Subtitle Style Editor */}
+            <div className="xl:col-span-3">
+              <Card className="border-surface-200/80 shadow-md bg-white p-6">
+                <SubtitleStyleEditor 
+                  subtitleStyle={subtitleStyle}
+                  onUpdateSubtitleStyle={handleUpdateSubtitleStyle}
+                />
               </Card>
             </div>
           </div>

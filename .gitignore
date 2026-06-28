@@ -41,3 +41,6 @@ src-tauri/binaries/
 # PyInstaller Spec
 *.spec
 !backend.spec
+
+# Local models/weights
+web/shorts/models/

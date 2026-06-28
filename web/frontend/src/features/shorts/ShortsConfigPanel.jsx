@@ -147,6 +147,27 @@ export default function ShortsConfigPanel({ config, onChange, onStart, hideStart
           </SelectContent>
         </Select>
       </div>
+
+      {/* Denoise (Background Noise Removal) */}
+      <div 
+        onClick={() => setConfigValue('denoise', !config.denoise)}
+        className="flex items-center gap-3 p-3 rounded-lg border border-surface-100 bg-surface-50/50 cursor-pointer hover:bg-surface-100/50 transition-colors select-none"
+      >
+        <input
+          type="checkbox"
+          checked={!!config.denoise}
+          readOnly
+          className="rounded border-surface-300 text-primary-600 focus:ring-primary-500 h-4 w-4 cursor-pointer"
+        />
+        <div className="space-y-0.5">
+          <span className="text-xs font-semibold text-surface-700">
+            Redução de Ruído com IA
+          </span>
+          <p className="text-[10px] text-surface-500 leading-normal font-normal">
+            Remove ruídos de fundo (chiados, digitação) usando inteligência artificial local.
+          </p>
+        </div>
+      </div>
     </div>
   );
 

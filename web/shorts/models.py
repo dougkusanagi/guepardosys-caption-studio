@@ -25,6 +25,13 @@ class ModelManager:
             logger.info(f"Unloading model: {key}")
             del cls._loaded_models[key]
         
+        # Unload DeepFilterNet model if loaded
+        try:
+            from web.services.denoise_svc import unload_denoise_model
+            unload_denoise_model()
+        except Exception as e:
+            logger.warning(f"Failed to unload DeepFilterNet model: {e}")
+
         gc.collect()
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
@@ -39,7 +46,12 @@ class ModelManager:
                 res = client.get(url_list)
                 if res.status_code == 200:
                     data = res.json()
-                    models_list = data.get("data", []) if isinstance(data, dict) else data
+                    models_list = []
+                    if isinstance(data, dict):
+                        models_list = data.get("models") or data.get("data") or []
+                    elif isinstance(data, list):
+                        models_list = data
+                        
                     for model_info in models_list:
                         instances = model_info.get("loaded_instances", [])
                         for inst in instances:
@@ -53,6 +65,40 @@ class ModelManager:
             
         elapsed = time.time() - start_time
         logger.info(f"VRAM cleanup complete in {elapsed:.2f}s.")
+
+    @classmethod
+    def load_face_detector(cls) -> Any:
+        """
+        Load YuNet face detector model. Downloads the ONNX model from OpenCV Zoo if not cached.
+        """
+        import cv2
+        from web.shorts.config import MODELS_DIR
+        
+        model_name = "yunet.onnx"
+        model_path = MODELS_DIR / model_name
+        MODELS_DIR.mkdir(parents=True, exist_ok=True)
+        
+        if not model_path.exists():
+            import urllib.request
+            url = "https://github.com/opencv/opencv_zoo/raw/main/models/face_detection_yunet/face_detection_yunet_2023mar.onnx"
+            logger.info(f"Downloading YuNet face detector ONNX model to {model_path}...")
+            urllib.request.urlretrieve(url, model_path)
+            logger.info("YuNet face detector downloaded successfully.")
+            
+        model_key = "yunet"
+        if model_key in cls._loaded_models:
+            return cls._loaded_models[model_key]
+            
+        detector = cv2.FaceDetectorYN.create(
+            str(model_path),
+            "",
+            (320, 320), # initial dummy input size
+            0.6,
+            0.3,
+            500
+        )
+        cls._loaded_models[model_key] = detector
+        return detector
 
     @classmethod
     def load_whisper(cls, model_size: str) -> Any:

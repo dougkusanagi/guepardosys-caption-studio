@@ -222,6 +222,7 @@ class RemoveSilenceRequest(BaseModel):
     padStart: float = 0.12
     padEnd: float = 0.18
     minKeep: float = 0.12
+    denoise: bool = False
 
 
 class SubtitleRequest(BaseModel):
@@ -231,6 +232,7 @@ class SubtitleRequest(BaseModel):
     model: str = "small"
     language: str = "pt"
     style: dict = {}
+    denoise: bool = False
 
 
 class BurnSubtitleRequest(BaseModel):
@@ -375,14 +377,43 @@ async def remove_silence(req: RemoveSilenceRequest):
         # Send initial progress
         await send_progress(req.clientId, "transcribe", 0, "Extraindo áudio...")
 
-        # Extract 16kHz audio for Whisper
-        audio_path = project_dir / "audio_16k.wav"
-        ffmpeg_svc.extract_audio(str(input_path), str(audio_path), sample_rate=16000)
-
-        await send_progress(req.clientId, "transcribe", 10, "Transcrevendo com Whisper...")
-
-        # Transcribe (runs in thread pool to not block event loop)
         loop = asyncio.get_event_loop()
+        audio_path = project_dir / "audio_16k.wav"
+        
+        if req.denoise:
+            await send_progress(req.clientId, "transcribe", 5, "Reduzindo ruído do áudio com IA...")
+            audio_48k = project_dir / "audio_48k.wav"
+            audio_denoised = project_dir / "audio_denoised.wav"
+            
+            # Extract 48k WAV
+            await loop.run_in_executor(
+                None,
+                lambda: ffmpeg_svc.extract_audio(str(input_path), str(audio_48k), sample_rate=48000)
+            )
+            
+            # Run Denoise
+            from web.services import denoise_svc
+            await loop.run_in_executor(
+                None,
+                lambda: denoise_svc.denoise_audio_file(str(audio_48k), str(audio_denoised))
+            )
+            audio_48k.unlink(missing_ok=True)
+            
+            # Extract 16k mono for Whisper from denoised audio
+            await loop.run_in_executor(
+                None,
+                lambda: ffmpeg_svc.extract_audio(str(audio_denoised), str(audio_path), sample_rate=16000)
+            )
+        else:
+            # Extract 16kHz audio for Whisper
+            await loop.run_in_executor(
+                None,
+                lambda: ffmpeg_svc.extract_audio(str(input_path), str(audio_path), sample_rate=16000)
+            )
+
+        await send_progress(req.clientId, "transcribe", 15, "Transcrevendo com Whisper...")
+
+        # Transcribe
         transcription = await loop.run_in_executor(
             None,
             lambda: whisper_svc.transcribe(str(audio_path), req.model, req.language)
@@ -410,11 +441,22 @@ async def remove_silence(req: RemoveSilenceRequest):
         # Cut video
         output_name = f"processed_{uuid.uuid4().hex[:8]}.mp4"
         output_path = project_dir / output_name
+        
+        audio_denoised_path = project_dir / "audio_denoised.wav"
+        has_denoised = req.denoise and audio_denoised_path.exists()
 
         await loop.run_in_executor(
             None,
-            lambda: ffmpeg_svc.cut_video(str(input_path), str(output_path), final)
+            lambda: ffmpeg_svc.cut_video(
+                str(input_path),
+                str(output_path),
+                final,
+                audio_path=str(audio_denoised_path) if has_denoised else None
+            )
         )
+        
+        if has_denoised:
+            audio_denoised_path.unlink(missing_ok=True)
 
         # Generate new waveform
         new_waveform_path = project_dir / "waveform_processed.json"
@@ -453,14 +495,43 @@ async def generate_subtitles(req: SubtitleRequest):
         project_dir = PROCESSED_DIR / req.projectId
         project_dir.mkdir(parents=True, exist_ok=True)
 
-        await send_progress(req.clientId, "subtitles", 0, "Extraindo áudio...")
-
-        audio_path = project_dir / "audio_sub.wav"
-        ffmpeg_svc.extract_audio(str(input_path), str(audio_path), sample_rate=16000)
-
-        await send_progress(req.clientId, "subtitles", 10, "Gerando legendas com IA...")
-
+        # Extract audio (optionally denoise first)
         loop = asyncio.get_event_loop()
+        audio_path = project_dir / "audio_sub.wav"
+        
+        if req.denoise:
+            await send_progress(req.clientId, "subtitles", 5, "Reduzindo ruído do áudio com IA...")
+            audio_48k = project_dir / "audio_sub_48k.wav"
+            audio_denoised = project_dir / "audio_sub_denoised.wav"
+            
+            # Extract 48k WAV
+            await loop.run_in_executor(
+                None,
+                lambda: ffmpeg_svc.extract_audio(str(input_path), str(audio_48k), sample_rate=48000)
+            )
+            
+            # Run Denoise
+            from web.services import denoise_svc
+            await loop.run_in_executor(
+                None,
+                lambda: denoise_svc.denoise_audio_file(str(audio_48k), str(audio_denoised))
+            )
+            audio_48k.unlink(missing_ok=True)
+            
+            # Extract 16k mono for Whisper
+            await loop.run_in_executor(
+                None,
+                lambda: ffmpeg_svc.extract_audio(str(audio_denoised), str(audio_path), sample_rate=16000)
+            )
+            audio_denoised.unlink(missing_ok=True)
+        else:
+            await loop.run_in_executor(
+                None,
+                lambda: ffmpeg_svc.extract_audio(str(input_path), str(audio_path), sample_rate=16000)
+            )
+
+        await send_progress(req.clientId, "subtitles", 15, "Gerando legendas com IA...")
+
         transcription = await loop.run_in_executor(
             None,
             lambda: whisper_svc.transcribe(str(audio_path), req.model, req.language)

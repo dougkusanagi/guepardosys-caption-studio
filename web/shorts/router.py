@@ -29,6 +29,7 @@ class ShortsAnalyzeRequest(BaseModel):
     whisperModel: str = "small"
     breathPadding: float = 0.1
     dynamicClipCount: bool = False
+    denoise: bool = False
 
 
 class GenerateClipsRequest(BaseModel):
@@ -56,6 +57,7 @@ async def analyze_shorts(req: ShortsAnalyzeRequest, background_tasks: Background
         "whisperModel": req.whisperModel,
         "breathPadding": req.breathPadding,
         "dynamicClipCount": req.dynamicClipCount,
+        "denoise": req.denoise,
     }
 
     # Save initial job state in SQLite
@@ -144,6 +146,11 @@ async def export_short(req: ExportClipRequest):
         pass
     try:
         loop = asyncio.get_event_loop()
+        
+        # Explicitly clean VRAM before rendering to prevent GPU out of memory / freezes
+        from web.shorts.models import ModelManager
+        await loop.run_in_executor(None, ModelManager.clean_vram)
+        
         result = await loop.run_in_executor(
             None,
             lambda: render_clip(req.projectId, req.jobId, req.clipId)

@@ -301,3 +301,19 @@ def update_job_subtitle_style(project_id: str, job_id: str, subtitle_style: dict
         )
         conn.commit()
 
+
+def update_job_config(project_id: str, job_id: str, config: dict):
+    """Update job config JSON directly."""
+    with get_db(project_id) as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            UPDATE shorts_jobs
+            SET config_json = ?, updated_at = datetime('now')
+            WHERE id = ?
+            """,
+            (json.dumps(config), job_id)
+        )
+        conn.commit()
+
+

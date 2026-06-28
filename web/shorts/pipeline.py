@@ -76,20 +76,137 @@ class ShortsPipeline:
             language = config.get("language", "pt")
             dynamic_clip_count = bool(config.get("dynamicClipCount", False))
 
-            # 2. Extract Audio for Whisper
-            if progress_callback:
-                await progress_callback("shorts:extract_audio", 10, "Iniciando extração do áudio (Conversão para WAV 16kHz Mono)...")
-                
+            # 2. Extract Audio for Whisper (with optional AI Noise Reduction)
+            denoise = bool(config.get("denoise", False))
             audio_path = work_dir / "audio_16k.wav"
-            # Extract mono WAV 16kHz audio
             loop = asyncio.get_event_loop()
-            await loop.run_in_executor(
-                None,
-                lambda: ffmpeg_svc.extract_audio(str(video_path), str(audio_path), sample_rate=16000)
-            )
+            
+            if denoise:
+                if progress_callback:
+                    await progress_callback("shorts:extract_audio", 10, "Iniciando redução de ruído com IA (Extraindo áudio original)...")
+                
+                audio_48k = work_dir / "audio_48k.wav"
+                denoised_audio = work_dir / "audio_denoised.wav"
+                
+                # 1. Extract 48k WAV
+                await loop.run_in_executor(
+                    None,
+                    lambda: ffmpeg_svc.extract_audio(str(video_path), str(audio_48k), sample_rate=48000)
+                )
+                
+                if progress_callback:
+                    await progress_callback("shorts:extract_audio", 15, "Executando modelo de Redução de Ruído com IA (DeepFilterNet3)...")
+                
+                # 2. Run Denoise
+                from web.services import denoise_svc
+                await loop.run_in_executor(
+                    None,
+                    lambda: denoise_svc.denoise_audio_file(str(audio_48k), str(denoised_audio))
+                )
+                
+                # Clean up temporary 48k wav
+                audio_48k.unlink(missing_ok=True)
+                
+                # 3. Create 16k mono audio from denoised file for Whisper
+                if progress_callback:
+                    await progress_callback("shorts:extract_audio", 20, "Reamostrando áudio limpo para Whisper...")
+                await loop.run_in_executor(
+                    None,
+                    lambda: ffmpeg_svc.extract_audio(str(denoised_audio), str(audio_path), sample_rate=16000)
+                )
+            else:
+                if progress_callback:
+                    await progress_callback("shorts:extract_audio", 10, "Iniciando extração do áudio (Conversão para WAV 16kHz Mono)...")
+                await loop.run_in_executor(
+                    None,
+                    lambda: ffmpeg_svc.extract_audio(str(video_path), str(audio_path), sample_rate=16000)
+                )
 
             if progress_callback:
-                await progress_callback("shorts:extract_audio", 25, "Áudio extraído com sucesso! Preparando para decodificação.")
+                await progress_callback("shorts:extract_audio", 25, "Áudio preparado com sucesso! Iniciando análise de vídeo...")
+
+            # 2b. Face Tracking for Smart Cropping
+            face_cx_ratio = None
+            if config.get("reframeMode", "smart") == "smart":
+                if progress_callback:
+                    await progress_callback("shorts:init", 27, "Analisando visualmente o vídeo para enquadramento inteligente (Smart Crop)...")
+                
+                def _run_face_tracking():
+                    import cv2
+                    import numpy as np
+                    cap = cv2.VideoCapture(str(video_path))
+                    v_fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
+                    v_width = cap.get(cv2.CAP_PROP_FRAME_WIDTH) or 1.0
+                    v_height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT) or 1.0
+                    
+                    # If already vertical, no horizontal cropping is needed
+                    if v_width / v_height <= 0.6:
+                        cap.release()
+                        return None
+                        
+                    detector = ModelManager.load_face_detector()
+                    sample_interval = int(v_fps) # 1 frame per second
+                    frame_idx = 0
+                    detections = []
+                    
+                    while True:
+                        ret, frame = cap.read()
+                        if not ret:
+                            break
+                        if frame_idx % sample_interval == 0:
+                            h, w = frame.shape[:2]
+                            target_w = 640
+                            target_h = int((h / w) * target_w)
+                            resized = cv2.resize(frame, (target_w, target_h))
+                            
+                            detector.setInputSize((target_w, target_h))
+                            retval, faces = detector.detect(resized)
+                            
+                            if faces is not None:
+                                scale_x = w / target_w
+                                for face in faces:
+                                    fx = face[0] * scale_x
+                                    fw = face[2] * scale_x
+                                    conf = face[14]
+                                    if conf > 0.65:
+                                        detections.append({
+                                            "cx": fx + fw / 2,
+                                            "conf": conf
+                                        })
+                        frame_idx += 1
+                    cap.release()
+                    
+                    if not detections:
+                        return None
+                        
+                    # Cluster face centers
+                    clusters = []
+                    for det in detections:
+                        cx = det["cx"]
+                        matched = False
+                        for cluster in clusters:
+                            if abs(cluster["cx"] - cx) < 0.10 * v_width:
+                                cluster["points"].append(cx)
+                                cluster["cx"] = np.mean(cluster["points"])
+                                matched = True
+                                break
+                        if not matched:
+                            clusters.append({"cx": cx, "points": [cx]})
+                            
+                    if clusters:
+                        clusters.sort(key=lambda c: len(c["points"]), reverse=True)
+                        best = clusters[0]
+                        return float(best["cx"] / v_width)
+                    return None
+
+                try:
+                    face_cx_ratio = await loop.run_in_executor(None, _run_face_tracking)
+                    if face_cx_ratio is not None:
+                        config["face_cx_ratio"] = face_cx_ratio
+                        store.update_job_config(project_id, job_id, config)
+                        logger.info(f"Smart crop determined speaker face_cx_ratio: {face_cx_ratio}")
+                except Exception as face_exc:
+                    logger.error(f"Failed face tracking routine: {face_exc}")
 
             # 3. Transcribe with Faster-Whisper on GPU
             if progress_callback:
@@ -151,6 +268,16 @@ class ShortsPipeline:
 
             transcription = await loop.run_in_executor(None, _run_transcription)
             
+            # Refine transcription timestamps using energy envelope
+            try:
+                from web.services.whisper_svc import refine_transcription_timestamps
+                transcription = await loop.run_in_executor(
+                    None,
+                    lambda: refine_transcription_timestamps(transcription, str(audio_path))
+                )
+            except Exception as e:
+                logger.error(f"Failed to refine pipeline transcription: {e}")
+
             if job_id in self.cancelled_jobs:
                 raise asyncio.CancelledError()
 

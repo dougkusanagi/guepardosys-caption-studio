@@ -200,12 +200,12 @@ def _percentile(sorted_values: list[float], ratio: float) -> float:
     return sorted_values[index]
 
 
-def build_filter_complex(intervals: list[tuple[float, float]]) -> str:
+def build_filter_complex(intervals: list[tuple[float, float]], audio_stream: str = "[0:a]") -> str:
     """Build FFmpeg filter_complex for trim/atrim + concat."""
     parts = []
     for i, (start, end) in enumerate(intervals):
         parts.append(f"[0:v]trim=start={start:.6f}:end={end:.6f},setpts=PTS-STARTPTS[v{i}]")
-        parts.append(f"[0:a]atrim=start={start:.6f}:end={end:.6f},asetpts=PTS-STARTPTS[a{i}]")
+        parts.append(f"{audio_stream}atrim=start={start:.6f}:end={end:.6f},asetpts=PTS-STARTPTS[a{i}]")
 
     concat_inputs = "".join(f"[v{i}][a{i}]" for i in range(len(intervals)))
     parts.append(f"{concat_inputs}concat=n={len(intervals)}:v=1:a=1[outv][outa]")
@@ -218,20 +218,32 @@ def cut_video(
     intervals: list[tuple[float, float]],
     crf: int = 18,
     preset: str = "medium",
+    audio_path: str | Path = None,
 ) -> None:
-    """Cut and concatenate video segments."""
+    """Cut and concatenate video segments, optionally using an external audio source."""
     if not intervals:
         raise FFmpegServiceError("Nenhum intervalo disponível para processar")
 
-    filter_complex = build_filter_complex(intervals)
-    cmd = [
-        "ffmpeg", "-y", "-i", str(input_path),
-        "-filter_complex", filter_complex,
-        "-map", "[outv]", "-map", "[outa]",
-        "-c:v", "libx264", "-preset", preset, "-crf", str(crf),
-        "-c:a", "aac", "-b:a", "192k",
-        str(output_path),
-    ]
+    if audio_path:
+        filter_complex = build_filter_complex(intervals, audio_stream="[1:a]")
+        cmd = [
+            "ffmpeg", "-y", "-i", str(input_path), "-i", str(audio_path),
+            "-filter_complex", filter_complex,
+            "-map", "[outv]", "-map", "[outa]",
+            "-c:v", "libx264", "-preset", preset, "-crf", str(crf),
+            "-c:a", "aac", "-b:a", "192k",
+            str(output_path),
+        ]
+    else:
+        filter_complex = build_filter_complex(intervals, audio_stream="[0:a]")
+        cmd = [
+            "ffmpeg", "-y", "-i", str(input_path),
+            "-filter_complex", filter_complex,
+            "-map", "[outv]", "-map", "[outa]",
+            "-c:v", "libx264", "-preset", preset, "-crf", str(crf),
+            "-c:a", "aac", "-b:a", "192k",
+            str(output_path),
+        ]
     _run(cmd, error_message="Falha ao cortar o vídeo")
 
 
