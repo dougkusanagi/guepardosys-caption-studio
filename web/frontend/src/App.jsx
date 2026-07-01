@@ -19,6 +19,7 @@ import {
   Plus,
   Save,
   Scissors,
+  Settings,
   SkipBack,
   SkipForward,
   Sliders,
@@ -83,6 +84,7 @@ import {
   SheetTitle,
 } from './components/ui/sheet.jsx';
 import { PresetSelector } from './components/preset-selector.jsx';
+import SettingsModal, { DEFAULT_SETTINGS, loadSettings, saveSettingsToDisk } from './components/SettingsModal.jsx';
 import ShortsWizard from './features/shorts/ShortsWizard.jsx';
 import ShortsConfigPanel from './features/shorts/ShortsConfigPanel.jsx';
 import {
@@ -148,6 +150,14 @@ function App() {
     return localStorage.getItem('theme') || 'system';
   });
 
+  const [appSettings, setAppSettings] = useState(() => loadSettings());
+  const [showSettings, setShowSettings] = useState(false);
+
+  function handleSaveSettings(newSettings) {
+    setAppSettings(newSettings);
+    saveSettingsToDisk(newSettings);
+  }
+
   useEffect(() => {
     localStorage.setItem('theme', theme);
     
@@ -159,7 +169,7 @@ function App() {
         isDarkTheme = window.matchMedia('(prefers-color-scheme: dark)').matches;
       }
 
-      if (window.tailwind) {
+      if (window.tailwind && window.tailwind.config && window.tailwind.config.theme && window.tailwind.config.theme.extend) {
         const lightColors = {
           50: '#f8fafc',
           100: '#f1f5f9',
@@ -186,6 +196,7 @@ function App() {
           900: '#f8fafc'
         };
 
+        window.tailwind.config.theme.extend.colors = window.tailwind.config.theme.extend.colors || {};
         window.tailwind.config.theme.extend.colors.surface = isDarkTheme ? darkColors : lightColors;
         window.tailwind.config = { ...window.tailwind.config };
       }
@@ -246,14 +257,34 @@ function App() {
   const [activeTool, setActiveTool] = useState(null); // 'editor' | 'shorts' | null
   const [shortsProgress, setShortsProgress] = useState(null);
   const [autoStartShorts, setAutoStartShorts] = useState(false);
-  const [shortsConfig, setShortsConfig] = useState({
-    clipCount: 3,
-    targetDuration: 30.0,
-    language: 'pt',
-    reframeMode: 'smart',
-    whisperModel: 'small',
-    breathPadding: 0.1
+  const [shortsConfig, setShortsConfig] = useState(() => {
+    const stored = loadSettings();
+    return {
+      clipCount: 3,
+      targetDuration: 30.0,
+      language: stored.defaultLanguage || 'pt',
+      reframeMode: 'smart',
+      whisperModel: stored.defaultWhisperModel || 'small',
+      whisperDevice: stored.whisperDevice || 'auto',
+      breathPadding: 0.1,
+      dynamicClipCount: false,
+      denoise: false,
+      llmUrl: stored.llmUrl || 'http://localhost:1234/v1/chat/completions',
+      llmModel: stored.llmModel || 'google/gemma-4-e2b',
+    };
   });
+
+  // Sync shortsConfig defaults when appSettings change
+  useEffect(() => {
+    setShortsConfig((prev) => ({
+      ...prev,
+      language: appSettings.defaultLanguage || prev.language,
+      whisperModel: appSettings.defaultWhisperModel || prev.whisperModel,
+      whisperDevice: appSettings.whisperDevice || prev.whisperDevice,
+      llmUrl: appSettings.llmUrl || prev.llmUrl,
+      llmModel: appSettings.llmModel || prev.llmModel,
+    }));
+  }, [appSettings.defaultLanguage, appSettings.defaultWhisperModel, appSettings.whisperDevice, appSettings.llmUrl, appSettings.llmModel]);
 
   const playback = usePlaybackController();
   const clientId = useWsClient((data) => {
@@ -890,6 +921,7 @@ function App() {
         onExport={runExport}
         theme={theme}
         setTheme={setTheme}
+        onOpenSettings={() => setShowSettings(true)}
       />
 
       {!editorVisible ? (
@@ -1003,6 +1035,13 @@ function App() {
         onRun={runSilenceRemoval}
       />
 
+      <SettingsModal
+        open={showSettings}
+        onOpenChange={setShowSettings}
+        settings={appSettings}
+        onSave={handleSaveSettings}
+      />
+
       <ProcessingModal open={showProcessingModal} state={processingState} />
 
       <HomeConfirmModal
@@ -1024,7 +1063,7 @@ function App() {
   );
 }
 
-function Header({ editorVisible, originalName, videoInfo, onGoHome, onSave, onOpenProjects, onExport, theme, setTheme }) {
+function Header({ editorVisible, originalName, videoInfo, onGoHome, onSave, onOpenProjects, onExport, theme, setTheme, onOpenSettings }) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
 
@@ -1096,6 +1135,17 @@ function Header({ editorVisible, originalName, videoInfo, onGoHome, onSave, onOp
               Sistema
             </button>
           </div>
+
+          <Button
+            type="button"
+            onClick={onOpenSettings}
+            variant="ghost"
+            size="sm"
+            className="gap-1.5 px-2.5 h-8 text-xs font-medium text-surface-500 hover:text-surface-900"
+            title="Configurações"
+          >
+            <Settings className="w-4 h-4" />
+          </Button>
 
           <div className="relative" ref={dropdownRef}>
             <Button

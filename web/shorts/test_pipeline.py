@@ -18,7 +18,7 @@ async def test_run():
     project_id = "test_project_id"
     job_id = "test_job_id"
     # Let's use one of the smaller files in uploads/
-    filename = "bdeeb0a3-ed1c-49d0-b320-8ad5bd2588b2.mp4"
+    filename = "be4d2d5c-9582-4a3f-abf0-9492176440e5.mp4"
     client_id = "test_client_id"
     
     config = {

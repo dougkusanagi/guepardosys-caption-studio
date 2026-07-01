@@ -49,6 +49,7 @@ class ShortsPipeline:
         """Run the real analysis pipeline using Faster-Whisper, VRAM cleaning, and Gemma/Fallback selection."""
         logger.info(f"Starting real shorts analysis pipeline for project {project_id}, job {job_id}")
         self.active_jobs.add(job_id)
+        loop = asyncio.get_event_loop()
         try:
             # 1. Initialize
             if progress_callback:
@@ -78,8 +79,10 @@ class ShortsPipeline:
 
             # 2. Extract Audio for Whisper (with optional AI Noise Reduction)
             denoise = bool(config.get("denoise", False))
+            whisper_device = config.get("whisperDevice", "auto")
+            llm_url = config.get("llmUrl", "http://localhost:1234/v1/chat/completions")
+            llm_model_name = config.get("llmModel", "google/gemma-4-e2b")
             audio_path = work_dir / "audio_16k.wav"
-            loop = asyncio.get_event_loop()
             
             if denoise:
                 if progress_callback:
@@ -125,15 +128,24 @@ class ShortsPipeline:
             if progress_callback:
                 await progress_callback("shorts:extract_audio", 25, "Áudio preparado com sucesso! Iniciando análise de vídeo...")
 
-            # 2b. Face Tracking for Smart Cropping
+            # 2b. Start parallel analysis tasks: Face Tracking and Faster-Whisper transcription
             face_cx_ratio = None
-            if config.get("reframeMode", "smart") == "smart":
+            transcription = None
+
+            # Concurrently run visual analysis (Face Tracking) and audio analysis (Faster-Whisper)
+            async def run_face_tracking_task():
+                nonlocal face_cx_ratio
+                if config.get("reframeMode", "smart") != "smart":
+                    return
+
                 if progress_callback:
                     await progress_callback("shorts:init", 27, "Analisando visualmente o vídeo para enquadramento inteligente (Smart Crop)...")
-                
+
                 def _run_face_tracking():
                     import cv2
                     import numpy as np
+                    from concurrent.futures import ThreadPoolExecutor
+
                     cap = cv2.VideoCapture(str(video_path))
                     v_fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
                     v_width = cap.get(cv2.CAP_PROP_FRAME_WIDTH) or 1.0
@@ -147,34 +159,44 @@ class ShortsPipeline:
                     detector = ModelManager.load_face_detector()
                     sample_interval = int(v_fps) # 1 frame per second
                     frame_idx = 0
-                    detections = []
+                    frames_to_process = []
                     
                     while True:
                         ret, frame = cap.read()
                         if not ret:
                             break
                         if frame_idx % sample_interval == 0:
-                            h, w = frame.shape[:2]
-                            target_w = 640
-                            target_h = int((h / w) * target_w)
-                            resized = cv2.resize(frame, (target_w, target_h))
-                            
-                            detector.setInputSize((target_w, target_h))
-                            retval, faces = detector.detect(resized)
-                            
-                            if faces is not None:
-                                scale_x = w / target_w
-                                for face in faces:
-                                    fx = face[0] * scale_x
-                                    fw = face[2] * scale_x
-                                    conf = face[14]
-                                    if conf > 0.65:
-                                        detections.append({
-                                            "cx": fx + fw / 2,
-                                            "conf": conf
-                                        })
+                            frames_to_process.append((frame_idx, frame.copy()))
                         frame_idx += 1
                     cap.release()
+                    
+                    detections = []
+                    
+                    # Parallelize face detection across frames using threads
+                    def _detect_face_in_frame(frame_data):
+                        idx, img = frame_data
+                        h, w = img.shape[:2]
+                        target_w = 640
+                        target_h = int((h / w) * target_w)
+                        resized = cv2.resize(img, (target_w, target_h))
+                        
+                        detector_lock = detector
+                        detector_lock.setInputSize((target_w, target_h))
+                        retval, faces = detector_lock.detect(resized)
+                        if faces is not None:
+                            scale_x = w / target_w
+                            for face in faces:
+                                fx = face[0] * scale_x
+                                fw = face[2] * scale_x
+                                conf = face[14]
+                                if conf > 0.65:
+                                    return {"cx": fx + fw / 2, "conf": conf}
+                        return None
+
+                    with ThreadPoolExecutor(max_workers=4) as executor:
+                        results = list(executor.map(_detect_face_in_frame, frames_to_process))
+                    
+                    detections = [r for r in results if r is not None]
                     
                     if not detections:
                         return None
@@ -208,65 +230,69 @@ class ShortsPipeline:
                 except Exception as face_exc:
                     logger.error(f"Failed face tracking routine: {face_exc}")
 
-            # 3. Transcribe with Faster-Whisper on GPU
-            if progress_callback:
-                await progress_callback("shorts:transcribe", 30, f"Carregando modelo Faster-Whisper ({whisper_model_size}) na memória...")
+            async def run_transcription_task():
+                nonlocal transcription
+                if progress_callback:
+                    await progress_callback("shorts:transcribe", 30, f"Carregando modelo Faster-Whisper ({whisper_model_size}) na memória...")
 
-            # Load model via ModelManager (handles CUDA/CPU and float16/int8 logic)
-            model = await loop.run_in_executor(
-                None,
-                lambda: ModelManager.load_whisper(whisper_model_size)
-            )
-            
-            if progress_callback:
-                await progress_callback("shorts:transcribe", 30, "Modelo carregado com sucesso. Iniciando decodificação do áudio...")
-
-            # Transcribe audio file with word-level timestamps
-            logger.info("Starting transcription...")
-            def _run_transcription():
-                segments_gen, info = model.transcribe(
-                    str(audio_path),
-                    language=language,
-                    word_timestamps=True,
-                    beam_size=5
+                # Load model via ModelManager (handles CUDA/CPU and float16/int8 logic)
+                model = await loop.run_in_executor(
+                    None,
+                    lambda: ModelManager.load_whisper(whisper_model_size, whisper_device)
                 )
                 
-                segments = []
-                total_duration = info.duration if info and info.duration else 1.0
-                for idx, seg in enumerate(segments_gen):
-                    if job_id in self.cancelled_jobs:
-                        raise asyncio.CancelledError("Transcrição cancelada pelo usuário.")
-                    words = []
-                    for w in getattr(seg, "words", []) or []:
-                        words.append({
-                            "word": w.word,
-                            "start": round(w.start, 2),
-                            "end": round(w.end, 2),
-                            "probability": getattr(w, "probability", 0.0)
-                        })
-                    
-                    seg_data = {
-                        "id": idx,
-                        "start": round(seg.start, 2),
-                        "end": round(seg.end, 2),
-                        "text": seg.text.strip(),
-                        "words": words
-                    }
-                    segments.append(seg_data)
-                    
-                    # Calculate transcription progress (from 30% to 55%)
-                    pct = int(30 + (seg.end / total_duration) * 25)
-                    pct = min(55, max(30, pct))
-                    
-                    # Yield real-time transcription segment text in log
-                    log_msg = f"[Whisper] {seg.start:.1f}s - {seg.end:.1f}s: \"{seg.text.strip()}\""
-                    asyncio.run_coroutine_threadsafe(
-                        progress_callback("shorts:transcribe", pct, log_msg),
-                        loop
-                    )
-                return {"segments": segments}
+                if progress_callback:
+                    await progress_callback("shorts:transcribe", 30, "Modelo carregado com sucesso. Iniciando decodificação do áudio...")
 
-            transcription = await loop.run_in_executor(None, _run_transcription)
+                # Transcribe audio file with word-level timestamps
+                logger.info("Starting transcription...")
+                def _run_transcription():
+                    segments_gen, info = model.transcribe(
+                        str(audio_path),
+                        language=language,
+                        word_timestamps=True,
+                        beam_size=5
+                    )
+                    
+                    segments = []
+                    total_duration = info.duration if info and info.duration else 1.0
+                    for idx, seg in enumerate(segments_gen):
+                        if job_id in self.cancelled_jobs:
+                            raise asyncio.CancelledError("Transcrição cancelada pelo usuário.")
+                        words = []
+                        for w in getattr(seg, "words", []) or []:
+                            words.append({
+                                "word": w.word,
+                                "start": round(w.start, 2),
+                                "end": round(w.end, 2),
+                                "probability": getattr(w, "probability", 0.0)
+                            })
+                        
+                        seg_data = {
+                            "id": idx,
+                            "start": round(seg.start, 2),
+                            "end": round(seg.end, 2),
+                            "text": seg.text.strip(),
+                            "words": words
+                        }
+                        segments.append(seg_data)
+                        
+                        # Calculate transcription progress (from 30% to 55%)
+                        pct = int(30 + (seg.end / total_duration) * 25)
+                        pct = min(55, max(30, pct))
+                        
+                        # Yield real-time transcription segment text in log
+                        log_msg = f"[Whisper] {seg.start:.1f}s - {seg.end:.1f}s: \"{seg.text.strip()}\""
+                        asyncio.run_coroutine_threadsafe(
+                            progress_callback("shorts:transcribe", pct, log_msg),
+                            loop
+                        )
+                    return {"segments": segments}
+
+                transcription = await loop.run_in_executor(None, _run_transcription)
+
+            # Gather both tasks to run concurrently (Face Tracking & Faster-Whisper transcription)
+            await asyncio.gather(run_face_tracking_task(), run_transcription_task())
             
             # Refine transcription timestamps using energy envelope
             try:
@@ -379,9 +405,8 @@ class ShortsPipeline:
                 "}"
             )
 
-            lm_studio_url = "http://localhost:1234/v1/chat/completions"
             payload = {
-                "model": "google/gemma-4-e2b",
+                "model": llm_model_name,
                 "messages": [
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt}
@@ -394,7 +419,7 @@ class ShortsPipeline:
                 logger.info("Attempting selection using LM Studio (Gemma)...")
                 # Wait up to 60 seconds
                 async with httpx.AsyncClient(timeout=60.0) as client:
-                    response = await client.post(lm_studio_url, json=payload)
+                    response = await client.post(llm_url, json=payload)
                     response.raise_for_status()
                     result_data = response.json()
                     

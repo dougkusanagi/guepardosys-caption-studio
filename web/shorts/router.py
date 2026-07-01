@@ -27,9 +27,12 @@ class ShortsAnalyzeRequest(BaseModel):
     subtitleStyle: dict[str, Any] = Field(default_factory=dict)
     reframeMode: str = "smart"  # smart | blur | center
     whisperModel: str = "small"
+    whisperDevice: str = "auto"  # auto | cpu | cuda
     breathPadding: float = 0.1
     dynamicClipCount: bool = False
     denoise: bool = False
+    llmUrl: str = "http://localhost:1234/v1/chat/completions"
+    llmModel: str = "google/gemma-4-e2b"
 
 
 class GenerateClipsRequest(BaseModel):
@@ -55,9 +58,12 @@ async def analyze_shorts(req: ShortsAnalyzeRequest, background_tasks: Background
         "subtitleStyle": req.subtitleStyle,
         "reframeMode": req.reframeMode,
         "whisperModel": req.whisperModel,
+        "whisperDevice": req.whisperDevice,
         "breathPadding": req.breathPadding,
         "dynamicClipCount": req.dynamicClipCount,
         "denoise": req.denoise,
+        "llmUrl": req.llmUrl,
+        "llmModel": req.llmModel,
     }
 
     # Save initial job state in SQLite

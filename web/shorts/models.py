@@ -101,14 +101,18 @@ class ModelManager:
         return detector
 
     @classmethod
-    def load_whisper(cls, model_size: str) -> Any:
+    def load_whisper(cls, model_size: str, device_preference: str = "auto") -> Any:
         """
         Load Faster-Whisper model into memory (GPU if available, else CPU).
         Ensures any previously loaded models are cleared before loading a new one.
+        
+        Args:
+            model_size: Whisper model size (small, medium, large-v3, etc.)
+            device_preference: "auto" (default), "cpu", or "cuda"
         """
         from faster_whisper import WhisperModel
         
-        model_key = f"whisper_{model_size}"
+        model_key = f"whisper_{model_size}_{device_preference}"
         if model_key in cls._loaded_models:
             logger.info(f"Whisper model '{model_size}' already loaded.")
             return cls._loaded_models[model_key]
@@ -116,7 +120,12 @@ class ModelManager:
         # Clean any other loaded models first
         cls.clean_vram()
         
-        device = "cuda" if torch.cuda.is_available() else "cpu"
+        if device_preference == "cpu":
+            device = "cpu"
+        elif device_preference == "cuda":
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+        else:
+            device = "cuda" if torch.cuda.is_available() else "cpu"
         compute_type = "float16" if device == "cuda" else "int8"
         
         logger.info(f"Loading Faster-Whisper '{model_size}' on {device} (compute={compute_type})...")
